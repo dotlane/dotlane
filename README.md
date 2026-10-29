@@ -20,6 +20,16 @@ dotlane add myapp 5173
 No hosts-file edits, no per-site certificates, no root daemon, and no change to how the dev server
 itself is started. Adding a domain takes about a second.
 
+## Works with any language
+
+Dotlane needs only a name and a port: it forwards `https://<name>.traix` to whatever listens on
+`localhost:<port>`. Python, Node, Go, Ruby, Java, Rust, .NET or a Docker container all work the same
+way, started however you already start them.
+
+The exception is PHP. Most PHP apps are a folder of files rather than a running server, so something
+must run PHP per request. That support (PHP-FPM, per-site PHP versions) is planned for Phase 3 of the
+[roadmap](docs/roadmap.md); until then, use PHP's built-in server or any PHP server on a port.
+
 ## Status
 
 Working prototype on one Mac (macOS 26.6, Apple Silicon), built 2026-10-29 for the MyApp

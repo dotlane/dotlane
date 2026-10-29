@@ -16,6 +16,17 @@ The service is the product; the CLI, `dotlane.toml` and the app are equal client
 why it is not described as "a CLI with an app on top": the app adds no capabilities, and it is the
 first thing to cut if time is short (see [`roadmap.md`](roadmap.md)).
 
+## Works with any language
+
+Port-based by design: a site is a name plus a port, and Dotlane proxies to whatever listens there.
+That makes it independent of the app's language and of how the server is started (terminal, IDE,
+mise task, container). Dotlane's own implementation language is invisible to users too: they
+install one binary, and npm is only a distribution channel.
+
+PHP is the exception: a typical PHP app is a folder, not a server, so Dotlane must run PHP itself
+(PHP-FPM through Caddy's `php_fastcgi`, per-site versions). Planned for Phase 3; until then, PHP works
+through its built-in server or any PHP server on a port.
+
 ## The problem
 
 Local development runs on `localhost:<port>`. That breaks down as soon as a project has several
