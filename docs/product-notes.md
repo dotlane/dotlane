@@ -5,6 +5,17 @@ Inputs for turning the prototype into **Dotlane**. The plan built from them is i
 Name chosen 2026-10-29. At that date `dotlane` was free on npm and Homebrew, and `dotlane.dev` had
 no DNS records (a quick check, not a trademark search).
 
+## Definition
+
+- **One-liner:** Dotlane gives every local project a real HTTPS address, like
+  `https://myapp.traix`, for any language, on macOS, Linux and Windows.
+- **Technical:** a local domain service (DNS, a trusted certificate authority and a reverse proxy
+  in one program), controlled from a CLI, a per-project config file or a menu-bar app.
+
+The service is the product; the CLI, `dotlane.toml` and the app are equal clients of it. That is
+why it is not described as "a CLI with an app on top": the app adds no capabilities, and it is the
+first thing to cut if time is short (see [`roadmap.md`](roadmap.md)).
+
 ## The problem
 
 Local development runs on `localhost:<port>`. That breaks down as soon as a project has several

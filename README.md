@@ -2,6 +2,13 @@
 
 > Your own lane after the dot.
 
+**Dotlane gives every local project a real HTTPS address, like `https://myapp.traix`, for any
+language, on macOS, Linux and Windows.** (macOS today; Linux and Windows are on the
+[roadmap](docs/roadmap.md).)
+
+Technically, it is a local domain service (DNS, a trusted certificate authority and a reverse proxy
+in one program), controlled from a CLI, a per-project config file or a menu-bar app.
+
 Every local dev server gets a real, trusted HTTPS address on a private domain ending of your
 choice — `https://myapp.traix` instead of `http://localhost:5173` — in one command:
 
