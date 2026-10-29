@@ -1,8 +1,8 @@
 # Setup (macOS)
 
 Reproduces the reference install. Steps marked **(password)** need `sudo` or a keychain prompt;
-everything else runs as the user. Replace `traix` with another domain ending if wanted (it must
-not be a public top-level domain — check <https://data.iana.org/TLD/tlds-alpha-by-domain.txt>).
+everything else runs as the user. The steps use the default ending, `traix`; for another one, follow
+them and then [Using another domain ending](#using-another-domain-ending).
 
 ## Prerequisites
 
@@ -73,6 +73,37 @@ dscacheutil -q host -a name anything.traix           # what macOS itself resolve
 scutil --dns | grep -A3 'domain   : traix'           # resolver registered
 curl -s localhost:2019/config/ | head -c 300         # Caddy's live config
 ```
+
+## Using another domain ending
+
+The ending is set in `~/.config/dotlane/config.toml` (see [`cli.md`](cli.md#configuration)). To
+use, for example, `.internal`:
+
+```bash
+mkdir -p ~/.config/dotlane
+printf 'tld = "internal"\n' > ~/.config/dotlane/config.toml
+
+# answer *.internal too (the file can list several endings), then restart dnsmasq
+printf 'address=/internal/127.0.0.1\naddress=/internal/::1\n' >> ~/.config/dnsmasq/traix.conf
+launchctl kickstart -k gui/$(id -u)/dev.traix.dnsmasq
+
+# (password) send *.internal lookups to it
+printf 'nameserver 127.0.0.1\nport 10053\n' | sudo tee /etc/resolver/internal
+
+dotlane doctor          # expect "domain ending .internal" and "all good"
+```
+
+Then re-add existing sites (`dotlane add <name> <port>`) to move them to the new ending, and update
+any app that lists the old origin (see `app-integration.md`). To drop the old ending, remove its
+`address=` lines and `sudo rm /etc/resolver/traix`.
+
+Choosing an ending:
+
+- **Safest:** `test`, `localhost` and `internal` are reserved and will never be public.
+- **Never:** a public ending (`dev`, `app`, `com`, …; list at
+  <https://data.iana.org/TLD/tlds-alpha-by-domain.txt>) — sites would shadow real websites — or
+  `local`, which Bonjour uses.
+- **Branded** (`traix`): works, with the small risk that the ending becomes public one day.
 
 ## Uninstall
 

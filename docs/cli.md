@@ -5,10 +5,10 @@ A Bash script (`files/bin/dotlane`, installed at `~/.local/bin/dotlane`). It man
 
 | Command | Effect |
 | --- | --- |
-| `dotlane add <name> <port>` | Writes `<name>.caddy` (`https://<name>.traix` → `localhost:<port>`), reloads Caddy, waits until the site's certificate is served (typically 0.15–0.5 s, at most ~5 s), prints the URL. Re-running with a new port updates it. |
+| `dotlane add <name> <port>` | Writes `<name>.caddy` (`https://<name>.<tld>` → `localhost:<port>`), reloads Caddy, waits until the site's certificate is served (typically 0.15–0.5 s, at most ~5 s), prints the URL. Re-running with a new port updates it. |
 | `dotlane rm <name>` | Deletes the site file, reloads Caddy. |
-| `dotlane ls` | Lists sites as `https://<name>.traix -> localhost:<port>`. |
-| `dotlane doctor` | Checks the resolver file, dnsmasq's answer, Caddy's admin API, and that the CA is in the System keychain. Exits non-zero on any failure, with the fix for each. |
+| `dotlane ls` | Lists sites as `https://<name>.<tld> -> localhost:<port>`. |
+| `dotlane doctor` | Shows the domain ending in use, then checks the resolver file, dnsmasq's answer, Caddy's admin API, and that the CA is in the System keychain. Exits non-zero on any failure, with the fix for each. |
 
 Names: lowercase letters, digits and dashes, not starting or ending with a dash. Ports: 1–65535.
 
@@ -23,6 +23,24 @@ myapp.traix {
 
 The first line is metadata: `ls` reads it, so hand-edited files keep listing correctly as long
 as it stays.
+
+## Configuration
+
+Optional file `~/.config/dotlane/config.toml` (another path with `DOTLANE_CONFIG=<file>`). Without
+it, the defaults apply:
+
+```toml
+tld = "traix"      # domain ending: sites become https://<name>.<tld>
+dns_port = 10053   # where dnsmasq answers; doctor queries it
+```
+
+The format is the TOML subset of one `key = value` per line (quotes optional, `#` comments), the
+same file the planned Go version reads. It is parsed, never sourced. An ending must be lowercase
+letters, digits and dashes, and cannot be `local` (macOS reserves it for Bonjour).
+
+Changing `tld` only changes what the script writes and checks. The ending also needs its own
+resolver file and DNS rule (see [`setup.md`](setup.md#using-another-domain-ending)), and sites added
+earlier keep their old address until re-added.
 
 ## Using it from a project
 

@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
-# dotlane: local https://<name>.traix sites in front of dev servers, via Caddy.
+# dotlane: local https://<name>.<tld> sites in front of dev servers, via Caddy.
 #
-#   dotlane add <name> <port>   https://<name>.traix -> localhost:<port>
+#   dotlane add <name> <port>   https://<name>.<tld> -> localhost:<port>
 #   dotlane rm <name>           remove it
 #   dotlane ls                  list sites
 #   dotlane doctor              check DNS, Caddy and the certificate authority
 #
 # Each site is one file in ~/.config/caddy/sites/, imported by Caddy's main config
-# (/opt/homebrew/etc/Caddyfile). *.traix resolves to this Mac through dnsmasq
-# (~/.config/dnsmasq/traix.conf) and /etc/resolver/traix, so no per-site DNS is needed.
+# (/opt/homebrew/etc/Caddyfile). *.<tld> resolves to this Mac through dnsmasq
+# (~/.config/dnsmasq/traix.conf, which may list several endings) and /etc/resolver/<tld>, so no
+# per-site DNS is needed.
+#
+# Settings come from ~/.config/dotlane/config.toml (or $DOTLANE_CONFIG), all optional:
+#   tld = "traix"      domain ending (default traix)
+#   dns_port = 10053   port dnsmasq answers on, for doctor (default 10053)
 set -euo pipefail
 
-TLD=traix
+CONFIG=${DOTLANE_CONFIG:-$HOME/.config/dotlane/config.toml}
 SITES="$HOME/.config/caddy/sites"
 CADDYFILE=/opt/homebrew/etc/Caddyfile
 
@@ -21,6 +26,21 @@ reload() {
   caddy reload --config "$CADDYFILE" --adapter caddyfile >/dev/null 2>&1 \
     || die "Caddy did not accept the change (is it running? brew services start caddy)"
 }
+
+# Reads `key = value` from the config file (TOML subset: quotes optional, # comments ignored).
+# The file is parsed, never sourced, so it cannot run code.
+setting() {
+  local value
+  [[ -f "$CONFIG" ]] || { echo "$2"; return; }
+  value=$(sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"?([^\"#[:space:]]*)\"?.*/\1/p" "$CONFIG" | tail -1)
+  echo "${value:-$2}"
+}
+
+TLD=$(setting tld traix)
+DNS_PORT=$(setting dns_port 10053)
+[[ "$TLD" =~ ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ ]] || die "tld in $CONFIG must be lowercase letters, digits and dashes: $TLD"
+[[ "$TLD" != local ]] || die "tld cannot be local: macOS uses .local for Bonjour"
+[[ "$DNS_PORT" =~ ^[0-9]+$ ]] || die "dns_port in $CONFIG is not a port: $DNS_PORT"
 
 valid_name() { [[ "$1" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; }
 
@@ -71,8 +91,9 @@ cmd_ls() {
 
 cmd_doctor() {
   local ok=1
+  echo "ok   domain ending .$TLD ($([[ -f "$CONFIG" ]] && echo "$CONFIG" || echo default))"
   if [[ -f /etc/resolver/$TLD ]]; then echo "ok   /etc/resolver/$TLD"; else echo "FAIL /etc/resolver/$TLD missing"; ok=0; fi
-  if [[ "$(dig +short "doctor.$TLD" @127.0.0.1 -p 10053 2>/dev/null | head -1)" == 127.0.0.1 ]]; then
+  if [[ "$(dig +short "doctor.$TLD" @127.0.0.1 -p "$DNS_PORT" 2>/dev/null | head -1)" == 127.0.0.1 ]]; then
     echo "ok   dnsmasq answers *.$TLD"
   else echo "FAIL dnsmasq not answering (launchctl kickstart -k gui/$(id -u)/dev.traix.dnsmasq)"; ok=0; fi
   if curl -s -o /dev/null localhost:2019/config/; then echo "ok   Caddy running"; else echo "FAIL Caddy not running (brew services start caddy)"; ok=0; fi
@@ -87,5 +108,5 @@ case "${1:-}" in
   rm) shift; cmd_rm "$@" ;;
   ls) cmd_ls ;;
   doctor) cmd_doctor ;;
-  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
