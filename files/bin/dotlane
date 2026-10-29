@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# dotlane: local https://<name>.traix sites in front of dev servers, via Caddy.
+#
+#   dotlane add <name> <port>   https://<name>.traix -> localhost:<port>
+#   dotlane rm <name>           remove it
+#   dotlane ls                  list sites
+#   dotlane doctor              check DNS, Caddy and the certificate authority
+#
+# Each site is one file in ~/.config/caddy/sites/, imported by Caddy's main config
+# (/opt/homebrew/etc/Caddyfile). *.traix resolves to this Mac through dnsmasq
+# (~/.config/dnsmasq/traix.conf) and /etc/resolver/traix, so no per-site DNS is needed.
+set -euo pipefail
+
+TLD=traix
+SITES="$HOME/.config/caddy/sites"
+CADDYFILE=/opt/homebrew/etc/Caddyfile
+
+die() { echo "dotlane: $*" >&2; exit 1; }
+
+reload() {
+  caddy reload --config "$CADDYFILE" --adapter caddyfile >/dev/null 2>&1 \
+    || die "Caddy did not accept the change (is it running? brew services start caddy)"
+}
+
+valid_name() { [[ "$1" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; }
+
+cmd_add() {
+  [[ $# -eq 2 ]] || die "usage: dotlane add <name> <port>"
+  local name=$1 port=$2
+  valid_name "$name" || die "name must be lowercase letters, digits and dashes: $name"
+  [[ "$port" =~ ^[0-9]+$ ]] && (( port > 0 && port < 65536 )) || die "not a port: $port"
+  mkdir -p "$SITES"
+  cat > "$SITES/$name.caddy" <<EOF
+# Managed by dotlane: https://$name.$TLD -> localhost:$port
+$name.$TLD {
+	reverse_proxy localhost:$port
+}
+EOF
+  reload
+  wait_for_tls "$name.$TLD"
+  echo "https://$name.$TLD -> localhost:$port"
+}
+
+# Caddy issues a new site's certificate in the background after a reload; a request in that
+# window fails the TLS handshake. Wait (up to ~5 s) until the site completes one, so the printed
+# URL works on the first click. Any HTTP status counts: a 502 just means the app is not up yet.
+wait_for_tls() {
+  local i
+  for _ in $(seq 1 25); do
+    [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 "https://$1/" 2>/dev/null)" != 000 ]] && return 0
+    sleep 0.2
+  done
+  echo "dotlane: warning: https://$1 is not answering yet; give it a few seconds" >&2
+}
+
+cmd_rm() {
+  [[ $# -eq 1 ]] || die "usage: dotlane rm <name>"
+  [[ -f "$SITES/$1.caddy" ]] || die "no site named $1"
+  rm "$SITES/$1.caddy"
+  reload
+  echo "removed https://$1.$TLD"
+}
+
+cmd_ls() {
+  shopt -s nullglob
+  local f
+  for f in "$SITES"/*.caddy; do
+    sed -n 's/^# Managed by dotlane: //p' "$f"
+  done
+}
+
+cmd_doctor() {
+  local ok=1
+  if [[ -f /etc/resolver/$TLD ]]; then echo "ok   /etc/resolver/$TLD"; else echo "FAIL /etc/resolver/$TLD missing"; ok=0; fi
+  if [[ "$(dig +short "doctor.$TLD" @127.0.0.1 -p 10053 2>/dev/null | head -1)" == 127.0.0.1 ]]; then
+    echo "ok   dnsmasq answers *.$TLD"
+  else echo "FAIL dnsmasq not answering (launchctl kickstart -k gui/$(id -u)/dev.traix.dnsmasq)"; ok=0; fi
+  if curl -s -o /dev/null localhost:2019/config/; then echo "ok   Caddy running"; else echo "FAIL Caddy not running (brew services start caddy)"; ok=0; fi
+  if security find-certificate -c "Caddy Local Authority" /Library/Keychains/System.keychain >/dev/null 2>&1; then
+    echo "ok   Caddy's certificate authority is trusted"
+  else echo "FAIL certificates not trusted yet (caddy trust)"; ok=0; fi
+  (( ok )) && echo "all good" || return 1
+}
+
+case "${1:-}" in
+  add) shift; cmd_add "$@" ;;
+  rm) shift; cmd_rm "$@" ;;
+  ls) cmd_ls ;;
+  doctor) cmd_doctor ;;
+  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 800" width="1120" height="800" role="img" aria-labelledby="t d">
+  <title id="t">Dotlane: tools, libraries and request flow</title>
+  <desc id="d">A client looks up myapp.traix; the macOS resolver sends only .traix lookups to dnsmasq, which answers 127.0.0.1. The client then connects over HTTPS to Caddy on port 443, which presents a certificate from its local CA (trusted in the System Keychain) and reverse-proxies to the dev server on localhost. The dotlane CLI, called by a project's mise task, writes one site file per domain that Caddy imports and reloads. Homebrew installs Caddy and dnsmasq; launchd keeps them running.</desc>
+  <style>
+    :root {
+      --bg: #ffffff; --ink: #0f172a; --muted: #475569; --line: #334155; --frame: #cbd5e1;
+      --own-fill: #ccfbf1; --own-stroke: #0d9488;
+      --oss-fill: #ede9fe; --oss-stroke: #7c3aed;
+      --os-fill: #e0f2fe; --os-stroke: #0284c7;
+      --app-fill: #f1f5f9; --app-stroke: #64748b;
+      --req: #0d9488;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1120; --ink: #e2e8f0; --muted: #94a3b8; --line: #94a3b8; --frame: #334155;
+        --own-fill: #0f3d3a; --own-stroke: #2dd4bf;
+        --oss-fill: #2e1f5e; --oss-stroke: #a78bfa;
+        --os-fill: #0c3350; --os-stroke: #38bdf8;
+        --app-fill: #1e293b; --app-stroke: #94a3b8;
+        --req: #2dd4bf;
+      }
+    }
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--ink); }
+    .h { font-size: 15px; font-weight: 700; }
+    .s { font-size: 12.5px; fill: var(--muted); }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; fill: var(--muted); }
+    .lbl { font-size: 12px; font-weight: 600; fill: var(--req); }
+    .lbl2 { font-size: 12px; fill: var(--muted); }
+    .title { font-size: 20px; font-weight: 700; }
+    .sub { font-size: 13px; fill: var(--muted); }
+    .own { fill: var(--own-fill); stroke: var(--own-stroke); stroke-width: 1.6; }
+    .oss { fill: var(--oss-fill); stroke: var(--oss-stroke); stroke-width: 1.6; }
+    .os  { fill: var(--os-fill);  stroke: var(--os-stroke);  stroke-width: 1.6; }
+    .app { fill: var(--app-fill); stroke: var(--app-stroke); stroke-width: 1.6; }
+    .req { stroke: var(--req); stroke-width: 2.2; fill: none; marker-end: url(#a-req); }
+    .mgmt { stroke: var(--line); stroke-width: 1.5; fill: none; stroke-dasharray: 6 5; marker-end: url(#a-mgmt); }
+    .frame { fill: none; stroke: var(--frame); stroke-width: 1; }
+  </style>
+  <defs>
+    <marker id="a-req" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--req)"/>
+    </marker>
+    <marker id="a-mgmt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1120" height="800" fill="var(--bg)"/>
+
+  <text class="title" x="40" y="44">Dotlane — tools, libraries and request flow</text>
+  <text class="sub" x="40" y="66">https://myapp.traix → localhost:5173, on one Mac. Solid numbered arrows: a request. Dashed: setup and management.</text>
+
+  <!-- Row 1: clients → Caddy → dev servers -->
+  <rect class="app" x="40" y="100" width="280" height="130" rx="12"/>
+  <text class="h" x="60" y="130">Clients</text>
+  <text class="s" x="60" y="156">Chrome · Safari · Firefox</text>
+  <text class="s" x="60" y="178">curl · Node · Python</text>
+  <text class="m" x="60" y="204">https://myapp.traix</text>
+
+  <rect class="oss" x="420" y="100" width="280" height="130" rx="12"/>
+  <text class="h" x="440" y="130">Caddy 2.11.7</text>
+  <text class="s" x="440" y="156">TLS on :443 · local CA (local_certs)</text>
+  <text class="s" x="440" y="178">reverse proxy, one site per domain</text>
+  <text class="m" x="440" y="204">admin API localhost:2019</text>
+
+  <rect class="app" x="800" y="100" width="280" height="130" rx="12"/>
+  <text class="h" x="820" y="130">Your dev servers</text>
+  <text class="m" x="820" y="156">Vite      localhost:5173</text>
+  <text class="m" x="820" y="178">FastAPI   localhost:8000</text>
+  <text class="m" x="820" y="200">any       localhost:&lt;port&gt;</text>
+
+  <!-- Row 2: resolver · site files · keychain -->
+  <rect class="os" x="40" y="320" width="280" height="100" rx="12"/>
+  <text class="h" x="60" y="350">macOS resolver</text>
+  <text class="m" x="60" y="374">/etc/resolver/traix</text>
+  <text class="s" x="60" y="398">routes only *.traix lookups to dnsmasq</text>
+
+  <rect class="own" x="420" y="320" width="280" height="100" rx="12"/>
+  <text class="h" x="440" y="350">Site files</text>
+  <text class="m" x="440" y="374">~/.config/caddy/sites/*.caddy</text>
+  <text class="s" x="440" y="398">one file per domain, imported by glob</text>
+
+  <rect class="os" x="800" y="320" width="280" height="100" rx="12"/>
+  <text class="h" x="820" y="350">System Keychain</text>
+  <text class="s" x="820" y="374">trusts Caddy's root CA</text>
+  <text class="s" x="820" y="398">so browsers and curl accept its certs</text>
+
+  <!-- Row 3: dnsmasq · dotlane · project hook -->
+  <rect class="oss" x="40" y="500" width="280" height="100" rx="12"/>
+  <text class="h" x="60" y="530">dnsmasq 2.93</text>
+  <text class="m" x="60" y="554">*.traix → 127.0.0.1, ::1</text>
+  <text class="s" x="60" y="578">127.0.0.1:10053 · runs as the user</text>
+
+  <rect class="own" x="420" y="500" width="280" height="100" rx="12"/>
+  <text class="h" x="440" y="530">dotlane CLI (Bash)</text>
+  <text class="m" x="440" y="554">add · rm · ls · doctor</text>
+  <text class="s" x="440" y="578">writes site files, reloads Caddy</text>
+
+  <rect class="app" x="800" y="500" width="280" height="100" rx="12"/>
+  <text class="h" x="820" y="530">Project hook (mise)</text>
+  <text class="m" x="820" y="554">mise run domain</text>
+  <text class="m" x="820" y="578">→ dotlane add myapp 5173</text>
+
+  <!-- Request path -->
+  <path class="req" d="M180,230 L180,316"/>
+  <text class="lbl" x="192" y="268">① look up</text>
+  <text class="lbl" x="192" y="284">myapp.traix</text>
+
+  <path class="req" d="M180,420 L180,496"/>
+  <text class="lbl" x="192" y="452">② only .traix,</text>
+  <text class="lbl" x="192" y="468">port 10053</text>
+
+  <path class="req" d="M320,165 L416,165"/>
+  <text class="lbl" x="330" y="155">③ HTTPS</text>
+  <text class="lbl" x="330" y="187">127.0.0.1</text>
+
+  <path class="req" d="M700,165 L796,165"/>
+  <text class="lbl" x="710" y="155">④ proxy to</text>
+  <text class="lbl" x="710" y="187">localhost</text>
+
+  <!-- Management path -->
+  <path class="mgmt" d="M560,500 L560,424"/>
+  <text class="lbl2" x="572" y="466">writes</text>
+
+  <path class="mgmt" d="M560,320 L560,234"/>
+  <text class="lbl2" x="572" y="272">import + caddy reload</text>
+
+  <path class="mgmt" d="M700,222 L864,318"/>
+  <text class="lbl2" x="784" y="254">caddy trust (once)</text>
+
+  <path class="mgmt" d="M800,550 L704,550"/>
+  <text class="lbl2" x="732" y="540">calls</text>
+
+  <!-- Foundation band -->
+  <rect class="frame" x="40" y="636" width="1040" height="64" rx="12"/>
+  <text class="h" x="60" y="662">Foundation</text>
+  <rect class="oss" x="150" y="648" width="290" height="40" rx="8"/>
+  <text class="s" x="164" y="673">Homebrew · installs caddy, dnsmasq</text>
+  <rect class="os" x="456" y="648" width="300" height="40" rx="8"/>
+  <text class="s" x="470" y="673">launchd · keeps dnsmasq and Caddy up</text>
+  <rect class="os" x="772" y="648" width="292" height="40" rx="8"/>
+  <text class="s" x="786" y="673">macOS lets users bind ports 80/443</text>
+
+  <!-- Legend -->
+  <rect class="own" x="40" y="728" width="18" height="18" rx="4"/>
+  <text class="s" x="66" y="742">Dotlane's own</text>
+  <rect class="oss" x="190" y="728" width="18" height="18" rx="4"/>
+  <text class="s" x="216" y="742">Open-source dependency</text>
+  <rect class="os" x="392" y="728" width="18" height="18" rx="4"/>
+  <text class="s" x="418" y="742">macOS built-in</text>
+  <rect class="app" x="538" y="728" width="18" height="18" rx="4"/>
+  <text class="s" x="564" y="742">Your apps and tools</text>
+  <path class="req" d="M720,737 L768,737"/>
+  <text class="s" x="776" y="742">request</text>
+  <path class="mgmt" d="M850,737 L898,737"/>
+  <text class="s" x="906" y="742">setup / management</text>
+</svg>
