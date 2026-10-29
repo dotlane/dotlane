@@ -121,6 +121,7 @@ Recommendation: Wails, to stay in one language, unless the team is stronger in R
 ### Phase 1 — Go core on macOS (≈ 4–6 weeks)
 
 Goal: replace the prototype with the single binary, same behaviour, better reliability.
+Broken into milestones in [`phase-1.md`](phase-1.md).
 
 - Daemon embedding Caddy + DNS responder; CLI over a Unix socket (`add`, `rm`, `ls --json`, `doctor`).
 - `dotlane install` / `uninstall`: resolver file, CA trust, launchd agent — each admin prompt

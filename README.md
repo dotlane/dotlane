@@ -70,6 +70,7 @@ The same flow as text:
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Failure modes found while building it, and their fixes |
 | [`docs/product-notes.md`](docs/product-notes.md) | Landscape, differentiators, gaps between this prototype and a product |
 | [`docs/roadmap.md`](docs/roadmap.md) | Phases from prototype to product: Go core, Homebrew/npm, PHP, Linux/Windows, desktop app |
+| [`docs/phase-1.md`](docs/phase-1.md) | Phase 1 in milestones: the Go daemon, install, `doctor`, `dotlane.toml`, migration |
 
 ## Files
 
