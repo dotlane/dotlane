@@ -36,14 +36,23 @@ internal/platform/      OS specifics behind one interface:
 
 ## Milestones
 
-### M1 — The daemon serves sites (≈ 1 week)
+### M1 — The daemon serves sites (≈ 1 week) — done 2026-10-29
+
+Shipped as planned, plus: `tlds` (several endings) already honoured by the DNS responder and the
+proxy, failed reloads roll the registry back, and a 2-second shutdown grace period so open
+websockets (Vite's live reload) cannot hold a stop or restart. Verified with MyApp's running
+Vite and FastAPI behind `https://myapp.traix:9443` and `https://api.traix:9443`, and by an
+end-to-end test (`internal/daemon`). Known, by design: with a non-443 `https_port`, Caddy's HTTP
+redirect omits the port; an unknown name gets a TLS alert rather than a page (friendlier answer in
+M3).
+
 
 - `dotlane serve`: starts the DNS responder and embedded Caddy, reads the site registry.
 - Caddy config generated from the registry: `local_certs`, one route per site, `reverse_proxy`, CA
   storage in the state directory.
 - `add`, `rm`, `ls` (also `--json`) through the socket; changes apply without a restart.
-- **Done when** the daemon, run by hand on spare ports (DNS 10054, HTTPS 8443), serves
-  `https://myapp.traix:8443` next to the prototype, in tests and with `curl`.
+- **Done when** the daemon, run by hand on spare ports (DNS 10054, HTTPS 9443), serves
+  `https://myapp.traix:9443` next to the prototype, in tests and with `curl`.
 
 ### M2 — Install and uninstall (≈ 1 week)
 

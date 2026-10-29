@@ -1,0 +1,158 @@
+package daemon
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/pedrodee/dotlane/internal/api"
+	"github.com/pedrodee/dotlane/internal/config"
+	"github.com/pedrodee/dotlane/internal/proxy"
+)
+
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
+// End to end, in one process: start the daemon on spare ports, add a site in front of a test
+// server, fetch it over verified HTTPS, remove it, stop. Caddy is a process-wide singleton, so
+// this is the package's only daemon test.
+func TestDaemon(t *testing.T) {
+	// Short state path: macOS caps Unix socket paths at 104 bytes, and t.TempDir() can exceed it.
+	state, err := os.MkdirTemp("", "dl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(state) })
+
+	cfg := &config.Config{
+		TLDs:      []string{"traix"},
+		DNSPort:   freePort(t),
+		HTTPPort:  freePort(t),
+		HTTPSPort: freePort(t),
+		StateDir:  state,
+	}
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "hello from "+r.Host)
+	}))
+	defer upstream.Close()
+	upstreamPort, _ := strconv.Atoi(strings.TrimPrefix(upstream.URL, "http://127.0.0.1:"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, cfg, "test") }()
+	defer func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("Run: %v", err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Error("daemon did not stop")
+		}
+		if _, err := os.Stat(cfg.SocketPath()); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("socket left behind: %v", err)
+		}
+	}()
+
+	client := api.NewClient(cfg.SocketPath())
+	var status api.Status
+	for i := 0; ; i++ {
+		if status, err = client.Status(ctx); err == nil {
+			break
+		}
+		if i == 50 {
+			t.Fatalf("daemon not answering: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if status.Version != "test" || status.HTTPSPort != cfg.HTTPSPort {
+		t.Errorf("status = %+v", status)
+	}
+
+	if info, err := os.Stat(cfg.SocketPath()); err != nil || info.Mode().Perm() != 0o600 {
+		t.Errorf("socket mode: %v %v", info.Mode(), err)
+	}
+	if err := Run(ctx, cfg, "test"); err == nil || !strings.Contains(err.Error(), "already running") {
+		t.Errorf("second daemon: %v, want 'already running'", err)
+	}
+
+	site, err := client.AddSite(ctx, "demo", upstreamPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantURL := "https://demo.traix:" + strconv.Itoa(cfg.HTTPSPort)
+	if !site.Ready || len(site.URLs) != 1 || site.URLs[0] != wantURL {
+		t.Errorf("added = %+v, want ready at %s", site, wantURL)
+	}
+	if _, err := client.AddSite(ctx, "Bad", 1); err == nil || !strings.Contains(err.Error(), "lowercase") {
+		t.Errorf("invalid name: %v", err)
+	}
+
+	// The certificate must chain to the daemon's own root CA, for the right name.
+	rootPEM, err := os.ReadFile(filepath.Join(proxy.CADir(cfg), "root.crt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots := x509.NewCertPool()
+	roots.AppendCertsFromPEM(rootPEM)
+	httpsAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.HTTPSPort))
+	browser := &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: roots},
+		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, httpsAddr) // what DNS would do
+		},
+	}}
+	resp, err := browser.Get(wantURL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || string(body) != "hello from demo.traix:"+strconv.Itoa(cfg.HTTPSPort) {
+		t.Errorf("GET = %d %q (the Host header must pass through)", resp.StatusCode, body)
+	}
+
+	list, err := client.Sites(ctx)
+	if err != nil || len(list) != 1 || list[0].Name != "demo" {
+		t.Errorf("Sites = %+v, %v", list, err)
+	}
+
+	if err := client.RemoveSite(ctx, "demo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.RemoveSite(ctx, "demo"); err == nil || !strings.Contains(err.Error(), "no such site") {
+		t.Errorf("second remove: %v", err)
+	}
+	browser.CloseIdleConnections()
+	if resp, err := browser.Get(wantURL + "/"); err == nil {
+		resp.Body.Close()
+		t.Error("removed site still served")
+	}
+}
+
+func TestClientWhenNotRunning(t *testing.T) {
+	c := api.NewClient(filepath.Join(t.TempDir(), "none.sock"))
+	if _, err := c.Sites(context.Background()); !errors.Is(err, api.ErrNotRunning) {
+		t.Errorf("err = %v, want ErrNotRunning", err)
+	}
+}

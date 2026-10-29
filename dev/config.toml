@@ -1,0 +1,7 @@
+# Development instance: runs next to an installed Dotlane (or the Bash prototype) without
+# touching it. Use with: go run ./cmd/dotlane --config dev/config.toml serve
+tld = "traix"
+dns_port = 10054
+http_port = 9480    # its redirects point at 443: Caddy treats a non-standard https_port as internal
+https_port = 9443
+state_dir = "state"   # dev/state, ignored by git

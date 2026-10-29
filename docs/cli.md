@@ -34,8 +34,9 @@ tld = "traix"      # domain ending: sites become https://<name>.<tld>
 dns_port = 10053   # where dnsmasq answers; doctor queries it
 ```
 
-The format is the TOML subset of one `key = value` per line (quotes optional, `#` comments), the
-same file the planned Go version reads. It is parsed, never sourced. An ending must be lowercase
+The format is TOML: one `key = value` per line, `#` comments. The Go version reads the same file
+and needs quotes around text values (`tld = "test"`); the script tolerates them missing. It is
+parsed, never sourced. An ending must be lowercase
 letters, digits and dashes, and cannot be `local` (macOS reserves it for Bonjour).
 
 Changing `tld` only changes what the script writes and checks. The ending also needs its own

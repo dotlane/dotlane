@@ -36,7 +36,41 @@ Working prototype on one Mac (macOS 26.6, Apple Silicon), built 2026-10-29 for t
 project and verified end to end: DNS, trusted TLS in `curl` and Chrome, Caddy → Vite → FastAPI,
 and Vite's live-reload websocket through the proxy.
 
-It is a set of configuration files plus a ~80-line Bash helper, not yet a packaged product.
+It is a set of configuration files plus a ~100-line Bash helper, not yet a packaged product.
+
+The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1.md)): milestone
+M1, a daemon with DNS, embedded Caddy and a control socket, works; installing it as a service
+comes next (M2).
+
+## Development (Go version)
+
+Go 1.27. The dev instance uses spare ports and `dev/state/`, so it runs next to the prototype
+without touching it:
+
+```bash
+go test -race ./...
+go build -o bin/dotlane ./cmd/dotlane
+
+./bin/dotlane --config dev/config.toml serve             # terminal 1: DNS :10054, HTTPS :9443
+./bin/dotlane --config dev/config.toml add myapp 5173 # terminal 2
+./bin/dotlane --config dev/config.toml ls --json
+
+curl --cacert dev/state/caddy/pki/authorities/local/root.crt \
+  --resolve myapp.traix:9443:127.0.0.1 https://myapp.traix:9443/
+dig +short anything.traix @127.0.0.1 -p 10054             # 127.0.0.1
+```
+
+The dev CA is not trusted by the system (that is `dotlane install`, M2), hence `--cacert`.
+
+| Package | Role |
+| --- | --- |
+| `cmd/dotlane` | CLI (`add`, `rm`, `ls`, `serve`, `version`) |
+| `internal/daemon` | Runs DNS, Caddy and the control socket around the site registry |
+| `internal/dns` | Answers `*.<tld>` with 127.0.0.1 / ::1, refuses everything else |
+| `internal/proxy` | Builds Caddy's JSON config; Caddy runs in-process, admin endpoint off |
+| `internal/api` | JSON over a Unix socket (mode 0600): handler and client |
+| `internal/sites` | Site registry, saved atomically to `sites.json` |
+| `internal/config` | `config.toml`: endings, ports, state directory |
 
 ## How it works, in one picture
 
