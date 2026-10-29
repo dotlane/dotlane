@@ -1,6 +1,6 @@
 # Product notes
 
-Inputs for turning the prototype into **Dotlane**. The roadmap is deliberately not here yet.
+Inputs for turning the prototype into **Dotlane**. The plan built from them is in [`roadmap.md`](roadmap.md).
 
 Name chosen 2026-10-29. At that date `dotlane` was free on npm and Homebrew, and `dotlane.dev` had
 no DNS records (a quick check, not a trademark search).

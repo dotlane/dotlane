@@ -52,6 +52,7 @@ The same flow as text:
 | [`docs/security.md`](docs/security.md) | Trust model of the local certificate authority, what runs with which privileges |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Failure modes found while building it, and their fixes |
 | [`docs/product-notes.md`](docs/product-notes.md) | Landscape, differentiators, gaps between this prototype and a product |
+| [`docs/roadmap.md`](docs/roadmap.md) | Phases from prototype to product: Go core, Homebrew/npm, PHP, Linux/Windows, desktop app |
 
 ## Files
 
