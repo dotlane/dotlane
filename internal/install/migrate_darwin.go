@@ -17,8 +17,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/pedrodee/dotlane/internal/proxy"
-	"github.com/pedrodee/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/proxy"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 // The Bash prototype (files/bin/dotlane): Homebrew's Caddy service with one file per site, and a

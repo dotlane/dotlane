@@ -169,7 +169,7 @@ Planned:
 
 ### M6 — Hardening and release candidate (≈ 1 week) — done 2026-10-30
 
-**Integration run** ([CI run 41077301051](https://github.com/pedrodee/dotlane/actions/runs/41077301051),
+**Integration run** ([CI run 41077301051](https://github.com/dotlane/dotlane/actions/runs/41077301051),
 `da0e033`, a GitHub-hosted macOS runner, real login service, System keychain, `/etc/resolver` and
 ports 80/443):
 
@@ -265,6 +265,7 @@ PHP, static sites and managed processes (Phase 3); packages and signing (Phase 2
 
 ## Before starting
 
-- Repository home and Go module path (for example `github.com/traix/dotlane`). The roadmap's
-  Homebrew tap and npm scope follow from it.
-- Licence: Apache-2.0 or MIT. Needed before the code is public, not before it is written.
+- Repository home and Go module path: decided 2026-10-30, the `dotlane` organization,
+  `github.com/dotlane/dotlane` (`traix` was taken by an unrelated account). The Homebrew tap and npm
+  scope follow from it ([`phase-2.md`](phase-2.md)).
+- Licence: decided 2026-10-30, Apache-2.0 (M6).

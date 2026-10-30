@@ -13,7 +13,7 @@ How to install Dotlane, check it, upgrade it and remove it. What each step does 
 ## 1. Build and put it on your PATH
 
 ```bash
-git clone https://github.com/pedrodee/dotlane && cd dotlane
+git clone https://github.com/dotlane/dotlane && cd dotlane
 go build -o bin/dotlane ./cmd/dotlane
 mkdir -p ~/.local/bin && ln -sf "$PWD/bin/dotlane" ~/.local/bin/dotlane
 ```

@@ -14,7 +14,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/pedrodee/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 // Site is a site as the daemon reports it.

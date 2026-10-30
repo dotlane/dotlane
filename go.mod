@@ -1,4 +1,4 @@
-module github.com/pedrodee/dotlane
+module github.com/dotlane/dotlane
 
 go 1.27.3
 

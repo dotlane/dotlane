@@ -23,8 +23,8 @@ import (
 	_ "github.com/caddyserver/caddy/v2/modules/caddytls/standardstek"
 	_ "github.com/caddyserver/caddy/v2/modules/filestorage"
 
-	"github.com/pedrodee/dotlane/internal/config"
-	"github.com/pedrodee/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 func init() { caddy.RegisterModule(Permission{}) }

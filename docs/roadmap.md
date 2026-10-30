@@ -36,7 +36,7 @@ run as a separate process. Go keeps Caddy in-process.
 
 ### 1. Homebrew and npm packages — yes
 
-- **Homebrew tap, from day one.** `brew install traix/tap/dotlane` from a `homebrew-tap` repo, with
+- **Homebrew tap, from day one.** `brew install dotlane/tap/dotlane` from a `homebrew-tap` repo, with
   the formula pointing at release binaries. GoReleaser generates the formula on each release.
 - **homebrew-core later** (`brew install dotlane`). Homebrew's acceptance policy requires notability:
   at least 30 forks, 30 watchers or 75 stars — and **90 / 90 / 225 when the repository owner
@@ -140,7 +140,7 @@ Broken into milestones in [`phase-1.md`](phase-1.md).
 - Homebrew tap; npm packages (main + platform packages); reserve the names now.
 - macOS signing and notarization.
 - Public repository, README with a 30-second demo, docs site.
-- **Exit:** `brew install traix/tap/dotlane` and `npx dotlane` both work on a clean machine.
+- **Exit:** `brew install dotlane/tap/dotlane` and `npx dotlane` both work on a clean machine.
 
 ### Phase 3 — Runtimes: PHP and managed processes (≈ 3–5 weeks)
 

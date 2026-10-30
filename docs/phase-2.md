@@ -28,7 +28,7 @@ of the [roadmap](roadmap.md) (≈ 1–2 weeks) and builds on Phase 1 ([`phase-1.
 
 | Decision | Options | Recommendation |
 | --- | --- | --- |
-| Tap and npm owner | the personal account (`pedrodee/homebrew-tap`, `brew install pedrodee/tap/dotlane`), or an org (`traix` or `dotlane`) | An org named `dotlane`: the commands then say the product's name, and ownership can be shared later. Create it before the first release, since moving a tap breaks every install command. |
+| Tap and npm owner | **Decided 2026-10-30: the `dotlane` organization.** The repository is `github.com/dotlane/dotlane` (Go module path too), the tap `dotlane/homebrew-tap` (`brew install dotlane/tap/dotlane`), the npm scope `@dotlane`. `traix` was not available (an unrelated personal account). | Done before any release, since moving a tap or module path later breaks every install command. |
 | Platforms shipped | macOS only, or all six now | macOS (arm64 and amd64) only. Linux and Windows builds stay in CI so they keep compiling, but are not published until Phase 4 makes `install` work there. |
 | Apple Developer Program | join now ($99/year), or ship unsigned first | Join now: enrolment can take days, and signing is what keeps background-item approvals stable across updates (below). |
 | Repository visibility | public at the first release, or after | Public at `v0.1.0`; release candidates can come from the private repo. |
@@ -71,7 +71,7 @@ of the [roadmap](roadmap.md) (≈ 1–2 weeks) and builds on Phase 1 ([`phase-1.
 
 ### P2-M3: Homebrew tap (≈ 2 days)
 
-- A `homebrew-tap` repository under the chosen owner. GoReleaser updates it on each release
+- The `dotlane/homebrew-tap` repository. GoReleaser updates it on each release
   (`homebrew_casks`, which recent GoReleaser versions generate in place of formulas; the cask
   installs the binary onto the PATH).
 - **Upgrades.** `brew upgrade` replaces the binary on the PATH, not the copy the service runs.
@@ -84,7 +84,7 @@ of the [roadmap](roadmap.md) (≈ 1–2 weeks) and builds on Phase 1 ([`phase-1.
   running from its copy. Caveats tell users to run `dotlane uninstall` first; the cask's `zap`
   removes the state directory and log for `brew uninstall --zap`.
 - Caveats on first install: run `dotlane install`, which explains each of its two password steps.
-- **Done when** on a Mac without Dotlane, `brew install <owner>/tap/dotlane && dotlane install &&
+- **Done when** on a Mac without Dotlane, `brew install dotlane/tap/dotlane && dotlane install &&
   dotlane add …` serves a site; `brew upgrade` to a newer release restarts the daemon into it
   (checked the way the integration test checks a reinstall); `dotlane uninstall && brew uninstall
   --zap` leaves nothing behind.
@@ -118,13 +118,13 @@ The esbuild/Biome pattern, with no install scripts:
   `CONTRIBUTING.md`, plus issue templates that ask for `dotlane doctor --json`.
 - Install instructions in `setup.md`, the README and the site switch from "build from source" to
   Homebrew and npm, keeping the source build as a third option.
-- Reserve the names before announcing: npm `dotlane` and the `@dotlane` scope, the tap repository,
-  and the GitHub org.
+- Reserve the names before announcing: npm `dotlane` and the `@dotlane` scope (an npm organization
+  named `dotlane`) and the tap repository. The GitHub org exists (2026-10-30).
 - **Done when** `v0.1.0` is public on GitHub Releases, the tap and npm, and the site is live.
 
 ## Exit criteria (from the roadmap)
 
-`brew install <owner>/tap/dotlane` and `npx dotlane` both work on a clean machine. Checked on a
+`brew install dotlane/tap/dotlane` and `npx dotlane` both work on a clean machine. Checked on a
 fresh macOS runner, and on a new user account on a real Mac (which also exercises Gatekeeper and
 Login Items): each channel goes from nothing to `https://<name>.traix` serving a dev server, then
 upgrades and uninstalls cleanly.

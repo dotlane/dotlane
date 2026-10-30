@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedrodee/dotlane/internal/api"
-	"github.com/pedrodee/dotlane/internal/config"
-	"github.com/pedrodee/dotlane/internal/proxy"
-	"github.com/pedrodee/dotlane/internal/ui"
+	"github.com/dotlane/dotlane/internal/api"
+	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/proxy"
+	"github.com/dotlane/dotlane/internal/ui"
 )
 
 const systemKeychain = "/Library/Keychains/System.keychain"

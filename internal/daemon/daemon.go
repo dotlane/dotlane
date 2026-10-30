@@ -16,11 +16,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pedrodee/dotlane/internal/api"
-	"github.com/pedrodee/dotlane/internal/config"
-	"github.com/pedrodee/dotlane/internal/dns"
-	"github.com/pedrodee/dotlane/internal/proxy"
-	"github.com/pedrodee/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/api"
+	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/dns"
+	"github.com/dotlane/dotlane/internal/proxy"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 // macOS limits Unix socket paths to 104 bytes, including the terminating NUL.

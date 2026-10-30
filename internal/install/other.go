@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/pedrodee/dotlane/internal/api"
-	"github.com/pedrodee/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/api"
+	"github.com/dotlane/dotlane/internal/config"
 )
 
 // New reports that installing is not supported yet; Linux and Windows come in Phase 4.

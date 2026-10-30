@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedrodee/dotlane/internal/api"
-	"github.com/pedrodee/dotlane/internal/proxy"
-	"github.com/pedrodee/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/api"
+	"github.com/dotlane/dotlane/internal/proxy"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 const (

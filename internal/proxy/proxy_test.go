@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedrodee/dotlane/internal/config"
-	"github.com/pedrodee/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 func TestConfig(t *testing.T) {

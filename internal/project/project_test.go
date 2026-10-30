@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedrodee/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 func write(t *testing.T, dir, content string) string {

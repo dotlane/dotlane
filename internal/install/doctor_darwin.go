@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pedrodee/dotlane/internal/config"
-	"github.com/pedrodee/dotlane/internal/proxy"
+	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/proxy"
 )
 
 // Doctor implements Installer: the installation's state, and anything in its way.

@@ -16,7 +16,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
-	"github.com/pedrodee/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 // FileName is the project file, looked for in the current directory and its parents.

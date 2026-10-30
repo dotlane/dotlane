@@ -18,13 +18,13 @@ import (
 	"charm.land/fang/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/pedrodee/dotlane/internal/api"
-	"github.com/pedrodee/dotlane/internal/config"
-	"github.com/pedrodee/dotlane/internal/daemon"
-	"github.com/pedrodee/dotlane/internal/install"
-	"github.com/pedrodee/dotlane/internal/project"
-	"github.com/pedrodee/dotlane/internal/sites"
-	"github.com/pedrodee/dotlane/internal/ui"
+	"github.com/dotlane/dotlane/internal/api"
+	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/daemon"
+	"github.com/dotlane/dotlane/internal/install"
+	"github.com/dotlane/dotlane/internal/project"
+	"github.com/dotlane/dotlane/internal/sites"
+	"github.com/dotlane/dotlane/internal/ui"
 )
 
 // version is set at release time with -ldflags "-X main.version=…".
