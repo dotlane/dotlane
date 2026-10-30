@@ -167,7 +167,36 @@ Planned:
 - **Done when** this Mac moves from the prototype to the binary with no new password prompt and
   `https://myapp.traix` keeps working.
 
-### M6 — Hardening and release candidate (≈ 1 week) — built 2026-10-30, integration run pending
+### M6 — Hardening and release candidate (≈ 1 week) — done 2026-10-30
+
+**Integration run** ([CI run 41077301051](https://github.com/pedrodee/dotlane/actions/runs/41077301051),
+`da0e033`, a GitHub-hosted macOS runner, real login service, System keychain, `/etc/resolver` and
+ports 80/443):
+
+| Step | Time |
+| --- | --- |
+| `dotlane install` (service, CA trust, resolver, DNS check) | 0.8 s |
+| First site served over trusted HTTPS | 0.2 s |
+| **Install → first site** (budget 60 s) | **1 s** |
+| Redirect, no-site and down pages, LAN request dropped, `up`/`down` | 0.5 s |
+| Reinstall over the running daemon: rebuild, `install`, restart (pid 1281 → 1525) | 9.6 s, mostly `go build` |
+| `install --refresh` after an upgrade: rebuild, refresh, restart, no password | 10.2 s, mostly `go build` |
+| `doctor`, `uninstall --purge`, no-op `--refresh` | 0.3 s |
+| Whole script / whole job | 22 s / 54 s |
+
+Phase 1's exit criteria pass: MyApp runs on the binary end to end on this Mac (since M5), and
+install → first site takes about a second on a clean Mac, against a budget of a minute.
+
+Getting the run green found four more things, all fixed:
+- `remove-trusted-cert` waits forever on an authorization dialog when headless, and
+  `authorizationdb` cannot grant the right there. Uninstall now deletes the certificate first,
+  which on macOS also removes its admin trust settings, and runs `remove-trusted-cert` only if an
+  entry is left.
+- A keychain can hold the same certificate twice, so every copy is deleted.
+- `security find-certificate -a` exits 0 when nothing matches, so the test's leftover check reads
+  the output.
+- Every `dotlane` call in the script has a two-minute limit and the job fifteen, so a prompt can
+  no longer hang CI for hours.
 
 Shipped:
 - **Pages instead of browser errors**: a name with no site gets "No site at …" (404) over a

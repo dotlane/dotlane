@@ -34,18 +34,20 @@ must run PHP per request. That support (PHP-FPM, per-site PHP versions) is plann
 
 ## Status
 
-Working prototype on one Mac (macOS 26.6, Apple Silicon), built 2026-10-29 for the MyApp
-project and verified end to end: DNS, trusted TLS in `curl` and Chrome, Caddy → Vite → FastAPI,
-and Vite's live-reload websocket through the proxy.
+**Phase 1 is complete (2026-10-30):** one Go binary on macOS, built from source
+([`docs/phase-1.md`](docs/phase-1.md)). It covers:
+- the daemon: DNS, embedded Caddy, a control socket;
+- `install` / `uninstall` / `doctor`;
+- `dotlane.toml` with `up` / `down`;
+- `migrate` from the Bash prototype;
+- hardening.
 
-It is a set of configuration files plus a ~100-line Bash helper, not yet a packaged product.
+The integration test on GitHub's macOS runners goes from install to the first site in about a
+second, then checks upgrades and a clean uninstall. MyApp runs on it day to day.
 
-The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1.md)): milestones
-M1 (a daemon with DNS, embedded Caddy and a control socket), M2 (`dotlane install` /
-`uninstall`), M3 (`dotlane doctor`, conflict checks) and M4 (project files: `dotlane.toml`,
-`up` / `down`) and M5 (`dotlane migrate`) work: this Mac moved from the prototype to the binary
-on 2026-10-30 with no new password. M6 (hardening, release candidate) is built; its integration
-test on GitHub's macOS runners is the last check.
+The Bash prototype it replaced (Caddy and dnsmasq around a ~100-line script, built 2026-10-29)
+is kept in [`docs/prototype/`](docs/prototype/). Next is Phase 2, packages for Homebrew and npm,
+planned in [`docs/phase-2.md`](docs/phase-2.md).
 
 ## Development (Go version)
 
