@@ -5,6 +5,40 @@ when the repositories moved into the `dotlane` organization. The product's own s
 (the CA, listeners, control socket) is in [`how-it-works.md`](how-it-works.md) and
 [`security.md`](security.md); how to report a vulnerability, in [`../SECURITY.md`](../SECURITY.md).
 
+## Status (2026-10-30)
+
+What is applied, what waits for the tool's repository to go public (the free plan offers those
+features only on public repositories), and what an owner sets by hand in the web settings.
+
+**Applied through the API:**
+
+| Where | Setting |
+| --- | --- |
+| Organization | Base permission `none`; only owners create repositories; members cannot create Pages sites; Dependabot alerts, security updates and the dependency graph on for new repositories |
+| All three repositories | Actions limited to GitHub-owned and verified-creator actions; `GITHUB_TOKEN` read-only by default and unable to approve pull requests; Dependabot alerts and security updates on |
+| `dotlane/dotlane` | `release` environment that accepts only `v*` tags |
+| `dotlane/dotlane` CI | `permissions: contents: read`; actions pinned to full commit SHAs; `govulncheck` (it found five reachable HTTP/2 vulnerabilities in `golang.org/x/net` v0.59.0, fixed by v0.60.0); Dependabot version updates for Go modules and actions (`.github/dependabot.yml`) |
+
+**When `dotlane/dotlane` goes public** (refused on private repositories on the free plan):
+
+- [ ] The ruleset on `main`: `gh api -X POST repos/dotlane/dotlane/rulesets --input .github/settings/ruleset-main.json`
+- [ ] Secret scanning and push protection
+- [ ] Private vulnerability reporting (`SECURITY.md` points to it)
+- [ ] Fork pull requests: approval required for all outside contributors (`approval_policy=all_external_contributors`)
+- [ ] Required reviewer (a maintainer) on the `release` environment
+
+**By hand, in the organization's settings** (not settable through the API, or not with the
+current token, or accepted by the API but not saved):
+
+- [ ] Authentication security → **Require two-factor authentication**
+- [ ] Actions → General → **Allow GitHub-owned and verified-creator actions** for the whole
+      organization (each repository already is; this covers new ones)
+- [ ] Member privileges → turn off **changing repository visibility**, **deleting repositories**
+      and **inviting outside collaborators** (no effect while you are the only member and owner,
+      since owners can always do these)
+- [ ] Your account → Emails → **Keep my email address private** and **Block command line pushes
+      that expose my email** (step 1 of the go-public procedure below)
+
 ## The repositories and their boundaries
 
 Repositories are split by who may see them and which secrets they may use. GitHub sets visibility

@@ -1,0 +1,15 @@
+# Dependency and action updates (docs/security-guide.md). Security updates are on in the
+# repository settings; these are the regular version updates.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
