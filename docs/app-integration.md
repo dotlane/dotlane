@@ -1,7 +1,7 @@
 # App integration
 
 Serving an app under a new hostname, behind a proxy, over HTTPS touches four things in the app.
-All four came up with MyApp (Vite + React frontend, FastAPI backend behind Vite's `/api`
+All four came up with the reference app (Vite + React frontend, FastAPI backend behind Vite's `/api`
 proxy).
 
 ## 1. Host-header allowlists
@@ -20,7 +20,7 @@ Equivalents elsewhere: Django `ALLOWED_HOSTS`, Rails `config.hosts`, webpack-dev
 ## 2. Origin / CSRF checks
 
 Backends that check the `Origin` header on state-changing requests must list the new origin.
-MyApp's FastAPI backend refuses sign-in from an unlisted origin with
+The reference app's FastAPI backend refuses sign-in from an unlisted origin with
 `403 {"detail":"Cross-origin request rejected.","code":"auth.cross_origin"}`:
 
 ```env
@@ -28,7 +28,7 @@ MyApp's FastAPI backend refuses sign-in from an unlisted origin with
 ALLOWED_ORIGINS=https://myapp.traix,http://localhost:5173
 ```
 
-The backend reads this at start-up, so the dev server must be restarted. MyApp also uses the
+The backend reads this at start-up, so the dev server must be restarted. The reference app also uses the
 first entry as the base for links in emails.
 
 ## 3. Cookies and HTTPS

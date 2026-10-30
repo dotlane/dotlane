@@ -43,7 +43,7 @@ must run PHP per request. That support (PHP-FPM, per-site PHP versions) is plann
 - hardening.
 
 The integration test on GitHub's macOS runners goes from install to the first site in about a
-second, then checks upgrades and a clean uninstall. MyApp runs on it day to day.
+second, then checks upgrades and a clean uninstall. A real Vite + FastAPI project runs on it day to day.
 
 The Bash prototype it replaced (Caddy and dnsmasq around a ~100-line script, built 2026-10-29)
 is kept in [`docs/prototype/`](docs/prototype/). Next is Phase 2, packages for Homebrew and npm,
@@ -129,7 +129,7 @@ The same flow as text:
 | [`docs/setup.md`](docs/setup.md) | Build, install, first site, upgrade, migrate from the prototype, uninstall (macOS) |
 | [`docs/cli.md`](docs/cli.md) | Command reference: every command, `dotlane.toml`, `config.toml`, output and exit codes |
 | [`docs/prototype/`](docs/prototype/) | The Bash prototype's setup and command reference, kept for reference |
-| [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with MyApp as the example |
+| [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with a Vite + FastAPI app as the example |
 | [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, and what is in scope |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version; every version gets a section before it is tagged |
 | [`docs/releasing.md`](docs/releasing.md) | What a release contains and how to cut one (GoReleaser, `v*` tags, draft releases) |

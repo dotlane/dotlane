@@ -40,7 +40,7 @@ internal/platform/      OS specifics behind one interface:
 
 Shipped as planned, plus: `tlds` (several endings) already honoured by the DNS responder and the
 proxy, failed reloads roll the registry back, and a 2-second shutdown grace period so open
-websockets (Vite's live reload) cannot hold a stop or restart. Verified with MyApp's running
+websockets (Vite's live reload) cannot hold a stop or restart. Verified with the reference app's running
 Vite and FastAPI behind `https://myapp.traix:9443` and `https://api.traix:9443`, and by an
 end-to-end test (`internal/daemon`). Known, by design: with a non-443 `https_port`, Caddy's HTTP
 redirect omits the port; an unknown name gets a TLS alert rather than a page (friendlier answer in
@@ -117,9 +117,9 @@ name first and changes nothing if another project owns one, adopts a site added 
 the reload for unchanged sites, and removes the project's sites the file no longer lists. The
 daemon enforces the same ownership rule, so `dotlane add` cannot take a project's name either
 (HTTP 409). Several endings (`tlds = [...]`) already worked since M1/M2. The Bash prototype got
-a minimal `up` / `down` (no ownership), so MyApp could switch now, before migration (M5).
+a minimal `up` / `down` (no ownership), so the reference app could switch now, before migration (M5).
 Verified against the dev daemon with two scratch projects (adopt, conflict, re-run, stale site,
-down) and in MyApp with the prototype.
+down) and in the reference app with the prototype.
 
 Planned:
 
@@ -127,7 +127,7 @@ Planned:
   `dotlane down` removes them. Sites remember which project registered them.
 - Several endings (`tlds = [...]`) in `config.toml`; one resolver file each.
 - Name collisions between projects are reported, not silently overwritten.
-- **Done when** MyApp's `mise run domain` is replaced by a committed `dotlane.toml` and
+- **Done when** the reference app's `mise run domain` is replaced by a committed `dotlane.toml` and
   `dotlane up`.
 
 ### M5 — Migration from the prototype (≈ 3 days) — done 2026-10-30
@@ -153,7 +153,7 @@ non-standard HTTPS port. Install's bind test uses the same addresses, and a perm
 reported as such rather than as "another user". Second run: migrated with no password; only
 `dotlane` listens on 443, 80 and 10053; `https://myapp.traix` verifies against the system
 roots, `http://` redirects, the LAN address gets no answer, `doctor` is all green, and `dotlane up`
-in MyApp claimed the site. Verified earlier: the embedded Caddy accepts the prototype's root (it issues its own
+in the reference app claimed the site. Verified earlier: the embedded Caddy accepts the prototype's root (it issues its own
 intermediate under it) and curl trusts the result with no `--cacert`; the flow is covered by
 tests with a fake launchd/Homebrew, including the rollback.
 
@@ -184,7 +184,7 @@ ports 80/443):
 | `doctor`, `uninstall --purge`, no-op `--refresh` | 0.3 s |
 | Whole script / whole job | 22 s / 54 s |
 
-Phase 1's exit criteria pass: MyApp runs on the binary end to end on this Mac (since M5), and
+Phase 1's exit criteria pass: the reference app runs on the binary end to end on this Mac (since M5), and
 install → first site takes about a second on a clean Mac, against a budget of a minute.
 
 Getting the run green found four more things, all fixed:
@@ -240,7 +240,7 @@ Planned:
 - Proxy bound to loopback by default; socket and state permissions checked by `doctor`.
 - Error messages reviewed end to end; `--help` for every command; `docs/` updated from Bash to Go.
 - Licence chosen and added (open decision in the roadmap).
-- **Done when** the roadmap's Phase 1 exit criteria pass: MyApp runs on the binary end to end,
+- **Done when** the roadmap's Phase 1 exit criteria pass: the reference app runs on the binary end to end,
   and install → first site takes under a minute on a clean Mac.
 
 ## Command surface at the end of Phase 1
@@ -255,7 +255,7 @@ dotlane serve                     # the daemon; launchd runs it
 dotlane version
 ```
 
-`add`, `rm`, `ls` and `doctor` keep the prototype's names and output, so the MyApp task and the
+`add`, `rm`, `ls` and `doctor` keep the prototype's names and output, so the reference app's task and the
 docs keep working during the switch.
 
 ## Out of scope for Phase 1

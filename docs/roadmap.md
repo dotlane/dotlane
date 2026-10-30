@@ -11,7 +11,7 @@ Sizes are rough, for one developer, and assume part-time-to-full-time focus. Res
 
 macOS only. Bash `dotlane` CLI (add / rm / ls / doctor), Homebrew Caddy with its local CA,
 dnsmasq on port 10053 as a user LaunchAgent, `/etc/resolver/traix`. Verified end to end with
-MyApp (Vite + FastAPI), including live reload through the proxy.
+the reference app (Vite + FastAPI), including live reload through the proxy.
 
 ## The one architectural decision: a single Go binary
 
@@ -52,7 +52,7 @@ run as a separate process. Go keeps Caddy in-process.
 ### 2. PHP alongside Python — yes, and it differs by language
 
 - **Python, Node, Go, Ruby, anything with its own server: already works.** Dotlane proxies to a
-  port (that is how MyApp's FastAPI is reached). What can be added is *optional* process
+  port (that is how the reference app's FastAPI is reached). What can be added is *optional* process
   management: a `command` in the project config that Dotlane starts, restarts and logs — without
   making wrapping the default.
 - **PHP is different:** most PHP apps are a folder, not a long-running server; something must run
@@ -131,7 +131,7 @@ Broken into milestones in [`phase-1.md`](phase-1.md).
 - `doctor --fix`; configurable TLD(s); proxy bound to loopback by default; admin API not on TCP.
 - `dotlane.toml` per project + `dotlane up` / `down`.
 - Migration from the prototype (reads `~/.config/caddy/sites/*.caddy`).
-- **Exit:** MyApp runs on it end to end; install → first site in under a minute on a clean Mac.
+- **Exit:** the reference app runs on it end to end; install → first site in under a minute on a clean Mac.
 
 ### Phase 2 — Distribution (≈ 1–2 weeks, overlaps Phase 1's end)
 

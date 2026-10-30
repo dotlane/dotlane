@@ -17,6 +17,7 @@ features only on public repositories), and what an owner sets by hand in the web
 | Organization | Base permission `none`; only owners create repositories; members cannot create Pages sites; Dependabot alerts, security updates and the dependency graph on for new repositories |
 | All three repositories | Actions limited to GitHub-owned and verified-creator actions; `GITHUB_TOKEN` read-only by default and unable to approve pull requests; Dependabot alerts and security updates on |
 | `dotlane/dotlane` | `release` environment that accepts only `v*` tags |
+| All three repositories (local) | Commits use the GitHub noreply address (`git config user.email`), so nothing new carries a personal address |
 | `dotlane/dotlane` CI | `permissions: contents: read`; actions pinned to full commit SHAs; `govulncheck` (it found five reachable HTTP/2 vulnerabilities in `golang.org/x/net` v0.59.0, fixed by v0.60.0); Dependabot version updates for Go modules and actions (`.github/dependabot.yml`) |
 
 **When `dotlane/dotlane` goes public** (refused on private repositories on the free plan):
@@ -37,7 +38,8 @@ current token, or accepted by the API but not saved):
       and **inviting outside collaborators** (no effect while you are the only member and owner,
       since owners can always do these)
 - [ ] Your account → Emails → **Keep my email address private** and **Block command line pushes
-      that expose my email** (step 1 of the go-public procedure below)
+      that expose my email** (step 1 of the go-public procedure below; the repositories already
+      commit as the noreply address, so pushes keep working once blocking is on)
 
 ## The repositories and their boundaries
 
@@ -115,9 +117,10 @@ Set once, in the organization's settings, and checked before the tool goes publi
 
 ## The website
 
+- Hosting: **self-hosted** on the project's own web server (decided 2026-10-30).
 - The website repository holds no secrets except its deploy credential, in a `production`
   environment that needs approval.
-- On a self-hosted server: a dedicated deploy user whose SSH key can only write the web root
+- On the server: a dedicated deploy user whose SSH key can only write the web root
   (`restrict` and a forced command in `authorized_keys`, no shell), the server's host key pinned
   in CI, automatic security updates, and nothing on the server that can reach the other
   repositories or the signing keys.
@@ -141,9 +144,8 @@ The current private history (26 commits as of 2026-10-30) was scanned:
   tests).
 - **Commit metadata:** every commit carries the author's personal address. This is what a public
   history would expose.
-- **The MyApp example:** a real project name used throughout the docs, tests and the
-  prototype's files as the running example. Decide whether to keep it or replace it with a
-  neutral one (`myapp`).
+- **The example app:** a real project's name was used throughout the docs, tests and the
+  prototype's files as the running example. Replaced with a neutral `myapp` (2026-10-30).
 
 So the public repository starts from **a fresh history**; the full history stays private:
 
@@ -152,7 +154,7 @@ So the public repository starts from **a fresh history**; the full history stays
    `git config --global user.email 5757275+pedrodee@users.noreply.github.com`.
 2. **Archive.** Rename the current repository to `dotlane/dotlane-history` (private, read-only
    by convention). Nothing is lost.
-3. **Clean the tree** on a branch: the MyApp decision above; then
+3. **Clean the tree** on a branch (the example app is already neutral);
    `git grep -n -e "/Users/" -e "@gmail" -e "BEGIN .*PRIVATE KEY"`, plus any other private names
    (employers, clients), must find only placeholders.
 4. **Scan** with [gitleaks](https://github.com/gitleaks/gitleaks) (`gitleaks detect --source .`)

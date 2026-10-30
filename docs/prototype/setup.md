@@ -139,7 +139,7 @@ Apps that listed a `.traix` origin (see `app-integration.md`) should drop it.
 
 ## Reference install log (2026-10-29)
 
-Done on the MyApp developer's Mac, replacing Laravel Herd:
+Done on the reference Mac, replacing Laravel Herd:
 
 1. Quit Herd; ran its bundled uninstaller (`/Applications/Herd.app/Contents/Resources/uninstall`).
 2. Removed `/etc/resolver/test` by hand — the uninstaller only removes it when the file is exactly
