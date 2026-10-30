@@ -33,14 +33,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-step "runner setup"
-# Changing System keychain trust settings goes through macOS authorization, which can ask for a
-# confirmation in a dialog even under sudo; on a headless runner nobody answers it, and
-# `security remove-trusted-cert` waited forever. Allow it on this throwaway machine only (on a
-# real Mac the dialog is the right thing).
-echo "com.apple.trust-settings.admin was: $(security authorizationdb read com.apple.trust-settings.admin 2>/dev/null | plutil -extract rule raw -o - - 2>/dev/null || echo unknown)"
-sudo security authorizationdb write com.apple.trust-settings.admin allow
-
 step "install"
 start=$(date +%s)
 DL install
@@ -121,7 +113,13 @@ step "doctor"
 DL doctor
 
 step "uninstall --purge"
-DL uninstall --purge
+# Uninstall deletes the CA certificate first and removes its trust settings only if they are
+# still listed, since that step can wait on an authorization dialog nobody answers here.
+out=$(DL uninstall --purge 2>&1) || { echo "$out"; fail "uninstall failed (a dialog waiting for an answer is killed after 2 minutes)"; }
+echo "$out"
+if grep -q "remove-trusted-cert" <<<"$out"; then echo "trust settings outlived the certificate; removed them too"; else echo "deleting the certificate removed its trust settings"; fi
+security dump-trust-settings -d 2>/dev/null | grep -q "Cert [0-9]*: Dotlane Local Authority" \
+  && fail "Dotlane's CA is still in the admin trust settings"
 [[ ! -e /etc/resolver/$TLD ]] || fail "/etc/resolver/$TLD left behind"
 [[ ! -e "$HOME/Library/LaunchAgents/$SERVICE.plist" ]] || fail "login service left behind"
 [[ ! -e "$HOME/Library/Application Support/dotlane/bin/$SERVICE" ]] || fail "the service's binary left behind"

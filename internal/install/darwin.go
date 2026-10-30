@@ -3,9 +3,11 @@
 package install
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha1"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
 	"encoding/xml"
@@ -549,21 +551,53 @@ func (m *Mac) untrustCA(ctx context.Context) error {
 	sum := sha1.Sum(block.Bytes)
 	hash := strings.ToUpper(hex.EncodeToString(sum[:]))
 
+	name := ""
+	if cert, err := x509.ParseCertificate(block.Bytes); err == nil {
+		name = cert.Subject.CommonName
+	}
+
 	out, _ := m.Runner.Run(ctx, "/usr/bin/security", "find-certificate", "-a", "-Z", systemKeychain)
-	if !bytes.Contains(out, []byte(hash)) {
+	inKeychain := bytes.Contains(out, []byte(hash))
+	if !inKeychain && !m.trustSettingsFor(ctx, name) {
 		m.UI.Skip("Certificate authority", "not in the System keychain")
 		return nil
 	}
 	m.UI.Ask("Certificate authority",
 		"Removes Dotlane's certificate authority from the System keychain, so its certificates\n"+
 			"    are no longer trusted.")
-	// Trust settings first, then the certificate itself; one password covers both (sudo caches it).
-	if err := m.sudo(ctx, nil, "/usr/bin/security", "remove-trusted-cert", "-d", m.rootCert()); err != nil {
-		return err
+	// The certificate first: a keychain change. Removing trust settings goes through macOS
+	// authorization and can need a dialog even under sudo (a headless Mac waits on it forever),
+	// so it only runs when an entry for this CA is still there afterwards.
+	if inKeychain {
+		if err := m.sudo(ctx, nil, "/usr/bin/security", "delete-certificate", "-Z", hash, systemKeychain); err != nil {
+			return err
+		}
 	}
-	if err := m.sudo(ctx, nil, "/usr/bin/security", "delete-certificate", "-Z", hash, systemKeychain); err != nil {
-		return err
+	if m.trustSettingsFor(ctx, name) {
+		if err := m.sudo(ctx, nil, "/usr/bin/security", "remove-trusted-cert", "-d", m.rootCert()); err != nil {
+			return err
+		}
 	}
 	m.UI.OK("Certificate authority", "removed from the System keychain")
 	return nil
+}
+
+// trustSettingsFor reports whether the admin trust settings list a certificate named name
+// (`security dump-trust-settings -d` names certificates by common name). An unknown name counts
+// as listed, so the trust is removed rather than possibly left behind.
+func (m *Mac) trustSettingsFor(ctx context.Context, name string) bool {
+	if name == "" {
+		return true
+	}
+	out, err := m.Runner.Run(ctx, "/usr/bin/security", "dump-trust-settings", "-d")
+	if err != nil {
+		return false // "No Trust Settings were found" exits non-zero
+	}
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	for sc.Scan() {
+		if _, cn, ok := strings.Cut(sc.Text(), ": "); ok && strings.HasPrefix(strings.TrimSpace(sc.Text()), "Cert ") && cn == name {
+			return true
+		}
+	}
+	return false
 }

@@ -5,11 +5,17 @@ package install
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha1"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -25,12 +31,35 @@ import (
 
 const daemonPID = 4242
 
+const testCAName = "Dotlane Local Authority - ECC Root"
+
+// testCA is a self-signed root certificate (DER), named like the one the daemon creates.
+func testCA(t *testing.T) []byte {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: testCAName},
+		NotBefore: time.Now(), NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return der
+}
+
 // fakeMac simulates launchd, the keychain, lsof and sudo, so tests never touch the real system.
 type fakeMac struct {
 	loaded, trusted, inKeychain bool
-	hash                        string
-	calls                       []string
-	sudoCalls                   int
+	// deleteDropsTrust: deleting the certificate also removes its trust settings. Which way
+	// macOS goes is not documented, so tests try both.
+	deleteDropsTrust bool
+	hash             string
+	calls            []string
+	sudoCalls        int
 	// listen maps "tcp:443" or "udp:10053" to the PIDs listening there; while the service is
 	// loaded, the daemon also listens on daemonPorts.
 	listen      map[string][]int
@@ -107,6 +136,11 @@ func (f *fakeMac) Run(_ context.Context, name string, args ...string) ([]byte, e
 		if f.inKeychain {
 			return []byte("SHA-1 hash: " + f.hash + "\n"), nil
 		}
+	case "security dump-trust-settings":
+		if !f.trusted {
+			return []byte("SecTrustSettingsCopyCertificates: No Trust Settings were found.\n"), errors.New("exit status 1")
+		}
+		return []byte("Number of trusted certs = 1\nCert 0: " + testCAName + "\n   Number of trust settings : 2\n"), nil
 	case "lsof -nP":
 		key := strings.ToLower(strings.TrimPrefix(args[3], "-i")) // "-iTCP:443" → "tcp:443"
 		pids := append([]int(nil), f.listen[key]...)
@@ -160,6 +194,9 @@ func (f *fakeMac) Sudo(_ context.Context, stdin []byte, name string, args ...str
 			f.trusted = false
 		case "delete-certificate":
 			f.inKeychain = false
+			if f.deleteDropsTrust {
+				f.trusted = false
+			}
 		}
 	}
 	return nil
@@ -185,7 +222,7 @@ func newTestMac(t *testing.T) (*Mac, *fakeMac, *bytes.Buffer) {
 	if err := os.MkdirAll(proxy.CADir(cfg), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	der := []byte("not really DER, but hashed the same way")
+	der := testCA(t)
 	os.WriteFile(filepath.Join(proxy.CADir(cfg), "root.crt"), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644)
 	sum := sha1.Sum(der)
 
@@ -741,4 +778,38 @@ func TestRefresh(t *testing.T) {
 	if fake.ran("launchctl kickstart") || fake.ran("launchctl bootstrap") {
 		t.Errorf("an up-to-date service was restarted: %v", fake.calls)
 	}
+}
+
+// Uninstall deletes the certificate first, then removes trust settings only if they are still
+// listed: removing them goes through macOS authorization, which can wait on a dialog.
+func TestUninstallRemovesTrust(t *testing.T) {
+	for _, drops := range []bool{true, false} {
+		m, fake, out := newTestMac(t)
+		fake.deleteDropsTrust = drops
+		if err := m.Install(context.Background()); err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		fake.calls = nil
+		if err := m.Uninstall(context.Background(), false); err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		if fake.trusted || fake.inKeychain {
+			t.Errorf("deleteDropsTrust=%v: trusted=%v inKeychain=%v", drops, fake.trusted, fake.inKeychain)
+		}
+		if removed := fake.ran("sudo security remove-trusted-cert"); removed == drops {
+			t.Errorf("deleteDropsTrust=%v: remove-trusted-cert ran=%v\n%v", drops, removed, fake.calls)
+		}
+		if i, j := indexOf(fake.calls, "sudo security delete-certificate"), indexOf(fake.calls, "sudo security remove-trusted-cert"); j >= 0 && j < i {
+			t.Errorf("trust removed before the certificate: %v", fake.calls)
+		}
+	}
+}
+
+func indexOf(calls []string, prefix string) int {
+	for i, c := range calls {
+		if strings.HasPrefix(c, prefix) {
+			return i
+		}
+	}
+	return -1
 }
