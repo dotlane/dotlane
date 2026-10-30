@@ -24,8 +24,8 @@ import (
 const labelWidth = 22
 
 type styles struct {
-	bold, dim, url, title            lipgloss.Style
-	ok, skip, warn, ask, done, badge lipgloss.Style
+	bold, dim, url, title                  lipgloss.Style
+	ok, skip, warn, fail, ask, done, badge lipgloss.Style
 }
 
 func newStyles(dark bool) styles {
@@ -40,6 +40,7 @@ func newStyles(dark bool) styles {
 		ok:    lipgloss.NewStyle().Foreground(green),
 		skip:  lipgloss.NewStyle().Foreground(c(lipgloss.Color("#8C959F"), lipgloss.Color("#6E7681"))),
 		warn:  lipgloss.NewStyle().Foreground(amber),
+		fail:  lipgloss.NewStyle().Foreground(c(lipgloss.Color("#CF222E"), lipgloss.Color("#FF7B72"))),
 		ask:   lipgloss.NewStyle().Foreground(amber),
 		done:  lipgloss.NewStyle().Bold(true).Foreground(green),
 		badge: lipgloss.NewStyle().Bold(true).Padding(0, 1).
@@ -121,6 +122,14 @@ func (p *Printer) Skip(label, detail string) { p.step("·", p.s.skip, label, det
 
 // Warn reports a step that needs attention but did not fail.
 func (p *Printer) Warn(label, detail string) { p.step("!", p.s.warn, label, detail) }
+
+// Fail reports a step that is broken.
+func (p *Printer) Fail(label, detail string) { p.step("✗", p.s.fail, label, detail) }
+
+// Hint shows how to fix the step above it.
+func (p *Printer) Hint(fix string) {
+	p.printf("    %s %s\n", p.s.dim.Render("fix:"), strings.ReplaceAll(fix, "\n", "\n         "))
+}
 
 // Ask announces a step that needs the administrator password, and why.
 func (p *Printer) Ask(label, why string) {

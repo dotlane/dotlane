@@ -78,7 +78,25 @@ measured: the "under a minute on a clean VM" criterion.
 - **Done when** install → first working site takes under a minute on a clean macOS VM, and uninstall
   leaves `scutil --dns`, the Keychain and `launchctl list` as before.
 
-### M3 — Conflict scan and `doctor` (≈ 1 week)
+### M3 — Conflict scan and `doctor` (≈ 1 week) — done 2026-10-30, `--fix` to verify on a real install
+
+Shipped: `dotlane doctor [--fix] [--json]` and the same checks as a pre-install gate. Ports are
+traced to their process with `lsof`, `ps` and `launchctl list`, and named with a fix (the
+prototype's Caddy and dnsmasq, Yerd, Herd, Valet, Docker, else the process and pid); ports held by
+another user's process are caught by a bind test. All listeners on a port are reported, because
+Caddy binds with `SO_REUSEPORT`: a second server can share 443 and split its traffic instead of
+failing. A foreign `/etc/resolver/<tld>` is traced to whatever answers its port, or reported as
+left behind. A taken default DNS port moves to the next free one (saved in `config.toml`, only
+when nothing else blocks the install); an explicit one is a conflict. Install refuses before
+changing anything; `--fix` runs install for what it repairs and leaves other tools alone. The
+daemon is recognised by its launchd label even when it is not answering, and a loaded but stuck
+service is restarted with `launchctl kickstart`.
+
+Verified on this Mac: doctor names the prototype's Caddy on 80/443 and its dnsmasq on 10053 with
+the right fixes; the reference-log case (Herd's leftover resolver, Yerd on 1053) and the others
+are covered by tests. Still open: running `doctor --fix` end to end (needs a password), and a
+friendlier answer than a TLS alert for unknown names (moved to M6).
+
 
 - Before installing, and in `doctor`: other resolver files for the same ending; anything on 80, 443
   or the DNS port (with the owning process); known tools (Herd, Valet, Yerd, Docker on 443, the

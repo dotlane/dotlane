@@ -94,3 +94,28 @@ func TestDefaultPath(t *testing.T) {
 		t.Errorf("DefaultPath = %q", p)
 	}
 }
+
+func TestSetDNSPort(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "sub", "config.toml")
+	cfg, err := Load(p)
+	if err != nil || cfg.DNSPortSet {
+		t.Fatalf("defaults: %+v %v", cfg, err)
+	}
+	if err := SetDNSPort(p, 10054, "chosen by dotlane install: 10053 was taken"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(p)
+	if err != nil || cfg.DNSPort != 10054 || !cfg.DNSPortSet {
+		t.Errorf("after SetDNSPort: %+v %v", cfg, err)
+	}
+
+	// Appends to an existing file without disturbing it.
+	q := write(t, "tld = \"test\"\n")
+	if err := SetDNSPort(q, 10060, "why"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(q)
+	if err != nil || cfg.DNSPort != 10060 || cfg.TLDs[0] != "test" {
+		t.Errorf("append: %+v %v", cfg, err)
+	}
+}

@@ -123,6 +123,7 @@ func (d *Daemon) view(s sites.Site) api.Site {
 func (d *Daemon) Status() api.Status {
 	return api.Status{
 		Version:   d.version,
+		PID:       os.Getpid(),
 		TLDs:      d.cfg.TLDs,
 		DNSAddr:   d.dnsAddr,
 		HTTPSPort: d.cfg.HTTPSPort,

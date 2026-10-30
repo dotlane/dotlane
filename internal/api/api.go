@@ -30,6 +30,7 @@ type Site struct {
 // Status describes the running daemon.
 type Status struct {
 	Version   string   `json:"version"`
+	PID       int      `json:"pid"`
 	TLDs      []string `json:"tlds"`
 	DNSAddr   string   `json:"dns_addr"`
 	HTTPSPort int      `json:"https_port"`

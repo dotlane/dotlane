@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedrodee/dotlane/internal/api"
 	"github.com/pedrodee/dotlane/internal/config"
 	"github.com/pedrodee/dotlane/internal/proxy"
 	"github.com/pedrodee/dotlane/internal/ui"
@@ -37,19 +38,21 @@ type Mac struct {
 	ResolverDir string
 	UI          *ui.Printer
 	Runner      Runner
-	// Ready waits until the daemon answers on its socket.
-	Ready func(ctx context.Context) error
+	// Daemon asks the running daemon for its status; an error means it is not answering.
+	Daemon func(ctx context.Context) (api.Status, error)
+	// Bindable reports whether 127.0.0.1:port could be bound ("tcp" or "udp").
+	Bindable func(proto string, port int) error
 	// Lookup resolves a name the way other programs on the Mac do; used to verify DNS.
 	Lookup func(ctx context.Context, host string) ([]string, error)
 }
 
 // New returns the installer for this machine.
-func New(cfg *config.Config, configPath string, ready func(context.Context) error) (Installer, error) {
-	return NewMac(cfg, configPath, ready)
+func New(cfg *config.Config, configPath string, daemon func(context.Context) (api.Status, error)) (Installer, error) {
+	return NewMac(cfg, configPath, daemon)
 }
 
 // NewMac fills Mac with the real system's values.
-func NewMac(cfg *config.Config, configPath string, ready func(context.Context) error) (*Mac, error) {
+func NewMac(cfg *config.Config, configPath string, daemon func(context.Context) (api.Status, error)) (*Mac, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, err
@@ -69,7 +72,8 @@ func NewMac(cfg *config.Config, configPath string, ready func(context.Context) e
 		ResolverDir: "/etc/resolver",
 		UI:          ui.New(os.Stdout),
 		Runner:      ExecRunner{},
-		Ready:       ready,
+		Daemon:      daemon,
+		Bindable:    bindable,
 		Lookup:      net.DefaultResolver.LookupHost,
 	}, nil
 }
@@ -135,12 +139,8 @@ func (m *Mac) Install(ctx context.Context) error {
 	if strings.Contains(m.Exe, "go-build") || strings.HasPrefix(m.Exe, os.TempDir()) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin/dotlane ./cmd/dotlane) and install from it", m.Exe)
 	}
-	// Refuse before changing anything if another tool owns one of the resolver files.
-	for _, tld := range m.Cfg.TLDs {
-		if have, err := os.ReadFile(m.resolverPath(tld)); err == nil && !bytes.Equal(have, m.resolverFile()) {
-			return fmt.Errorf("%s already exists with other settings, so another tool answers .%s:\n%s\nremove it (sudo rm %[1]s) or choose another domain ending",
-				m.resolverPath(tld), tld, indent(have))
-		}
+	if err := m.preflight(ctx); err != nil {
+		return err
 	}
 
 	if err := m.installService(ctx); err != nil {
@@ -174,6 +174,12 @@ func (m *Mac) installService(ctx context.Context) error {
 
 	if bytes.Equal(have, want) && loaded {
 		m.UI.OK("Login service", "already installed")
+		if _, err := m.Daemon(ctx); err != nil { // loaded but stuck: restart it
+			if out, err := m.Runner.Run(ctx, "/bin/launchctl", "kickstart", "-k", m.target()); err != nil {
+				return fmt.Errorf("launchctl kickstart: %v: %s", err, bytes.TrimSpace(out))
+			}
+			m.UI.OK("Login service", "restarted (it was not answering)")
+		}
 	} else {
 		if err := os.WriteFile(m.plistPath(), want, 0o644); err != nil {
 			return err
@@ -187,13 +193,26 @@ func (m *Mac) installService(ctx context.Context) error {
 		m.UI.OK("Login service", "installed · "+m.UI.Path(m.plistPath()))
 	}
 
-	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	if err := m.Ready(waitCtx); err != nil {
-		return fmt.Errorf("the service did not start: %v\nsee %s", err, m.logPath())
+	if err := m.waitForDaemon(ctx, 15*time.Second); err != nil {
+		return fmt.Errorf("the service did not start: %v\nsee its log: %s", err, m.UI.Path(m.logPath()))
 	}
 	m.UI.OK("Running", "log: "+m.UI.Path(m.logPath()))
 	return nil
+}
+
+func (m *Mac) waitForDaemon(ctx context.Context, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		_, err := m.Daemon(ctx)
+		if err == nil || time.Now().After(deadline) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 // plist is the launchd agent: start at login, restart on exit.
@@ -415,12 +434,4 @@ func (m *Mac) untrustCA(ctx context.Context) error {
 	}
 	m.UI.OK("Certificate authority", "removed from the System keychain")
 	return nil
-}
-
-func indent(b []byte) string {
-	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
-	for i, l := range lines {
-		lines[i] = "    " + l
-	}
-	return strings.Join(lines, "\n")
 }

@@ -13,11 +13,36 @@ import (
 	"strings"
 )
 
-// Installer sets Dotlane up on one operating system.
+// Installer sets Dotlane up on one operating system, checks it, and removes it.
 type Installer interface {
 	Install(ctx context.Context) error
 	// Uninstall reverses Install; purge also deletes Dotlane's state and log.
 	Uninstall(ctx context.Context, purge bool) error
+	// Doctor checks the installation and what could get in its way.
+	Doctor(ctx context.Context) []Check
+}
+
+// CheckStatus is the outcome of one check.
+type CheckStatus string
+
+const (
+	Pass    CheckStatus = "ok"
+	Warning CheckStatus = "warn"
+	Failed  CheckStatus = "fail"
+	Skipped CheckStatus = "skip"
+)
+
+// Check is one line of dotlane doctor.
+type Check struct {
+	Name   string      `json:"name"`
+	Status CheckStatus `json:"status"`
+	Detail string      `json:"detail"`
+	Fix    string      `json:"fix,omitempty"`
+	// Repairable means dotlane install fixes it (doctor --fix runs it).
+	Repairable bool `json:"repairable"`
+	// Conflict means another tool is in the way; Dotlane leaves other tools alone, so the user
+	// has to act first.
+	Conflict bool `json:"conflict"`
 }
 
 // Runner runs the commands install needs. Tests replace it; nothing else should.

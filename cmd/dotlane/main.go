@@ -209,20 +209,12 @@ func newRoot() *cobra.Command {
 			return nil, err
 		}
 		c := api.NewClient(cfg.SocketPath())
-		ready := func(ctx context.Context) error {
-			for {
-				_, err := c.Status(ctx)
-				if err == nil {
-					return nil
-				}
-				select {
-				case <-ctx.Done():
-					return err
-				case <-time.After(200 * time.Millisecond):
-				}
-			}
+		status := func(ctx context.Context) (api.Status, error) {
+			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			return c.Status(ctx)
 		}
-		return install.New(cfg, configPath, ready)
+		return install.New(cfg, configPath, status)
 	}
 
 	root.AddCommand(&cobra.Command{
@@ -259,6 +251,55 @@ func newRoot() *cobra.Command {
 	uninstall.Flags().BoolVar(&purge, "purge", false, "also delete sites, the CA's keys and the log")
 	root.AddCommand(uninstall)
 
+	var fix bool
+	doctor := &cobra.Command{
+		Use:   "doctor",
+		Short: "Check the installation, and what could get in its way",
+		Long: "Checks the login service, the daemon, its ports, the certificate authority and DNS,\n" +
+			"and names any other tool in the way, with the fix for each. --fix runs dotlane install\n" +
+			"for what it can repair; other tools are left alone.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			i, err := installer()
+			if err != nil {
+				return err
+			}
+			checks := i.Doctor(cmd.Context())
+			if asJSON {
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				if err := enc.Encode(checks); err != nil {
+					return err
+				}
+				return problems(checks)
+			}
+			out := ui.New(cmd.OutOrStdout())
+			out.Title("Dotlane doctor", "")
+			printChecks(out, checks)
+			if fix && repairable(checks) {
+				out.Line("")
+				if err := i.Install(cmd.Context()); err != nil {
+					return err
+				}
+				out.Line("")
+				out.Title("Dotlane doctor", "after the fix")
+				checks = i.Doctor(cmd.Context())
+				printChecks(out, checks)
+			}
+			if err := problems(checks); err != nil {
+				if !fix && repairable(checks) {
+					return fmt.Errorf("%w\nrun dotlane doctor --fix to repair what Dotlane can", err)
+				}
+				return err
+			}
+			out.Done("All good.", "")
+			return nil
+		},
+	}
+	doctor.Flags().BoolVar(&fix, "fix", false, "repair what dotlane install can (asks for your password if needed)")
+	doctor.Flags().BoolVar(&asJSON, "json", false, "print JSON, for scripts")
+	root.AddCommand(doctor)
+
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print the version",
@@ -276,4 +317,51 @@ func explain(err error) error {
 		return fmt.Errorf("%w\nset it up with: dotlane install   (or run it once: dotlane serve)", err)
 	}
 	return err
+}
+
+func printChecks(out *ui.Printer, checks []install.Check) {
+	for _, c := range checks {
+		switch c.Status {
+		case install.Pass:
+			out.OK(c.Name, c.Detail)
+		case install.Warning:
+			out.Warn(c.Name, c.Detail)
+		case install.Skipped:
+			out.Skip(c.Name, c.Detail)
+		default:
+			out.Fail(c.Name, c.Detail)
+		}
+		if c.Status != install.Pass && c.Fix != "" {
+			out.Hint(c.Fix)
+		}
+	}
+}
+
+// repairable reports whether dotlane install would fix something, and nothing else is in the way.
+func repairable(checks []install.Check) bool {
+	any := false
+	for _, c := range checks {
+		if c.Status == install.Failed && c.Conflict {
+			return false
+		}
+		any = any || (c.Status != install.Pass && c.Repairable)
+	}
+	return any
+}
+
+func problems(checks []install.Check) error {
+	n := 0
+	for _, c := range checks {
+		if c.Status == install.Failed {
+			n++
+		}
+	}
+	switch n {
+	case 0:
+		return nil
+	case 1:
+		return errors.New("1 problem found")
+	default:
+		return fmt.Errorf("%d problems found", n)
+	}
 }

@@ -16,11 +16,14 @@ import (
 
 // Config is the resolved configuration: defaults, overridden by the file.
 type Config struct {
-	TLDs      []string // domain endings, without the dot; sites answer on every one
-	DNSPort   int      // DNS responder, on 127.0.0.1
-	HTTPPort  int      // redirects to HTTPS
-	HTTPSPort int
-	StateDir  string // sites, certificate authority, control socket
+	TLDs    []string // domain endings, without the dot; sites answer on every one
+	DNSPort int      // DNS responder, on 127.0.0.1
+	// DNSPortSet is true when the file chose the DNS port. Otherwise install may pick another
+	// free one when the default is taken, and save it with SetDNSPort.
+	DNSPortSet bool
+	HTTPPort   int // redirects to HTTPS
+	HTTPSPort  int
+	StateDir   string // sites, certificate authority, control socket
 	// ServiceName identifies the login service (launchd label) and its log, so a development
 	// install can sit next to a real one.
 	ServiceName string
@@ -103,7 +106,7 @@ func Load(path string) (*Config, error) {
 		cfg.TLDs = raw.TLDs
 	}
 	if raw.DNSPort != 0 {
-		cfg.DNSPort = raw.DNSPort
+		cfg.DNSPort, cfg.DNSPortSet = raw.DNSPort, true
 	}
 	if raw.HTTPPort != 0 {
 		cfg.HTTPPort = raw.HTTPPort
@@ -154,6 +157,23 @@ func (c *Config) validate() error {
 		return errors.New("http_port and https_port must differ")
 	}
 	return nil
+}
+
+// SetDNSPort records a DNS port in the config file at path, creating it if needed, with a
+// comment saying why. Only for files that do not set dns_port yet (see DNSPortSet).
+func SetDNSPort(path string, port int, why string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(f, "\n# %s\ndns_port = %d\n", why, port); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // SocketPath is where the daemon listens for the CLI.

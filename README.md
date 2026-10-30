@@ -39,8 +39,9 @@ and Vite's live-reload websocket through the proxy.
 It is a set of configuration files plus a ~100-line Bash helper, not yet a packaged product.
 
 The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1.md)): milestones
-M1 (a daemon with DNS, embedded Caddy and a control socket) and M2 (`dotlane install` /
-`uninstall`) work; the conflict scan and `doctor` come next (M3).
+M1 (a daemon with DNS, embedded Caddy and a control socket), M2 (`dotlane install` /
+`uninstall`) and M3 (`dotlane doctor`, conflict checks) work; project files (`dotlane.toml`,
+`up` / `down`) come next (M4).
 
 ## Development (Go version)
 
@@ -74,8 +75,8 @@ Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORC
 
 | Package | Role |
 | --- | --- |
-| `cmd/dotlane` | CLI (`install`, `uninstall`, `add`, `rm`, `ls`, `serve`, `version`) |
-| `internal/install` | Login service, CA trust and resolver files; macOS now, other OSes in Phase 4 |
+| `cmd/dotlane` | CLI (`install`, `uninstall`, `doctor`, `add`, `rm`, `ls`, `serve`, `version`) |
+| `internal/install` | Login service, CA trust and resolver files; `doctor` checks and naming the tools in the way. macOS now, other OSes in Phase 4 |
 | `internal/ui` | Output on Lip Gloss: one line per step, markers, aligned labels, the `ls` table, colours adapted to light/dark terminals. Help and usage are styled by Fang |
 | `internal/daemon` | Runs DNS, Caddy and the control socket around the site registry |
 | `internal/dns` | Answers `*.<tld>` with 127.0.0.1 / ::1, refuses everything else |
