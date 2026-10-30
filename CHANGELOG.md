@@ -11,8 +11,10 @@ the release notes, and refuses a tag that has none.
 
 ## [Unreleased]
 
-The first release candidate, `0.1.0`, will contain everything below: Phase 1 of the
-[roadmap](docs/roadmap.md), macOS only.
+## [0.1.0] - 2026-10-30
+
+The first release: Phase 1 of the [roadmap](docs/roadmap.md), macOS only (Apple Silicon and
+Intel), built from source or downloaded from the release.
 
 ### Added
 
@@ -39,4 +41,5 @@ The first release candidate, `0.1.0`, will contain everything below: Phase 1 of 
 - `github.com/go-jose/go-jose/v4` v4.1.6 (a security update from Dependabot, in code Dotlane does
   not call).
 
-[Unreleased]: https://github.com/dotlane/dotlane/commits/main
+[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.1.0-rc.1...HEAD
+[0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0-rc.1
