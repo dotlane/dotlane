@@ -26,6 +26,8 @@ jobs:
     # 80/443, with passwordless sudo. See scripts/integration.sh.
     needs: test
     runs-on: macos-latest
+    # A step waiting on a macOS prompt nobody can answer would otherwise hang for hours.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

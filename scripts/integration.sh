@@ -11,7 +11,9 @@ SERVICE=dev.dotlane.ci
 WORK=$(mktemp -d)
 CONFIG=$WORK/config.toml
 BIN=$PWD/bin/dotlane
-DL() { "$BIN" --config "$CONFIG" "$@"; }
+# Every dotlane call gets two minutes: a step waiting on a prompt nobody can answer fails here,
+# named, instead of hanging the job. (macOS has no timeout(1); perl's alarm does the same.)
+DL() { perl -e 'alarm 120; exec @ARGV or die "exec: $!"' "$BIN" --config "$CONFIG" "$@"; }
 step() { printf '\n== %s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
@@ -30,6 +32,14 @@ cleanup() {
   [[ -n "${DONE:-}" ]] || { echo "--- daemon log"; cat "$HOME/Library/Logs/dotlane/$SERVICE.log" 2>/dev/null || true; }
 }
 trap cleanup EXIT
+
+step "runner setup"
+# Changing System keychain trust settings goes through macOS authorization, which can ask for a
+# confirmation in a dialog even under sudo; on a headless runner nobody answers it, and
+# `security remove-trusted-cert` waited forever. Allow it on this throwaway machine only (on a
+# real Mac the dialog is the right thing).
+echo "com.apple.trust-settings.admin was: $(security authorizationdb read com.apple.trust-settings.admin 2>/dev/null | plutil -extract rule raw -o - - 2>/dev/null || echo unknown)"
+sudo security authorizationdb write com.apple.trust-settings.admin allow
 
 step "install"
 start=$(date +%s)
