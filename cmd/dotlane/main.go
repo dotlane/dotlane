@@ -11,12 +11,14 @@ import (
 	"runtime/debug"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/pedrodee/dotlane/internal/api"
 	"github.com/pedrodee/dotlane/internal/config"
 	"github.com/pedrodee/dotlane/internal/daemon"
+	"github.com/pedrodee/dotlane/internal/install"
 )
 
 // version is set at release time with -ldflags "-X main.version=…".
@@ -158,6 +160,62 @@ func newRoot() *cobra.Command {
 		},
 	})
 
+	installer := func() (install.Installer, error) {
+		cfg, err := loadConfig()
+		if err != nil {
+			return nil, err
+		}
+		c := api.NewClient(cfg.SocketPath())
+		ready := func(ctx context.Context) error {
+			for {
+				_, err := c.Status(ctx)
+				if err == nil {
+					return nil
+				}
+				select {
+				case <-ctx.Done():
+					return err
+				case <-time.After(200 * time.Millisecond):
+				}
+			}
+		}
+		return install.New(cfg, configPath, ready)
+	}
+
+	root.AddCommand(&cobra.Command{
+		Use:   "install",
+		Short: "Run Dotlane at login, trust its certificate authority and route its domain endings",
+		Long: "Installs Dotlane as a login service, trusts its local certificate authority and points\n" +
+			"the domain endings at its DNS. Steps already done are skipped, so it is safe to re-run.\n" +
+			"Steps that need administrator rights are explained and run through sudo.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			i, err := installer()
+			if err != nil {
+				return err
+			}
+			return i.Install(cmd.Context())
+		},
+	})
+
+	var purge bool
+	uninstall := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Undo dotlane install",
+		Long: "Stops the login service and removes it, the certificate authority's trust and the\n" +
+			"resolver files. Sites and the CA's keys are kept unless --purge is given.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			i, err := installer()
+			if err != nil {
+				return err
+			}
+			return i.Uninstall(cmd.Context(), purge)
+		},
+	}
+	uninstall.Flags().BoolVar(&purge, "purge", false, "also delete sites, the CA's keys and the log")
+	root.AddCommand(uninstall)
+
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print the version",
@@ -178,7 +236,7 @@ func printSite(cmd *cobra.Command, s api.Site) {
 
 func explain(err error) error {
 	if errors.Is(err, api.ErrNotRunning) {
-		return fmt.Errorf("%w (start it with: dotlane serve)", err)
+		return fmt.Errorf("%w (set it up with: dotlane install, or run it once with: dotlane serve)", err)
 	}
 	return err
 }

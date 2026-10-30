@@ -21,7 +21,10 @@ type Config struct {
 	HTTPPort  int      // redirects to HTTPS
 	HTTPSPort int
 	StateDir  string // sites, certificate authority, control socket
-	Path      string // file the settings came from; empty when only defaults apply
+	// ServiceName identifies the login service (launchd label) and its log, so a development
+	// install can sit next to a real one.
+	ServiceName string
+	Path        string // file the settings came from; empty when only defaults apply
 }
 
 // file mirrors config.toml. Unknown keys are rejected, so typos surface.
@@ -32,9 +35,13 @@ type file struct {
 	HTTPPort  int      `toml:"http_port"`
 	HTTPSPort int      `toml:"https_port"`
 	StateDir  string   `toml:"state_dir"`
+	Service   string   `toml:"service_name"`
 }
 
-var tldPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,61}[a-z0-9]$`)
+var (
+	tldPattern     = regexp.MustCompile(`^[a-z][a-z0-9-]{0,61}[a-z0-9]$`)
+	servicePattern = regexp.MustCompile(`^[a-z0-9]+(\.[a-z0-9-]+)+$`)
+)
 
 // DefaultPath is $DOTLANE_CONFIG, or ~/.config/dotlane/config.toml.
 func DefaultPath() (string, error) {
@@ -60,6 +67,8 @@ func Load(path string) (*Config, error) {
 		HTTPPort:  80,
 		HTTPSPort: 443,
 		StateDir:  filepath.Join(state, "dotlane"),
+
+		ServiceName: "dev.dotlane",
 	}
 
 	// Absolute, so a relative state_dir stays tied to the file wherever the command runs.
@@ -102,6 +111,9 @@ func Load(path string) (*Config, error) {
 	if raw.HTTPSPort != 0 {
 		cfg.HTTPSPort = raw.HTTPSPort
 	}
+	if raw.Service != "" {
+		cfg.ServiceName = raw.Service
+	}
 	if raw.StateDir != "" {
 		cfg.StateDir = raw.StateDir
 		if !filepath.IsAbs(cfg.StateDir) {
@@ -134,6 +146,9 @@ func (c *Config) validate() error {
 		if port < 1 || port > 65535 {
 			return fmt.Errorf("%s is not a port: %d", key, port)
 		}
+	}
+	if !servicePattern.MatchString(c.ServiceName) {
+		return fmt.Errorf("service_name must be a reverse-DNS name such as dev.dotlane: %q", c.ServiceName)
 	}
 	if c.HTTPPort == c.HTTPSPort {
 		return errors.New("http_port and https_port must differ")

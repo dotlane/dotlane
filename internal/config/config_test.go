@@ -22,7 +22,8 @@ func TestMissingFileGivesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"traix"}) || cfg.DNSPort != 10053 || cfg.HTTPPort != 80 || cfg.HTTPSPort != 443 {
+	if !slices.Equal(cfg.TLDs, []string{"traix"}) || cfg.DNSPort != 10053 || cfg.HTTPPort != 80 || cfg.HTTPSPort != 443 ||
+		cfg.ServiceName != "dev.dotlane" {
 		t.Errorf("defaults = %+v", cfg)
 	}
 	if cfg.Path != "" || !strings.HasSuffix(cfg.StateDir, "dotlane") {
@@ -46,12 +47,14 @@ func TestAllSettings(t *testing.T) {
 http_port = 9480
 https_port = 9443
 state_dir = "state"
+service_name = "dev.dotlane.dev"
 `)
 	cfg, err := Load(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"traix", "test"}) || cfg.HTTPPort != 9480 || cfg.HTTPSPort != 9443 {
+	if !slices.Equal(cfg.TLDs, []string{"traix", "test"}) || cfg.HTTPPort != 9480 || cfg.HTTPSPort != 9443 ||
+		cfg.ServiceName != "dev.dotlane.dev" {
 		t.Errorf("got %+v", cfg)
 	}
 	if want := filepath.Join(filepath.Dir(p), "state"); cfg.StateDir != want {
@@ -71,6 +74,7 @@ func TestRejected(t *testing.T) {
 		{`dns_port = 70000`, "dns_port"},
 		{"http_port = 9443\nhttps_port = 9443", "differ"},
 		{`tdl = "traix"`, "unknown setting"},
+		{`service_name = "My Service"`, "reverse-DNS"},
 		{`tld = traix`, "config.toml"}, // not TOML: values need quotes
 	} {
 		_, err := Load(write(t, tc.body))

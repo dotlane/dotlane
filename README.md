@@ -56,8 +56,8 @@ go build -o bin/dotlane ./cmd/dotlane
 ./bin/dotlane --config dev/config.toml ls --json
 
 curl --cacert dev/state/caddy/pki/authorities/local/root.crt \
-  --resolve myapp.traix:9443:127.0.0.1 https://myapp.traix:9443/
-dig +short anything.traix @127.0.0.1 -p 10054             # 127.0.0.1
+  --resolve myapp.dldev:9443:127.0.0.1 https://myapp.dldev:9443/
+dig +short anything.dldev @127.0.0.1 -p 10054             # 127.0.0.1
 ```
 
 The dev CA is not trusted by the system (that is `dotlane install`, M2), hence `--cacert`.

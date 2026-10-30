@@ -86,8 +86,9 @@ M3).
 ### M5 — Migration from the prototype (≈ 3 days)
 
 - `dotlane migrate`: imports `~/.config/caddy/sites/*.caddy` (the `# Managed by dotlane` line),
-  reuses Caddy's existing root CA from `~/Library/Application Support/Caddy/pki/authorities/local/`
-  so nothing needs trusting again, stops the Homebrew Caddy service and the dnsmasq agent, and says
+  reuses the Homebrew Caddy service's root CA from `/opt/homebrew/var/lib/caddy/pki/authorities/local/`
+  (the trusted one; `~/Library/Application Support/Caddy` holds a different, untrusted CA from
+  running `caddy` as a plain command) so nothing needs trusting again, stops the Homebrew Caddy service and the dnsmasq agent, and says
   which prototype files can be deleted.
 - **Done when** this Mac moves from the prototype to the binary with no new password prompt and
   `https://myapp.traix` keeps working.
