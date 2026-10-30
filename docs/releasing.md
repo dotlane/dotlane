@@ -61,3 +61,35 @@ checks each against a SHA-256 pinned in the script, rather than using third-part
 ([`security-guide.md`](security-guide.md), workflow rules) or compiling them (which took over
 six minutes per run). Updating a tool means changing its version and checksum there, and the
 version here.
+
+## npm
+
+Every release also builds the npm packages from its own binaries
+([`scripts/npm-build.mjs`](../scripts/npm-build.mjs)) and attaches their tarballs to the draft:
+
+| Package | Holds |
+| --- | --- |
+| `dotlane` | The launcher, [`npm/dotlane/bin/dotlane.js`](../npm/dotlane/bin/dotlane.js); depends on exactly the same version of each platform package, as optional dependencies |
+| `@dotlane/darwin-arm64`, `@dotlane/darwin-x64` | One binary each; `os` and `cpu` make npm install only the one for the machine |
+
+No package has install scripts. A pre-release goes to the `next` npm tag, a release to `latest`.
+Tests: `node --test 'npm/test/*.test.*'` (the launcher and the build), and
+[`scripts/npm-e2e.sh`](../scripts/npm-e2e.sh), which packs real binaries, installs them into a
+scratch project and runs `npx dotlane` (on this Mac's architecture; CI's Intel job covers x64).
+
+**Publishing is off** until these one-time steps are done (the *Publish to npm* step checks the
+repository variable `NPM_PUBLISH`):
+
+1. **Claim the name `dotlane` now.** The npm organization `dotlane` owns the `@dotlane/*`
+   packages, but the unscoped name `dotlane` is free (checked 2026-10-30) and goes to whoever
+   publishes it first.
+2. **First publish, by hand, from a maintainer's machine** (npm needs a package to exist before
+   a trusted publisher can be set on it): `npm login`, then `npm publish --access public --tag next`
+   for each tarball of a release candidate, platform packages first. Use npm's two-factor
+   authentication.
+3. **Trusted publishing**, on each of the three packages on npmjs.com (Settings → Trusted
+   publisher → GitHub Actions): repository `dotlane/dotlane`, workflow `release.yml`, environment
+   `release`. From then on the release workflow publishes with a short-lived OIDC token; there
+   is no npm token to store or steal.
+4. **Make the repository public**: npm provenance (`--provenance`) requires a public source
+   repository. Then set the repository variable `NPM_PUBLISH` to `true`.

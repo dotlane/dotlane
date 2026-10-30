@@ -1,0 +1,36 @@
+{
+  "name": "dotlane",
+  "version": "0.0.0-dev",
+  "description": "Real, trusted HTTPS addresses for local dev servers: https://myapp.traix instead of http://localhost:5173",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/dotlane/dotlane",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dotlane/dotlane.git",
+    "directory": "npm/dotlane"
+  },
+  "bugs": "https://github.com/dotlane/dotlane/issues",
+  "keywords": [
+    "https",
+    "local development",
+    "dev server",
+    "localhost",
+    "certificates",
+    "dns",
+    "proxy",
+    "caddy"
+  ],
+  "bin": {
+    "dotlane": "bin/dotlane.js"
+  },
+  "files": [
+    "bin/dotlane.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@dotlane/darwin-arm64": "0.0.0-dev",
+    "@dotlane/darwin-x64": "0.0.0-dev"
+  }
+}

@@ -46,7 +46,9 @@ jobs:
       - name: Bash scripts
         run: |
           bash -n files/bin/dotlane
-          bash -n scripts/integration.sh scripts/changelog-section.sh scripts/install-release-tools.sh
+          bash -n scripts/integration.sh scripts/changelog-section.sh scripts/install-release-tools.sh scripts/npm-e2e.sh
+      - name: npm launcher and build tests
+        run: node --test 'npm/test/*.test.*'
 
   install-tests:
     # The installer (launchd, keychain, /etc/resolver, its fakes) is macOS-only code. Intel:
@@ -63,6 +65,8 @@ jobs:
           # restoring then stalled jobs for 15+ minutes; modules download in seconds instead.
           cache: false
       - run: go test -race ./internal/install/...
+      - name: npm packages end to end (darwin-x64 on this runner)
+        run: scripts/npm-e2e.sh
 
   integration:
     # The real thing on a throwaway Mac: login service, System keychain, /etc/resolver, ports
@@ -114,6 +118,14 @@ jobs:
         run: |
           sha256sum -c checksums.txt
           for a in dotlane_*.tar.gz; do tar tzf "$a" | LC_ALL=C sort | tr '\n' ' ' | grep -q "LICENSE NOTICE README.md dotlane" || { echo "$a: unexpected contents"; exit 1; }; done
+      - name: npm packages from the snapshot binaries
+        run: |
+          version=$(jq -r .version dist/metadata.json)
+          version=${version%%+*} # 0.0.1-snapshot+abc1234: npm versions take no build metadata
+          node scripts/npm-build.mjs --version "$version" \
+            --darwin-arm64 dist/dotlane_darwin_arm64_v8.0/dotlane \
+            --darwin-x64 dist/dotlane_darwin_amd64_v1/dotlane \
+            --out dist/npm
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: snapshot
@@ -121,4 +133,5 @@ jobs:
             dist/*.tar.gz
             dist/*.sbom.json
             dist/checksums.txt
+            dist/npm/*.tgz
           retention-days: 7

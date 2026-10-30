@@ -11,6 +11,11 @@ the release notes, and refuses a tag that has none.
 
 ## [Unreleased]
 
+### Added
+
+- npm packages: `dotlane` (a Node launcher) with the binary in `@dotlane/darwin-arm64` or
+  `@dotlane/darwin-x64`, built from each release and attached to it; not yet published.
+
 ### Changed
 
 - Help, docs and examples use a neutral app name (`myapp`).

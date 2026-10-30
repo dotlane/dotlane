@@ -1,4 +1,6 @@
 .DS_Store
-bin/
-dev/state/
-dist/
+# Build output at the repository root only; other folders named bin/ (npm/dotlane/bin) are source.
+/bin/
+/dev/state/
+/dist/
+/npm/build/
