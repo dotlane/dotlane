@@ -35,16 +35,27 @@ of the [roadmap](roadmap.md) (≈ 1–2 weeks) and builds on Phase 1 ([`phase-1.
 
 ## Milestones
 
-### P2-M1: Release pipeline with GoReleaser (≈ 2 days) — built 2026-10-30, first tag pending
+### P2-M1: Release pipeline with GoReleaser (≈ 2 days) — done 2026-10-30
 
 Built: `.goreleaser.yaml` (darwin arm64/amd64, reproducible builds, archives with `LICENSE`,
-`NOTICE` and `README.md`, SHA-256 checksums, an SPDX SBOM per archive, changelog, draft
-releases), `release.yml` on `v*` tags after the full test suite, and a snapshot job on every pull
-request. GoReleaser 2.19.0 and Syft 1.55.0 are installed with `go install` at pinned versions,
-not through third-party Actions. Checked locally: checksums verify, archives hold the expected
-files, SBOMs list 164 packages, and two builds of one commit are byte-identical. Release notes are the version's section of `CHANGELOG.md`; a tag
-without one is refused. How to cut a release: [`releasing.md`](releasing.md). Remaining: tag `v0.1.0-rc.1` and check the done
-criterion below.
+`NOTICE` and `README.md`, SHA-256 checksums, an SPDX SBOM per archive, draft releases),
+`release.yml` on `v*` tags after the full test suite, and a snapshot job on every pull request.
+Release notes are the version's section of `CHANGELOG.md`, with relative links made absolute at
+the tag; a tag without a section is refused. GoReleaser 2.19.0 and Syft 1.55.0 are downloaded
+prebuilt and checked against pinned SHA-256s. How to cut a release: [`releasing.md`](releasing.md).
+
+**Done criterion met with `v0.1.0-rc.2`**
+([run 41128845921](https://github.com/dotlane/dotlane/actions/runs/41128845921), `7c0afd5`): a
+draft pre-release with both archives, both SBOMs and `checksums.txt`; every download matches
+`checksums.txt`; the arm64 binary reports `0.1.0-rc.2 (7c0afd5, 2026-10-30T21:09:12Z)`; the notes
+are the changelog's `0.1.0` section with the roadmap link at the tag. Tag to draft took 17.5 min
+(changelog check 6 s, tests 13 min, GoReleaser 4 min).
+
+Found on the way: `v0.1.0-rc.1`'s draft had no notes, because `changelog.disable: true` makes
+GoReleaser skip the step that applies `--release-notes`; and relative links in the notes did
+not resolve on the release page. Both fixed; rc.1 was deleted. The integration test runs on
+GitHub's Intel macOS runners for now, since arm64 runners kept failing to start for lack of
+capacity.
 
 Planned:
 

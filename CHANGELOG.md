@@ -45,5 +45,5 @@ Intel), built from source or downloaded from the release.
 - `github.com/go-jose/go-jose/v4` v4.1.6 (a security update from Dependabot, in code Dotlane does
   not call).
 
-[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.1.0-rc.1...HEAD
-[0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0-rc.1
+[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.1.0-rc.2...HEAD
+[0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0-rc.2
