@@ -185,7 +185,9 @@ Shipped:
   an error instead of silently meaning defaults.
 - **Integration test** (`scripts/integration.sh`, CI job `integration`): install → add → HTTPS
   through the system's DNS and trust on ports 80/443 → redirect, no-site and down pages → LAN
-  request dropped → `up`/`down` → `doctor` → `uninstall --purge` → nothing left. Fails if
+  request dropped → `up`/`down` → reinstall over the running daemon (rebuild, `install`; it must
+  restart into the new build, keep every site, and leave an unchanged install alone) → `doctor` →
+  `uninstall --purge` → nothing left. Fails if
   install → first site takes 60 s or more.
 - **Docs** moved from Bash to Go (`setup.md`, `cli.md`, `troubleshooting.md`; the prototype's are
   in `docs/prototype/`). **Licence**: Apache-2.0 (`LICENSE`, `NOTICE`), the same as Caddy.

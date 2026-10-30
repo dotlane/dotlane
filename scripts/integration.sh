@@ -21,7 +21,7 @@ service_name = "$SERVICE"
 state_dir = "$WORK/state"
 TOML
 
-go build -o "$BIN" ./cmd/dotlane
+go build -ldflags "-X main.version=ci-build-1" -o "$BIN" ./cmd/dotlane
 python3 -m http.server 18080 --bind 127.0.0.1 --directory "$WORK" >/dev/null 2>&1 &
 UPSTREAM=$!
 echo hello > "$WORK/hello.txt"
@@ -71,6 +71,28 @@ printf '[sites.proj]\nport = 18080\n' > "$WORK/project/dotlane.toml"
 curl -fsS "https://proj.$TLD/hello.txt" >/dev/null || fail "dotlane up did not serve proj"
 (cd "$WORK/project" && DL down)
 DL ls --json | grep -q '"proj"' && fail "dotlane down left proj"
+
+step "reinstall over the running daemon"
+# What an upgrade does: rebuild, then install again while the daemon runs. Install must copy the
+# new build to the service's folder, restart the daemon into it, and keep every site.
+daemon() { DL doctor --json | python3 -c 'import json,sys; print(next(c["detail"] for c in json.load(sys.stdin) if c["name"] == "Daemon"))'; }
+before=$(daemon)
+echo "before: $before"
+go build -ldflags "-X main.version=ci-build-2" -o "$BIN" ./cmd/dotlane
+out=$(DL install 2>&1) || { echo "$out"; fail "reinstall failed"; }
+echo "$out" | grep -q "restarted (to load the rebuilt binary)" || { echo "$out"; fail "install did not restart the daemon"; }
+after=$(daemon)
+echo "after:  $after"
+[[ "$after" == *"ci-build-2"* ]] || fail "the daemon does not run the new build"
+pid_before=$(sed -E 's/.*pid ([0-9]+).*/\1/' <<<"$before"); pid_after=$(sed -E 's/.*pid ([0-9]+).*/\1/' <<<"$after")
+[[ "$pid_before" != "$pid_after" ]] || fail "daemon pid unchanged ($pid_after)"
+cmp -s "$BIN" "$HOME/Library/Application Support/dotlane/bin/$SERVICE" || fail "the service's copy is not the new build"
+body=$(curl -fsS --max-time 10 "https://web.$TLD/hello.txt") || fail "web.$TLD not served after the reinstall"
+[[ "$body" == hello ]] || fail "unexpected body after the reinstall: $body"
+DL ls --json | grep -q '"web"' || fail "site web lost in the reinstall"
+out=$(DL install 2>&1) || { echo "$out"; fail "second install failed"; }
+echo "$out" | grep -q "restarted" && { echo "$out"; fail "an unchanged binary restarted the daemon"; }
+echo "restarted into the new build (pid $pid_before → $pid_after); an unchanged install left it alone"
 
 step "doctor"
 DL doctor
