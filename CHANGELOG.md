@@ -11,6 +11,10 @@ the release notes, and refuses a tag that has none.
 
 ## [Unreleased]
 
+### Changed
+
+- Help, docs and examples use a neutral app name (`myapp`).
+
 ## [0.1.0] - 2026-10-30
 
 The first release: Phase 1 of the [roadmap](docs/roadmap.md), macOS only (Apple Silicon and
