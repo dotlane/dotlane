@@ -568,10 +568,16 @@ func (m *Mac) untrustCA(ctx context.Context) error {
 	// The certificate first: a keychain change. Removing trust settings goes through macOS
 	// authorization and can need a dialog even under sudo (a headless Mac waits on it forever),
 	// so it only runs when an entry for this CA is still there afterwards.
-	if inKeychain {
+	// delete-certificate removes one copy; a keychain can hold the same certificate more than once.
+	for i := 0; inKeychain && i < 5; i++ {
 		if err := m.sudo(ctx, nil, "/usr/bin/security", "delete-certificate", "-Z", hash, systemKeychain); err != nil {
 			return err
 		}
+		out, _ := m.Runner.Run(ctx, "/usr/bin/security", "find-certificate", "-a", "-Z", systemKeychain)
+		inKeychain = bytes.Contains(out, []byte(hash))
+	}
+	if inKeychain {
+		return fmt.Errorf("the certificate authority is still in the System keychain (SHA-1 %s); remove it in Keychain Access", hash)
 	}
 	if m.trustSettingsFor(ctx, name) {
 		if err := m.sudo(ctx, nil, "/usr/bin/security", "remove-trusted-cert", "-d", m.rootCert()); err != nil {

@@ -54,6 +54,7 @@ func testCA(t *testing.T) []byte {
 // fakeMac simulates launchd, the keychain, lsof and sudo, so tests never touch the real system.
 type fakeMac struct {
 	loaded, trusted, inKeychain bool
+	copies                      int // extra copies of the CA in the keychain beyond the first
 	// deleteDropsTrust: deleting the certificate also removes its trust settings. Which way
 	// macOS goes is not documented, so tests try both.
 	deleteDropsTrust bool
@@ -193,6 +194,10 @@ func (f *fakeMac) Sudo(_ context.Context, stdin []byte, name string, args ...str
 		case "remove-trusted-cert":
 			f.trusted = false
 		case "delete-certificate":
+			if f.copies > 0 {
+				f.copies--
+				break
+			}
 			f.inKeychain = false
 			if f.deleteDropsTrust {
 				f.trusted = false
@@ -777,6 +782,20 @@ func TestRefresh(t *testing.T) {
 	}
 	if fake.ran("launchctl kickstart") || fake.ran("launchctl bootstrap") {
 		t.Errorf("an up-to-date service was restarted: %v", fake.calls)
+	}
+}
+
+func TestUninstallRemovesEveryCopy(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	fake.copies = 2
+	if err := m.Uninstall(context.Background(), false); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if fake.inKeychain {
+		t.Error("a copy of the CA was left in the keychain")
 	}
 }
 

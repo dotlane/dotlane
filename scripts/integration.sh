@@ -125,8 +125,11 @@ security dump-trust-settings -d 2>/dev/null | grep -q "Cert [0-9]*: Dotlane Loca
 [[ ! -e "$HOME/Library/Application Support/dotlane/bin/$SERVICE" ]] || fail "the service's binary left behind"
 [[ ! -e "$WORK/state" ]] || fail "state left behind"
 launchctl print "gui/$(id -u)/$SERVICE" >/dev/null 2>&1 && fail "service still loaded"
-security find-certificate -a -c "Dotlane Local Authority" /Library/Keychains/System.keychain >/dev/null 2>&1 \
-  && fail "CA still in the System keychain"
+left=$(security find-certificate -a -c "Dotlane Local Authority" -Z /Library/Keychains/System.keychain 2>/dev/null || true)
+if grep -q "SHA-1" <<<"$left"; then
+  grep -E 'SHA-1|"labl"|"alis"' <<<"$left"
+  fail "CA still in the System keychain"
+fi
 
 step "install --refresh with nothing installed"
 out=$(DL install --refresh 2>&1) || { echo "$out"; fail "install --refresh failed when not installed"; }
