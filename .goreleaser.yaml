@@ -50,10 +50,12 @@ checksum:
 sboms:
   - artifacts: archive
 
-# Release notes come from the version's section of CHANGELOG.md (release.yml passes it with
-# --release-notes), not from commit subjects.
+# Release notes come from the version's section of CHANGELOG.md: release.yml passes it with
+# --release-notes, which replaces the commit-subject changelog. The changelog step must stay
+# enabled: with `disable: true` GoReleaser skips it, ignores --release-notes, and the release
+# has no notes (what happened to v0.1.0-rc.1).
 changelog:
-  disable: true
+  use: git
 
 release:
   github:
