@@ -27,8 +27,13 @@ import (
 	"github.com/dotlane/dotlane/internal/ui"
 )
 
-// version is set at release time with -ldflags "-X main.version=…".
-var version = ""
+// Set at release time with -ldflags "-X main.version=… -X main.commit=… -X main.date=…"
+// (.goreleaser.yaml).
+var (
+	version = ""
+	commit  = ""
+	date    = ""
+)
 
 func versionString() string {
 	if version != "" {
@@ -40,10 +45,18 @@ func versionString() string {
 	return "dev"
 }
 
+// versionLine is versionString with the commit and build date, when the build recorded them.
+func versionLine() string {
+	if commit == "" {
+		return versionString()
+	}
+	return fmt.Sprintf("%s (%s, %s)", versionString(), commit, date)
+}
+
 func main() {
 	// Fang styles help and usage, and adds --version, completions and a hidden man command.
 	err := fang.Execute(context.Background(), newRoot(),
-		fang.WithVersion(versionString()),
+		fang.WithVersion(versionLine()),
 		fang.WithErrorHandler(func(_ io.Writer, _ fang.Styles, err error) {
 			ui.New(os.Stderr).Error(withUsageHint(err))
 		}),
@@ -470,7 +483,7 @@ func newRoot() *cobra.Command {
 		Short: "Print the version",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintln(cmd.OutOrStdout(), versionString())
+			fmt.Fprintln(cmd.OutOrStdout(), versionLine())
 		},
 	})
 

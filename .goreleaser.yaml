@@ -1,0 +1,68 @@
+# Release builds (docs/phase-2.md, P2-M1). Checked on every pull request with a snapshot build
+# (.github/workflows/ci.yml) and used by .github/workflows/release.yml on v* tags.
+#
+#   goreleaser check
+#   goreleaser release --snapshot --clean     # local dry run into dist/
+#
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+project_name: dotlane
+
+before:
+  hooks:
+    # A release never changes go.mod or go.sum on the way: they must already be tidy.
+    - go mod tidy -diff
+
+builds:
+  - id: dotlane
+    main: ./cmd/dotlane
+    binary: dotlane
+    env:
+      - CGO_ENABLED=0
+    # macOS only until Phase 4 makes install work elsewhere; linux and windows already build
+    # (docs/phase-2.md).
+    goos: [darwin]
+    goarch: [arm64, amd64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .ShortCommit }}
+      - -X main.date={{ .CommitDate }}
+    # Reproducible: the binary's timestamp is the commit's, not the build machine's clock.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: dotlane
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# One SPDX SBOM per archive, made by Syft.
+sboms:
+  - artifacts: archive
+
+# Release notes come from the version's section of CHANGELOG.md (release.yml passes it with
+# --release-notes), not from commit subjects.
+changelog:
+  disable: true
+
+release:
+  github:
+    owner: dotlane
+    name: dotlane
+  # A maintainer reviews the draft and publishes it; tags with a suffix (v0.1.0-rc.1) are
+  # marked as pre-releases.
+  draft: true
+  prerelease: auto
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot+{{ .ShortCommit }}"

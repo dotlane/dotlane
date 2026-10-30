@@ -35,7 +35,18 @@ of the [roadmap](roadmap.md) (≈ 1–2 weeks) and builds on Phase 1 ([`phase-1.
 
 ## Milestones
 
-### P2-M1: Release pipeline with GoReleaser (≈ 2 days)
+### P2-M1: Release pipeline with GoReleaser (≈ 2 days) — built 2026-10-30, first tag pending
+
+Built: `.goreleaser.yaml` (darwin arm64/amd64, reproducible builds, archives with `LICENSE`,
+`NOTICE` and `README.md`, SHA-256 checksums, an SPDX SBOM per archive, changelog, draft
+releases), `release.yml` on `v*` tags after the full test suite, and a snapshot job on every pull
+request. GoReleaser 2.19.0 and Syft 1.55.0 are installed with `go install` at pinned versions,
+not through third-party Actions. Checked locally: checksums verify, archives hold the expected
+files, SBOMs list 164 packages, and two builds of one commit are byte-identical. Release notes are the version's section of `CHANGELOG.md`; a tag
+without one is refused. How to cut a release: [`releasing.md`](releasing.md). Remaining: tag `v0.1.0-rc.1` and check the done
+criterion below.
+
+Planned:
 
 - `.goreleaser.yaml` (GoReleaser v2, version pinned in the workflow):
   - builds: `darwin` × `arm64`, `amd64`, `CGO_ENABLED=0`, `-trimpath`, ldflags

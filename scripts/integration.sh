@@ -24,9 +24,29 @@ state_dir = "$WORK/state"
 TOML
 
 go build -ldflags "-X main.version=ci-build-1" -o "$BIN" ./cmd/dotlane
-python3 -m http.server 18080 --bind 127.0.0.1 --directory "$WORK" >/dev/null 2>&1 &
-UPSTREAM=$!
 echo hello > "$WORK/hello.txt"
+python3 -m http.server 18080 --bind 127.0.0.1 --directory "$WORK" >"$WORK/upstream.log" 2>&1 &
+UPSTREAM=$!
+# The test's dev server must answer before Dotlane is asked to proxy to it: Python can take
+# seconds to start on a cold runner, and a 502 then would be the test's fault, not Dotlane's.
+for _ in $(seq 1 60); do
+  curl -fsS --max-time 1 http://127.0.0.1:18080/hello.txt >/dev/null 2>&1 && break
+  sleep 0.5
+done
+curl -fsS --max-time 2 http://127.0.0.1:18080/hello.txt >/dev/null || { cat "$WORK/upstream.log"; fail "the test's dev server on :18080 did not start"; }
+
+# Why a request through Dotlane failed: a certificate problem, or a proxy answer (502) and what
+# is behind it.
+why() { # <url>
+  local code
+  code=$(curl -sS -o "$WORK/why.html" -w '%{http_code}' --max-time 10 "$1" 2>"$WORK/why.err") || true
+  echo "--- $1: HTTP ${code:-none}"
+  cat "$WORK/why.err"
+  [[ -s "$WORK/why.html" ]] && sed -e '/<style/,/<\/style>/d' -e 's/<[^>]*>//g' "$WORK/why.html" | grep -v '^[[:space:]]*$' | head -8
+  echo "--- listening on :18080:"; lsof -nP -iTCP:18080 -sTCP:LISTEN || true
+  echo "--- direct: $(curl -sS -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:18080/hello.txt 2>&1)"
+  echo "--- localhost resolves to: $(dscacheutil -q host -a name localhost | awk '/address/ {print $2}' | tr '\n' ' ')"
+}
 cleanup() {
   kill "$UPSTREAM" 2>/dev/null || true
   [[ -n "${DONE:-}" ]] || { echo "--- daemon log"; cat "$HOME/Library/Logs/dotlane/$SERVICE.log" 2>/dev/null || true; }
@@ -39,7 +59,7 @@ DL install
 
 step "first site"
 DL add web 18080
-body=$(curl -fsS --max-time 10 "https://web.$TLD/hello.txt") || fail "https://web.$TLD not served with a trusted certificate"
+body=$(curl -fsS --max-time 10 "https://web.$TLD/hello.txt") || { why "https://web.$TLD/hello.txt"; fail "https://web.$TLD/hello.txt was not served"; }
 [[ "$body" == hello ]] || fail "unexpected body: $body"
 elapsed=$(( $(date +%s) - start ))
 echo "install → first site: ${elapsed}s"
@@ -89,7 +109,7 @@ echo "after:  $after"
 pid_before=$(sed -E 's/.*pid ([0-9]+).*/\1/' <<<"$before"); pid_after=$(sed -E 's/.*pid ([0-9]+).*/\1/' <<<"$after")
 [[ "$pid_before" != "$pid_after" ]] || fail "daemon pid unchanged ($pid_after)"
 cmp -s "$BIN" "$HOME/Library/Application Support/dotlane/bin/$SERVICE" || fail "the service's copy is not the new build"
-body=$(curl -fsS --max-time 10 "https://web.$TLD/hello.txt") || fail "web.$TLD not served after the reinstall"
+body=$(curl -fsS --max-time 10 "https://web.$TLD/hello.txt") || { why "https://web.$TLD/hello.txt"; fail "web.$TLD not served after the reinstall"; }
 [[ "$body" == hello ]] || fail "unexpected body after the reinstall: $body"
 DL ls --json | grep -q '"web"' || fail "site web lost in the reinstall"
 out=$(DL install 2>&1) || { echo "$out"; fail "second install failed"; }

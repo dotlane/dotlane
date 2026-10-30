@@ -4,35 +4,74 @@ on:
   push:
     branches: [main]
   pull_request:
+  # release.yml runs the same tests before publishing a release.
+  workflow_call:
 
 # Least privilege (docs/security-guide.md): CI only reads the repository.
 permissions:
   contents: read
 
+# A new push to a branch or pull request cancels that branch's older runs, so stale runs do not
+# hold the few macOS runners the plan allows.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    # macOS first: Phase 1 targets it, and the daemon test binds real ports and sockets.
-    runs-on: macos-latest
+    # Linux: starts in seconds and costs a tenth of macOS minutes. Everything but the installer
+    # builds and tests here; the macOS-only code is still vetted and scanned (GOOS=darwin).
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          # No Actions cache: this account's cache egress allowance ran out (2026-10-30) and
+          # restoring then stalled jobs for 15+ minutes; modules download in seconds instead.
+          cache: false
       - name: gofmt
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
+      - name: go vet (macOS build)
+        run: GOOS=darwin go vet ./...
       - run: go test -race ./...
       - name: govulncheck
-        # Fails only on vulnerabilities in code Dotlane actually calls.
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
-      - name: Bash prototype
-        run: bash -n files/bin/dotlane
+        # Fails only on vulnerabilities in code Dotlane actually calls, for both builds. Built once
+        # for this runner: GOOS on `go run` would build govulncheck itself for macOS.
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+          GOOS=darwin "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Bash scripts
+        run: |
+          bash -n files/bin/dotlane
+          bash -n scripts/integration.sh scripts/changelog-section.sh scripts/install-release-tools.sh
+
+  install-tests:
+    # The installer (launchd, keychain, /etc/resolver, its fakes) is macOS-only code. Intel:
+    # GitHub's arm64 Macs kept failing to start this job for lack of capacity (2026-10-30), and
+    # these tests use fakes, not the hardware. The integration test stays on arm64.
+    runs-on: macos-15-intel
+    timeout-minutes: 30 # counts time queued for a macOS runner too
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          # No Actions cache: this account's cache egress allowance ran out (2026-10-30) and
+          # restoring then stalled jobs for 15+ minutes; modules download in seconds instead.
+          cache: false
+      - run: go test -race ./internal/install/...
 
   integration:
     # The real thing on a throwaway Mac: login service, System keychain, /etc/resolver, ports
     # 80/443, with passwordless sudo. See scripts/integration.sh.
     needs: test
-    runs-on: macos-latest
+    # Intel, like install-tests: GitHub's arm64 Macs kept failing to start jobs for lack of
+    # capacity (2026-10-30). The arm64 build is still produced and checked by release-snapshot.
+    # Move back to macos-latest (arm64) once capacity recovers.
+    runs-on: macos-15-intel
     # A step waiting on a macOS prompt nobody can answer would otherwise hang for hours; each
     # dotlane call also has its own two-minute limit in the script. The job's limit counts time
     # queued for a macOS runner too, which can be long, hence 30 rather than 15.
@@ -42,4 +81,44 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          # No Actions cache: this account's cache egress allowance ran out (2026-10-30) and
+          # restoring then stalled jobs for 15+ minutes; modules download in seconds instead.
+          cache: false
       - run: scripts/integration.sh
+
+  release-snapshot:
+    # GoReleaser's dry run on every pull request, so .goreleaser.yaml cannot rot between releases.
+    # Linux cross-compiles the macOS binaries (CGO_ENABLED=0) at a tenth of the macOS minutes.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the version comes from git history
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          # No Actions cache: this account's cache egress allowance ran out (2026-10-30) and
+          # restoring then stalled jobs for 15+ minutes; modules download in seconds instead.
+          cache: false
+      - name: Install GoReleaser and Syft
+        # Prebuilt releases, each checked against a SHA-256 pinned in the script, instead of
+        # third-party actions (docs/security-guide.md, workflow rules).
+        run: scripts/install-release-tools.sh "$RUNNER_TEMP/bin"
+      - run: goreleaser check
+      - name: CHANGELOG.md has an Unreleased section
+        run: grep -q '^## \[Unreleased\]' CHANGELOG.md
+      - run: goreleaser release --snapshot --clean
+      - name: Verify checksums and archives
+        working-directory: dist
+        run: |
+          sha256sum -c checksums.txt
+          for a in dotlane_*.tar.gz; do tar tzf "$a" | LC_ALL=C sort | tr '\n' ' ' | grep -q "LICENSE NOTICE README.md dotlane" || { echo "$a: unexpected contents"; exit 1; }; done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: snapshot
+          path: |
+            dist/*.tar.gz
+            dist/*.sbom.json
+            dist/checksums.txt
+          retention-days: 7
