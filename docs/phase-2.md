@@ -110,9 +110,11 @@ The esbuild/Biome pattern, with no install scripts:
 
 ### P2-M5: Public release (≈ 2 days)
 
-- Before the repository goes public, an audit: history and files for secrets or personal data, and
-  `NOTICE` covering Caddy and the other embedded modules (from `go-licenses`).
-- `site/` published with GitHub Pages; the README gets a 30-second terminal recording (VHS, which
+- Before the repository goes public: the fresh-history procedure and checklist in
+  [`security-guide.md`](security-guide.md#before-the-tools-repository-goes-public), the
+  organization and repository settings there, and `NOTICE` covering Caddy and the other embedded
+  modules (from `go-licenses`).
+- The website (its own repository, `dotlane/website`) published; the README gets a 30-second terminal recording (VHS, which
   scripts it so it can be re-recorded each release).
 - `SECURITY.md` covers where the CA key lives and how to report a vulnerability. Also
   `CONTRIBUTING.md`, plus issue templates that ask for `dotlane doctor --json`.

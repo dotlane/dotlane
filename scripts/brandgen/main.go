@@ -74,17 +74,6 @@ func main() {
 	}
 	write("png/apple-touch-icon.png", encode(draw(180, 180, inkTheme)))
 
-	// The website (site/) carries its own copies, so the folder can be published on its own.
-	must(os.MkdirAll("site", 0o755))
-	for name, data := range map[string][]byte{
-		"favicon.svg":          []byte(faviconSVG()),
-		"mark.svg":             []byte(svg(regular, inkTheme)),
-		"apple-touch-icon.png": encode(draw(180, 180, inkTheme)),
-	} {
-		must(os.WriteFile(filepath.Join("site", name), data, 0o644))
-		fmt.Println(filepath.Join("site", name))
-	}
-
 	var icoImages [][]byte
 	for _, size := range []int{16, 32, 48} {
 		icoImages = append(icoImages, encode(draw(size, size, inkTheme)))

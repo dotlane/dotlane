@@ -123,7 +123,6 @@ The same flow as text:
 | File | What it covers |
 | --- | --- |
 | [`docs/brand.md`](docs/brand.md) | The mark, colours, type and Dotlane's own pages; the files are in `assets/brand/` |
-| [`site/`](site/) | The website: one self-contained page, no build step (`open site/index.html`) |
 | [`docs/how-it-works.md`](docs/how-it-works.md) | What the Go version does and how: the daemon, a request end to end, certificates, install, projects, `doctor`, `migrate` |
 | [`docs/architecture.md`](docs/architecture.md) | The Bash prototype: components, request flow, and why each design choice was made |
 | [`docs/diagrams/dotlane-components.svg`](docs/diagrams/dotlane-components.svg) | Diagram of the tools and libraries used and how a request flows (light and dark mode) |
@@ -131,6 +130,8 @@ The same flow as text:
 | [`docs/cli.md`](docs/cli.md) | Command reference: every command, `dotlane.toml`, `config.toml`, output and exit codes |
 | [`docs/prototype/`](docs/prototype/) | The Bash prototype's setup and command reference, kept for reference |
 | [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with MyApp as the example |
+| [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, and what is in scope |
+| [`docs/security-guide.md`](docs/security-guide.md) | How the repositories, secrets, releases and website are protected; the checklist before going public |
 | [`docs/security.md`](docs/security.md) | Trust model of the local certificate authority, what runs with which privileges |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common problems and their fixes, and lessons from the prototype |
 | [`docs/product-notes.md`](docs/product-notes.md) | Landscape, differentiators, gaps between this prototype and a product |
