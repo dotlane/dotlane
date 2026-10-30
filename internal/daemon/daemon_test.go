@@ -132,6 +132,19 @@ func TestDaemon(t *testing.T) {
 		t.Errorf("GET = %d %q (the Host header must pass through)", resp.StatusCode, body)
 	}
 
+	// Plain HTTP redirects to the HTTPS port actually in use.
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, _ := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(cfg.HTTPPort)+"/x?y=1", nil)
+	req.Host = "demo.traix"
+	if resp, err := noFollow.Do(req); err != nil {
+		t.Error(err)
+	} else {
+		resp.Body.Close()
+		if loc := resp.Header.Get("Location"); resp.StatusCode != 308 || loc != wantURL+"/x?y=1" {
+			t.Errorf("HTTP = %d → %q, want 308 → %s/x?y=1", resp.StatusCode, loc, wantURL)
+		}
+	}
+
 	list, err := client.Sites(ctx)
 	if err != nil || len(list) != 1 || list[0].Name != "demo" {
 		t.Errorf("Sites = %+v, %v", list, err)

@@ -141,7 +141,16 @@ the CA is already trusted, so no step needs a password. If the install fails, Do
 is removed and the prototype restarted, CA trust untouched. On success it checks each site with
 a TLS handshake against the system's trusted roots, points `~/.local/bin/dotlane` (the
 prototype script) at the binary, and lists the prototype's files for the user to delete.
-Re-running is safe. Verified: the embedded Caddy accepts the prototype's root (it issues its own
+Re-running is safe.
+
+First real run (2026-10-30): refused, and the rollback put the prototype back as designed
+(`https://myapp.traix` kept answering). Cause: macOS lets a user listen on ports below 1024
+only on all interfaces, not on 127.0.0.1, and the daemon bound loopback only (M1–M4 were tested
+on 9443). Fix: 80 and 443 now bind on all interfaces with a first route that drops requests from
+other machines (checked live on 444/81: loopback served, the LAN address got no answer); higher
+ports stay on loopback. The HTTP redirect is now an explicit server, so it also follows a
+non-standard HTTPS port. Install's bind test uses the same addresses, and a permission error is
+reported as such rather than as "another user". Verified: the embedded Caddy accepts the prototype's root (it issues its own
 intermediate under it) and curl trusts the result with no `--cacert`; the flow is covered by
 tests with a fake launchd/Homebrew, including the rollback.
 

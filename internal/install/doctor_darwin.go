@@ -10,9 +10,11 @@ import (
 	"net"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pedrodee/dotlane/internal/config"
+	"github.com/pedrodee/dotlane/internal/proxy"
 )
 
 // Doctor implements Installer: the installation's state, and anything in its way.
@@ -136,7 +138,11 @@ func (m *Mac) portCheck(ctx context.Context, name, proto string, port, daemonPID
 		c.Status, c.Detail = Failed, label+" · Dotlane is running but not listening here"
 		c.Fix = "see its log: " + m.UI.Path(m.logPath())
 	default:
-		if err := m.Bindable(proto, port); err != nil {
+		if err := m.Bindable(proto, port); errors.Is(err, syscall.EACCES) {
+			c.Status, c.Conflict = Failed, true
+			c.Detail = label + " needs administrator rights to listen on"
+			c.Fix = "use a port of 1024 or more in " + m.UI.Path(m.ConfigPath)
+		} else if err != nil {
 			c.Status, c.Conflict = Failed, true
 			c.Detail = label + " is in use by a process of another user"
 			c.Fix = fmt.Sprintf("find it with: sudo lsof -nP -i%s:%d", strings.ToUpper(proto), port)
@@ -253,8 +259,11 @@ func (m *Mac) preflight(ctx context.Context) error {
 		m.UI.Fail(c.Name, c.Detail)
 		m.UI.Hint(c.Fix)
 	}
-	return errors.New("other tools are in the way; nothing was changed\nfix the above, then run dotlane install again")
+	return fmt.Errorf("%w; nothing was changed\nfix the above, then run dotlane install again", errInTheWay)
 }
+
+// errInTheWay is preflight's refusal.
+var errInTheWay = errors.New("other tools are in the way")
 
 // freeDNSPort returns the first port after the configured one, up to 10099, that is free for
 // both UDP and TCP; 0 if there is none.
@@ -273,8 +282,8 @@ func (m *Mac) freeDNSPort(ctx context.Context) int {
 	return 0
 }
 
-// bindable tries to listen on 127.0.0.1:port, which catches ports held by other users' processes
-// that lsof cannot see.
+// bindable tries to listen where the daemon will (proxy.ListenAddrs for HTTP and HTTPS, loopback
+// for DNS), which catches ports held by other users' processes that lsof cannot see.
 func bindable(proto string, port int) error {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	if proto == "udp" {
@@ -284,7 +293,7 @@ func bindable(proto string, port int) error {
 		}
 		return pc.Close()
 	}
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", proxy.ListenAddrs(port)[0])
 	if err != nil {
 		return err
 	}

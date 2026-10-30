@@ -1,4 +1,7 @@
-# `dotlane` reference
+# `dotlane` reference (Bash prototype)
+
+The Go version's commands are listed in [`how-it-works.md`](how-it-works.md#commands) and in
+`dotlane --help`.
 
 A Bash script (`files/bin/dotlane`, installed at `~/.local/bin/dotlane`). It manages files in
 `~/.config/caddy/sites/` and reloads Caddy through its admin API.

@@ -134,7 +134,7 @@ func TestMigrate(t *testing.T) {
 	for _, want := range []string{
 		"notes.caddy", "not written by dotlane add", "already trusted", "imported · → localhost:5173",
 		"$ brew services stop caddy", "kept from starting at login", "already routed",
-		"https://myapp.traix → localhost:5173", "(was the prototype script)",
+		"https://myapp.traix → localhost:5173", "(was the prototype script)", "is not on your PATH",
 		"/.config/caddy/sites\n", "brew uninstall caddy dnsmasq", "Moved to Dotlane.",
 	} {
 		if !strings.Contains(text, want) {
@@ -165,7 +165,8 @@ func TestMigratePutsThePrototypeBack(t *testing.T) {
 	fake.paths[77] = "/usr/local/bin/myserver"
 
 	err := m.Migrate(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "the prototype is running again") {
+	if err == nil || !strings.Contains(err.Error(), "the prototype is running again") ||
+		!strings.Contains(err.Error(), "run dotlane migrate again") || strings.Contains(err.Error(), "nothing was changed") {
 		t.Fatalf("err = %v\n%s", err, out)
 	}
 	if !fake.others["sh.brew.caddy"] || !fake.others[prototypeDNSLabel] || fake.disabled[prototypeDNSLabel] {

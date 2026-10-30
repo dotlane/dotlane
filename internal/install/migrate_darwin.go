@@ -129,6 +129,9 @@ func (m *Mac) Migrate(ctx context.Context) error {
 			m.removeService(ctx)
 		}
 		m.restartPrototype(ctx, p)
+		if errors.Is(err, errInTheWay) {
+			err = fmt.Errorf("%w\nfix the above, then run dotlane migrate again", errInTheWay)
+		}
 		return fmt.Errorf("%w\nthe prototype is running again; its files were not touched", err)
 	}
 
@@ -147,6 +150,7 @@ func (m *Mac) Migrate(ctx context.Context) error {
 		}
 	}
 	m.replaceScript()
+	m.checkPath()
 	m.listLeftovers()
 	m.UI.Done("Moved to Dotlane.", "Projects with a dotlane.toml: run dotlane up in each to claim their sites.")
 	return nil
@@ -349,6 +353,19 @@ func (m *Mac) replaceScript() {
 		return
 	}
 	m.UI.OK("dotlane command", m.UI.Path(path)+" now runs "+m.UI.Path(m.Exe)+" (was the prototype script)")
+}
+
+// checkPath warns when ~/.local/bin/dotlane runs this binary but the shell cannot find it.
+func (m *Mac) checkPath() {
+	dir := filepath.Join(m.Home, ".local", "bin")
+	if target, err := os.Readlink(filepath.Join(dir, "dotlane")); err != nil || target != m.Exe {
+		return
+	}
+	if slices.Contains(filepath.SplitList(os.Getenv("PATH")), dir) {
+		return
+	}
+	m.UI.Warn("dotlane command", m.UI.Path(dir)+" is not on your PATH, so the shell cannot find dotlane")
+	m.UI.Hint(`echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc   (then open a new terminal)`)
 }
 
 // listLeftovers names the prototype's files that nothing uses any more. Deleting them is left

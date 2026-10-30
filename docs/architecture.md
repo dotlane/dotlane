@@ -1,5 +1,8 @@
 # Architecture
 
+This describes the **Bash prototype** (Homebrew Caddy, dnsmasq and a shell helper). The Go version
+that replaces it is described in [`how-it-works.md`](how-it-works.md).
+
 ## Goal
 
 Give any local dev server a stable, trusted HTTPS hostname on a private domain ending, without

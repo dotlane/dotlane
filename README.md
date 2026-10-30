@@ -76,8 +76,8 @@ Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORC
 
 | Package | Role |
 | --- | --- |
-| `cmd/dotlane` | CLI (`install`, `uninstall`, `doctor`, `add`, `rm`, `ls`, `serve`, `version`) |
-| `internal/install` | Login service, CA trust and resolver files; `doctor` checks and naming the tools in the way. macOS now, other OSes in Phase 4 |
+| `cmd/dotlane` | CLI (`install`, `uninstall`, `doctor`, `migrate`, `add`, `rm`, `ls`, `up`, `down`, `serve`, `version`) |
+| `internal/install` | Login service, CA trust and resolver files; `doctor` checks and naming the tools in the way; `migrate` from the prototype. macOS now, other OSes in Phase 4 |
 | `internal/ui` | Output on Lip Gloss: one line per step, markers, aligned labels, the `ls` table, colours adapted to light/dark terminals. Help and usage are styled by Fang |
 | `internal/daemon` | Runs DNS, Caddy and the control socket around the site registry |
 | `internal/dns` | Answers `*.<tld>` with 127.0.0.1 / ::1, refuses everything else |
@@ -88,6 +88,10 @@ Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORC
 | `internal/config` | `config.toml`: endings, ports, state directory |
 
 ## How it works, in one picture
+
+The picture shows the Bash prototype, which this Mac still runs. The Go version keeps the same
+flow with DNS, Caddy and the CA inside one `dotlane` process: see
+[`docs/how-it-works.md`](docs/how-it-works.md).
 
 ![Dotlane: tools, libraries and request flow](docs/diagrams/dotlane-components.svg)
 
@@ -110,10 +114,11 @@ The same flow as text:
 
 | File | What it covers |
 | --- | --- |
-| [`docs/architecture.md`](docs/architecture.md) | Components, request flow, and why each design choice was made |
+| [`docs/how-it-works.md`](docs/how-it-works.md) | What the Go version does and how: the daemon, a request end to end, certificates, install, projects, `doctor`, `migrate` |
+| [`docs/architecture.md`](docs/architecture.md) | The Bash prototype: components, request flow, and why each design choice was made |
 | [`docs/diagrams/dotlane-components.svg`](docs/diagrams/dotlane-components.svg) | Diagram of the tools and libraries used and how a request flows (light and dark mode) |
 | [`docs/setup.md`](docs/setup.md) | Reproducible install, verification and uninstall on macOS |
-| [`docs/cli.md`](docs/cli.md) | `dotlane` command reference |
+| [`docs/cli.md`](docs/cli.md) | The prototype script's command reference (the Go commands are in `how-it-works.md`) |
 | [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with MyApp as the example |
 | [`docs/security.md`](docs/security.md) | Trust model of the local certificate authority, what runs with which privileges |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Failure modes found while building it, and their fixes |

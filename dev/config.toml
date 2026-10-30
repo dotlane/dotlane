@@ -4,7 +4,7 @@
 #   ./bin/dotlane --config dev/config.toml install     run it at login (dev.dotlane.dev)
 tld = "dldev"
 dns_port = 10054
-http_port = 9480    # its redirects point at 443: Caddy treats a non-standard https_port as internal
+http_port = 9480    # redirects to https://<name>.dldev:9443
 https_port = 9443
 state_dir = "state"   # dev/state, ignored by git
 service_name = "dev.dotlane.dev"

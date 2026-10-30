@@ -38,9 +38,30 @@ func CADir(cfg *config.Config) string {
 
 type obj = map[string]any
 
+// ListenAddrs are the addresses Dotlane listens on for port. macOS lets a normal user listen on
+// ports below 1024 only on every interface, not on 127.0.0.1 alone, so 80 and 443 are bound
+// wide and guarded (see thisMacOnly); other ports stay on loopback.
+func ListenAddrs(port int) []string {
+	if port < 1024 {
+		return []string{fmt.Sprintf(":%d", port)}
+	}
+	return []string{fmt.Sprintf("127.0.0.1:%d", port), fmt.Sprintf("[::1]:%d", port)}
+}
+
+// thisMacOnly is every server's first route: a request from another machine is dropped without
+// an answer. On a wide listener another device can still connect and, over HTTPS, complete a
+// handshake for a known name; it never reaches a site.
+var thisMacOnly = obj{
+	"match": []obj{{"not": []obj{{"remote_ip": obj{
+		"ranges": []string{"127.0.0.0/8", "::1/128", "::ffff:127.0.0.0/104"},
+	}}}}},
+	"handle":   []obj{{"handler": "static_response", "abort": true}},
+	"terminal": true,
+}
+
 // Config builds Caddy's JSON configuration for the given sites.
 func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
-	var routes []obj
+	routes := []obj{thisMacOnly}
 	var subjects []string
 	for _, s := range list {
 		hosts := Hosts(cfg, s)
@@ -55,7 +76,12 @@ func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
 		})
 	}
 
-	https := fmt.Sprint(cfg.HTTPSPort)
+	// Plain HTTP only redirects. Caddy's own redirect server is turned off: it would listen where
+	// the HTTPS server does, and point at 443 whatever https_port says.
+	location := "https://{http.request.host}{http.request.uri}"
+	if cfg.HTTPSPort != 443 {
+		location = fmt.Sprintf("https://{http.request.host}:%d{http.request.uri}", cfg.HTTPSPort)
+	}
 	apps := obj{
 		"http": obj{
 			"http_port":  cfg.HTTPPort,
@@ -65,9 +91,19 @@ func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
 			"grace_period": "2s",
 			"servers": obj{
 				"dotlane": obj{
-					// Loopback only: other machines on the network cannot reach the sites.
-					"listen": []string{"127.0.0.1:" + https, "[::1]:" + https},
-					"routes": routes,
+					"listen":          ListenAddrs(cfg.HTTPSPort),
+					"routes":          routes,
+					"automatic_https": obj{"disable_redirects": true},
+				},
+				"dotlane-http": obj{
+					"listen": ListenAddrs(cfg.HTTPPort),
+					"routes": []obj{thisMacOnly, {
+						"handle": []obj{{
+							"handler":     "static_response",
+							"status_code": 308,
+							"headers":     obj{"Location": []string{location}},
+						}},
+					}},
 				},
 			},
 		},

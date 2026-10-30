@@ -1,5 +1,10 @@
 # Security model
 
+Written for the Bash prototype. The Go version keeps the same CA model with its keys in
+`~/Library/Application Support/dotlane/caddy/` (mode 0600); its daemon has no admin API (a Unix
+socket, mode 0600, instead) and drops requests from other machines on 80/443. See
+[`how-it-works.md`](how-it-works.md#listening-on-443-and-80).
+
 ## The certificate authority is the sensitive part
 
 `caddy trust` adds Caddy's root certificate to the **System keychain**. From then on, this Mac's
