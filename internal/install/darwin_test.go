@@ -36,19 +36,51 @@ type fakeMac struct {
 	daemonPorts []string
 	paths       map[int]string // pid → executable
 	labels      map[int]string // pid → launchd label
+	// Other launchd jobs, by label (the prototype's Caddy and dnsmasq): loaded or not, the ports
+	// each listens on while loaded, and the ones disabled.
+	service  string
+	others   map[string]bool
+	ports    map[string][]string
+	disabled map[string]bool
+}
+
+// label is the job a launchctl target ("gui/501/x") or plist path ("…/x.plist") names.
+func label(arg string) string {
+	return strings.TrimSuffix(filepath.Base(arg), ".plist")
 }
 
 func (f *fakeMac) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	f.calls = append(f.calls, filepath.Base(name)+" "+strings.Join(args, " "))
 	switch filepath.Base(name) + " " + args[0] {
 	case "launchctl print":
-		if !f.loaded {
+		if l := label(args[1]); l != f.service {
+			if !f.others[l] {
+				return nil, errors.New("not loaded")
+			}
+		} else if !f.loaded {
 			return nil, errors.New("not loaded")
 		}
 	case "launchctl bootstrap":
-		f.loaded = true
+		if l := label(args[2]); l != f.service {
+			if f.disabled[l] {
+				return nil, errors.New("service is disabled")
+			}
+			f.others[l] = true
+		} else {
+			f.loaded = true
+		}
 	case "launchctl bootout":
-		f.loaded = false
+		if l := label(args[1]); l != f.service {
+			f.others[l] = false
+		} else {
+			f.loaded = false
+		}
+	case "launchctl disable":
+		f.disabled[label(args[1])] = true
+	case "launchctl enable":
+		f.disabled[label(args[1])] = false
+	case "brew services":
+		f.others["sh.brew.caddy"] = args[1] == "start"
 	case "launchctl list":
 		var b strings.Builder
 		for pid, label := range f.labels {
@@ -68,6 +100,11 @@ func (f *fakeMac) Run(_ context.Context, name string, args ...string) ([]byte, e
 		pids := append([]int(nil), f.listen[key]...)
 		if f.loaded && slicesContains(f.daemonPorts, key) {
 			pids = append(pids, daemonPID)
+		}
+		for pid, l := range f.labels {
+			if f.others[l] && slicesContains(f.ports[l], key) {
+				pids = append(pids, pid)
+			}
 		}
 		if len(pids) == 0 {
 			return nil, errors.New("exit status 1")
@@ -143,7 +180,8 @@ func newTestMac(t *testing.T) (*Mac, *fakeMac, *bytes.Buffer) {
 	fake := &fakeMac{
 		hash:   strings.ToUpper(hex.EncodeToString(sum[:])),
 		listen: map[string][]int{}, paths: map[int]string{},
-		labels: map[int]string{daemonPID: cfg.ServiceName},
+		labels:  map[int]string{daemonPID: cfg.ServiceName},
+		service: cfg.ServiceName, others: map[string]bool{}, ports: map[string][]string{}, disabled: map[string]bool{},
 	}
 	out := &bytes.Buffer{}
 	m := &Mac{

@@ -44,6 +44,18 @@ type Mac struct {
 	Bindable func(proto string, port int) error
 	// Lookup resolves a name the way other programs on the Mac do; used to verify DNS.
 	Lookup func(ctx context.Context, host string) ([]string, error)
+	// BrewPrefix is Homebrew's prefix, where the prototype's Caddy keeps its CA (migrate).
+	BrewPrefix string
+	// VerifyTLS checks that host is served on 127.0.0.1:port with a certificate macOS trusts.
+	VerifyTLS func(ctx context.Context, host string, port int) error
+	// Sites reaches the running daemon's sites (migrate imports through it when it runs).
+	Sites SiteClient
+}
+
+// SiteClient is the part of api.Client migrate uses.
+type SiteClient interface {
+	Sites(ctx context.Context) ([]api.Site, error)
+	AddSite(ctx context.Context, name string, port int, project string) (api.Site, error)
 }
 
 // New returns the installer for this machine.
@@ -75,6 +87,9 @@ func NewMac(cfg *config.Config, configPath string, daemon func(context.Context) 
 		Daemon:      daemon,
 		Bindable:    bindable,
 		Lookup:      net.DefaultResolver.LookupHost,
+		BrewPrefix:  brewPrefix(),
+		VerifyTLS:   verifyTLS,
+		Sites:       api.NewClient(cfg.SocketPath()),
 	}, nil
 }
 

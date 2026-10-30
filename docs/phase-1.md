@@ -130,7 +130,22 @@ Planned:
 - **Done when** MyApp's `mise run domain` is replaced by a committed `dotlane.toml` and
   `dotlane up`.
 
-### M5 — Migration from the prototype (≈ 3 days)
+### M5 — Migration from the prototype (≈ 3 days) — built 2026-10-30, to run on this Mac
+
+Shipped: `dotlane migrate`. It reads the prototype without changing anything first (a site file
+for an ending Dotlane is not set up for stops it), copies Homebrew Caddy's root certificate and
+key into Dotlane's state before the daemon first starts, imports the `# Managed by dotlane` site
+files (others are named and left out), stops Homebrew's Caddy and boots out and disables the
+dnsmasq agent, then runs `dotlane install`. The resolver file matches as it is (port 10053) and
+the CA is already trusted, so no step needs a password. If the install fails, Dotlane's service
+is removed and the prototype restarted, CA trust untouched. On success it checks each site with
+a TLS handshake against the system's trusted roots, points `~/.local/bin/dotlane` (the
+prototype script) at the binary, and lists the prototype's files for the user to delete.
+Re-running is safe. Verified: the embedded Caddy accepts the prototype's root (it issues its own
+intermediate under it) and curl trusts the result with no `--cacert`; the flow is covered by
+tests with a fake launchd/Homebrew, including the rollback.
+
+Planned:
 
 - `dotlane migrate`: imports `~/.config/caddy/sites/*.caddy` (the `# Managed by dotlane` line),
   reuses the Homebrew Caddy service's root CA from `/opt/homebrew/var/lib/caddy/pki/authorities/local/`

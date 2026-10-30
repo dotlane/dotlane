@@ -105,6 +105,20 @@ Choosing an ending:
   `local`, which Bonjour uses.
 - **Branded** (`traix`): works, with the small risk that the ending becomes public one day.
 
+## Moving to the Go version
+
+With the binary built (`go build -o bin/dotlane ./cmd/dotlane` in this repo):
+
+```bash
+./bin/dotlane migrate
+```
+
+It keeps the sites and the trusted CA, so no password is needed; stops Homebrew's Caddy and the
+dnsmasq agent; installs the Dotlane service; and points `~/.local/bin/dotlane` at the binary. If
+anything fails, the prototype is started again. It deletes nothing: the files listed at the end
+can go once you are happy. After that, `dotlane uninstall` removes the CA's trust too, since the
+CA is now Dotlane's.
+
 ## Uninstall
 
 ```bash

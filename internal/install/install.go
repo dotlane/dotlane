@@ -20,6 +20,8 @@ type Installer interface {
 	Uninstall(ctx context.Context, purge bool) error
 	// Doctor checks the installation and what could get in its way.
 	Doctor(ctx context.Context) []Check
+	// Migrate moves the machine from the Bash prototype to Dotlane, keeping its sites and CA.
+	Migrate(ctx context.Context) error
 }
 
 // CheckStatus is the outcome of one check.

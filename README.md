@@ -41,7 +41,8 @@ It is a set of configuration files plus a ~100-line Bash helper, not yet a packa
 The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1.md)): milestones
 M1 (a daemon with DNS, embedded Caddy and a control socket), M2 (`dotlane install` /
 `uninstall`), M3 (`dotlane doctor`, conflict checks) and M4 (project files: `dotlane.toml`,
-`up` / `down`) work; migration from the prototype comes next (M5).
+`up` / `down`) work, and M5 (`dotlane migrate`, from the prototype to the binary with no new
+password) is built and about to replace the prototype on this Mac.
 
 ## Development (Go version)
 

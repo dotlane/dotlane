@@ -339,6 +339,23 @@ func newRoot() *cobra.Command {
 		},
 	})
 
+	root.AddCommand(&cobra.Command{
+		Use:   "migrate",
+		Short: "Move from the Bash prototype (Homebrew Caddy + dnsmasq) to Dotlane",
+		Long: "Imports the prototype's sites, reuses its certificate authority (already trusted, so no\n" +
+			"password), stops Homebrew's Caddy and the dnsmasq agent, and installs Dotlane in their\n" +
+			"place. If the install fails, the prototype is started again. Nothing is deleted; the\n" +
+			"files that can go are listed at the end. Safe to re-run.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			i, err := installer()
+			if err != nil {
+				return err
+			}
+			return i.Migrate(cmd.Context())
+		},
+	})
+
 	var purge bool
 	uninstall := &cobra.Command{
 		Use:   "uninstall",
