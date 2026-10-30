@@ -36,5 +36,7 @@ The first release candidate, `0.1.0`, will contain everything below: Phase 1 of 
 - The login service runs a copy of the binary outside the folders macOS protects.
 - `golang.org/x/net` v0.60.0, fixing five HTTP/2 vulnerabilities (GO-2026-6603, -6610, -6611,
   -6612, -6617).
+- `github.com/go-jose/go-jose/v4` v4.1.6 (a security update from Dependabot, in code Dotlane does
+  not call).
 
 [Unreleased]: https://github.com/dotlane/dotlane/commits/main
