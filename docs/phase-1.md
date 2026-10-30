@@ -78,7 +78,7 @@ measured: the "under a minute on a clean VM" criterion.
 - **Done when** install → first working site takes under a minute on a clean macOS VM, and uninstall
   leaves `scutil --dns`, the Keychain and `launchctl list` as before.
 
-### M3 — Conflict scan and `doctor` (≈ 1 week) — done 2026-10-30, `--fix` to verify on a real install
+### M3 — Conflict scan and `doctor` (≈ 1 week) — done 2026-10-30
 
 Shipped: `dotlane doctor [--fix] [--json]` and the same checks as a pre-install gate. Ports are
 traced to their process with `lsof`, `ps` and `launchctl list`, and named with a fix (the
@@ -94,8 +94,10 @@ service is restarted with `launchctl kickstart`.
 
 Verified on this Mac: doctor names the prototype's Caddy on 80/443 and its dnsmasq on 10053 with
 the right fixes; the reference-log case (Herd's leftover resolver, Yerd on 1053) and the others
-are covered by tests. Still open: running `doctor --fix` end to end (needs a password), and a
-friendlier answer than a TLS alert for unknown names (moved to M6).
+are covered by tests. `doctor --fix` verified on the dev instance: with the resolver file missing
+it ran install, which wrote only that file, and the second pass came back all green;
+`uninstall --purge` then left nothing behind. Still open: a friendlier answer than a TLS alert
+for unknown names (moved to M6).
 
 
 - Before installing, and in `doctor`: other resolver files for the same ending; anything on 80, 443
