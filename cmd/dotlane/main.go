@@ -348,21 +348,32 @@ func newRoot() *cobra.Command {
 		return install.New(cfg, configPath, status)
 	}
 
-	root.AddCommand(&cobra.Command{
+	var refresh bool
+	install := &cobra.Command{
 		Use:   "install",
 		Short: "Run Dotlane at login, trust its certificate authority and route its domain endings",
 		Long: "Installs Dotlane as a login service, trusts its local certificate authority and points\n" +
 			"the domain endings at its DNS. Steps already done are skipped, so it is safe to re-run.\n" +
-			"Steps that need administrator rights are explained and run through sudo.",
+			"Steps that need administrator rights are explained and run through sudo.\n\n" +
+			"--refresh only updates an installed service to this binary and restarts it if needed:\n" +
+			"no password, and nothing at all when Dotlane is not installed. Package managers run it\n" +
+			"after an upgrade.",
+		Example: `  dotlane install
+  dotlane install --refresh`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			i, err := installer()
 			if err != nil {
 				return err
 			}
+			if refresh {
+				return i.Refresh(cmd.Context())
+			}
 			return i.Install(cmd.Context())
 		},
-	})
+	}
+	install.Flags().BoolVar(&refresh, "refresh", false, "update an installed service to this binary, without a password; no-op if not installed")
+	root.AddCommand(install)
 
 	root.AddCommand(&cobra.Command{
 		Use:   "migrate",

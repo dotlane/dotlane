@@ -199,6 +199,27 @@ func quoteAll(args []string) []string {
 	return out
 }
 
+// Refresh implements Installer: install's login-service step alone (copy the binary, rewrite the
+// plist if needed, restart when stale). The CA and resolver steps, which need sudo, are left out.
+func (m *Mac) Refresh(ctx context.Context) error {
+	m.UI.Title("Refreshing Dotlane", m.summary())
+	if _, err := os.Stat(m.plistPath()); errors.Is(err, os.ErrNotExist) {
+		m.UI.Skip("Login service", "not installed; nothing to refresh (set it up with: dotlane install)")
+		return nil
+	}
+	if strings.Contains(m.Exe, "go-build") || strings.HasPrefix(m.Exe, os.TempDir()) {
+		return fmt.Errorf("%s is a temporary build; refresh from a built binary", m.Exe)
+	}
+	if err := m.installService(ctx); err != nil {
+		return err
+	}
+	if err := m.tightenPermissions(); err != nil {
+		return err
+	}
+	m.UI.Done("Dotlane is up to date.", "")
+	return nil
+}
+
 // Install sets everything up; already-done steps are reported and skipped.
 func (m *Mac) Install(ctx context.Context) error {
 	m.UI.Title("Installing Dotlane", m.summary())

@@ -75,9 +75,10 @@ of the [roadmap](roadmap.md) (≈ 1–2 weeks) and builds on Phase 1 ([`phase-1.
   (`homebrew_casks`, which recent GoReleaser versions generate in place of formulas; the cask
   installs the binary onto the PATH).
 - **Upgrades.** `brew upgrade` replaces the binary on the PATH, not the copy the service runs.
-  The fix is a new `dotlane install --refresh`: when Dotlane is installed, it updates the service's
-  copy and restarts it, never asks for a password, and does nothing otherwise. The cask runs it
-  after install and upgrade. Until it runs, `doctor` already warns that the service runs an older
+  The fix is `dotlane install --refresh` (built 2026-10-30, ahead of this milestone, with unit
+  tests and an integration step): when Dotlane is installed, it updates the service's copy and
+  restarts it, never asks for a password, and does nothing otherwise. The cask runs it after
+  install and upgrade. Until it runs, `doctor` already warns that the service runs an older
   copy.
 - **Removal.** `brew uninstall` does not undo `dotlane install`, and the service would keep
   running from its copy. Caveats tell users to run `dotlane uninstall` first; the cask's `zap`

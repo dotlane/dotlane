@@ -38,6 +38,7 @@ already uses and changes nothing; it takes over a site added by hand with `dotla
 | Command | What it does |
 | --- | --- |
 | `dotlane install` | Login service, CA trust (password), resolver file per ending (password). Checks for conflicts first and changes nothing if another tool is in the way. Restarts the service when it is stuck, or the binary or config changed after it started. Safe to re-run. |
+| `dotlane install --refresh` | Only updates an installed service to this binary (its copy, the plist) and restarts it if it runs an older build or config. Never asks for a password; when Dotlane is not installed it says so and exits 0. What package managers run after an upgrade. |
 | `dotlane uninstall [--purge]` | Reverses install. `--purge` also deletes the sites, the CA's keys and the log. |
 | `dotlane doctor [--fix \| --json]` | Checks the config, the service, the daemon, ports 80/443 and the DNS port, private files, the CA's trust, each resolver file and a real lookup. Names other tools in the way, with their fix. `--fix` runs install for what it repairs; `--json` prints the checks. |
 | `dotlane migrate` | Moves a Bash prototype install to Dotlane, keeping its sites and trusted CA (see [`setup.md`](setup.md#moving-from-the-prototype)). |

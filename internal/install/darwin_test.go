@@ -678,3 +678,67 @@ func TestServiceRunsACopy(t *testing.T) {
 		t.Errorf("copy left behind: %v", err)
 	}
 }
+
+func TestRefreshWhenNotInstalled(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.ran("launchctl bootstrap") || fake.sudoCalls != 0 || fake.loaded {
+		t.Errorf("refresh changed things: %v", fake.calls)
+	}
+	if _, err := os.Stat(m.plistPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Error("refresh wrote a login service")
+	}
+	if _, err := os.Stat(m.serviceExe()); !errors.Is(err, os.ErrNotExist) {
+		t.Error("refresh copied the binary")
+	}
+	if !strings.Contains(out.String(), "not installed; nothing to refresh") {
+		t.Errorf("output:\n%s", out)
+	}
+}
+
+// After an upgrade: the service's copy is updated and the daemon restarted, with no password,
+// even where a full install would need one (CA untrusted, resolver file gone).
+func TestRefresh(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	fake.trusted = false
+	os.Remove(m.resolverPath("dldev"))
+
+	os.WriteFile(m.Exe, []byte("dotlane build 2"), 0o755) // brew upgrade
+	started := time.Now()
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: "test", Started: started}, nil
+	}
+	time.Sleep(10 * time.Millisecond) // the copy must be newer than the daemon's start
+	out.Reset()
+	fake.calls, fake.sudoCalls = nil, 0
+	if err := m.Refresh(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if fake.sudoCalls != 0 {
+		t.Errorf("refresh used sudo: %v", fake.calls)
+	}
+	if !sameFile(m.Exe, m.serviceExe()) {
+		t.Error("the service's copy was not updated")
+	}
+	if !fake.ran("launchctl kickstart -k") || !strings.Contains(out.String(), "Dotlane is up to date.") {
+		t.Errorf("not restarted: %v\n%s", fake.calls, out)
+	}
+	if _, err := os.Stat(m.resolverPath("dldev")); !errors.Is(err, os.ErrNotExist) || fake.trusted {
+		t.Error("refresh touched the resolver or the CA")
+	}
+
+	// Nothing new: the daemon is left alone.
+	started = time.Now().Add(time.Hour)
+	fake.calls = nil
+	if err := m.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.ran("launchctl kickstart") || fake.ran("launchctl bootstrap") {
+		t.Errorf("an up-to-date service was restarted: %v", fake.calls)
+	}
+}

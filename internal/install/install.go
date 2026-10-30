@@ -16,6 +16,10 @@ import (
 // Installer sets Dotlane up on one operating system, checks it, and removes it.
 type Installer interface {
 	Install(ctx context.Context) error
+	// Refresh updates an installed login service to this binary and restarts it if it runs an
+	// older one, without administrator rights; it does nothing when Dotlane is not installed.
+	// Package managers run it after an upgrade.
+	Refresh(ctx context.Context) error
 	// Uninstall reverses Install; purge also deletes Dotlane's state and log.
 	Uninstall(ctx context.Context, purge bool) error
 	// Doctor checks the installation and what could get in its way.

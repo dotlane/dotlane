@@ -104,6 +104,19 @@ out=$(DL install 2>&1) || { echo "$out"; fail "second install failed"; }
 echo "$out" | grep -q "restarted" && { echo "$out"; fail "an unchanged binary restarted the daemon"; }
 echo "restarted into the new build (pid $pid_before → $pid_after); an unchanged install left it alone"
 
+step "install --refresh after an upgrade"
+# What the Homebrew and npm packages run after an upgrade: no password, just the new build.
+before=$(daemon)
+go build -ldflags "-X main.version=ci-build-3" -o "$BIN" ./cmd/dotlane
+out=$(DL install --refresh 2>&1) || { echo "$out"; fail "install --refresh failed"; }
+echo "$out"
+grep -qE 'needs your password|\$ sudo' <<<"$out" && fail "install --refresh asked for a password"
+grep -q "restarted (to load the rebuilt binary)" <<<"$out" || fail "install --refresh did not restart the daemon"
+after=$(daemon)
+[[ "$after" == *"ci-build-3"* ]] || fail "the daemon does not run the refreshed build: $after"
+[[ "$(sed -E 's/.*pid ([0-9]+).*/\1/' <<<"$before")" != "$(sed -E 's/.*pid ([0-9]+).*/\1/' <<<"$after")" ]] || fail "daemon pid unchanged after refresh"
+curl -fsS --max-time 10 "https://web.$TLD/hello.txt" >/dev/null || fail "web.$TLD not served after the refresh"
+
 step "doctor"
 DL doctor
 
@@ -116,6 +129,13 @@ DL uninstall --purge
 launchctl print "gui/$(id -u)/$SERVICE" >/dev/null 2>&1 && fail "service still loaded"
 security find-certificate -a -c "Dotlane Local Authority" /Library/Keychains/System.keychain >/dev/null 2>&1 \
   && fail "CA still in the System keychain"
+
+step "install --refresh with nothing installed"
+out=$(DL install --refresh 2>&1) || { echo "$out"; fail "install --refresh failed when not installed"; }
+grep -q "nothing to refresh" <<<"$out" || { echo "$out"; fail "install --refresh did not say there was nothing to do"; }
+[[ ! -e "$HOME/Library/LaunchAgents/$SERVICE.plist" ]] || fail "install --refresh installed a service"
+[[ ! -e "$HOME/Library/Application Support/dotlane/bin/$SERVICE" ]] || fail "install --refresh copied the binary"
+echo "no-op, as expected"
 
 DONE=1
 step "passed (install → first site: ${elapsed}s)"

@@ -85,8 +85,11 @@ service, and does the same after a change to the config file. `doctor` warns whe
 out of date.
 
 ```bash
-git pull && go build -o bin/dotlane ./cmd/dotlane && dotlane install
+git pull && go build -o bin/dotlane ./cmd/dotlane && dotlane install --refresh
 ```
+
+`--refresh` does only that part of install, so it never asks for a password; plain
+`dotlane install` also works and re-checks everything else.
 
 ## Using another domain ending
 
