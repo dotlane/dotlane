@@ -38,6 +38,8 @@ type Status struct {
 	DNSAddr   string   `json:"dns_addr"`
 	HTTPSPort int      `json:"https_port"`
 	StateDir  string   `json:"state_dir"`
+	// Started is when the daemon started; a binary changed after that is not what it runs.
+	Started time.Time `json:"started"`
 }
 
 // Backend is what the daemon provides to the handler.

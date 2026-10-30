@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -44,8 +45,8 @@ func TestConfigWithoutSites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(data), `"tls"`) {
-		t.Errorf("no sites should mean no certificate policy: %s", data)
+	if strings.Contains(string(data), `"subjects"`) || !strings.Contains(string(data), `"on_demand":true`) {
+		t.Errorf("no sites: want only the on-demand policy: %s", data)
 	}
 }
 
@@ -60,5 +61,19 @@ func TestListenAddrs(t *testing.T) {
 	data, _ := Config(cfg, nil)
 	if !strings.Contains(string(data), `https://{http.request.host}:9443{http.request.uri}`) {
 		t.Errorf("redirect ignores the HTTPS port: %s", data)
+	}
+}
+
+func TestPermission(t *testing.T) {
+	p := Permission{TLDs: []string{"traix", "test"}}
+	for _, name := range []string{"web.traix", "a.test", "my-app2.traix"} {
+		if err := p.CertificateAllowed(context.Background(), name); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for _, name := range []string{"traix", "a.b.traix", "web.com", "-a.traix", "Web.traix", "web.traix.evil", ""} {
+		if p.CertificateAllowed(context.Background(), name) == nil {
+			t.Errorf("%s allowed", name)
+		}
 	}
 }

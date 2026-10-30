@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pedrodee/dotlane/internal/api"
 	"github.com/pedrodee/dotlane/internal/config"
@@ -186,14 +187,15 @@ func newTestMac(t *testing.T) (*Mac, *fakeMac, *bytes.Buffer) {
 	out := &bytes.Buffer{}
 	m := &Mac{
 		Cfg: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Exe: "/opt/dotlane/bin/dotlane",
-		Home: filepath.Join(dir, "home"), UID: 501,
+		Home: filepath.Join(dir, "home"), UID: os.Getuid(),
 		ResolverDir: filepath.Join(dir, "resolver"),
 		UI:          ui.Plain(out), Runner: fake,
 		Daemon: func(context.Context) (api.Status, error) {
 			if !fake.loaded {
 				return api.Status{}, errors.New("not running")
 			}
-			return api.Status{PID: daemonPID, Version: "test"}, nil
+			// Started after anything the test writes, so it never looks stale.
+			return api.Status{PID: daemonPID, Version: "test", Started: time.Now().Add(time.Hour)}, nil
 		},
 		Bindable: func(string, int) error { return nil },
 		Lookup:   func(context.Context, string) ([]string, error) { return []string{"127.0.0.1", "::1"}, nil },
@@ -269,7 +271,7 @@ func TestInstallNamesResolverOwner(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "nothing was changed") {
 		t.Fatalf("err = %v", err)
 	}
-	for _, want := range []string{"sends .dldev to 127.0.0.1:1053, answered by Yerd", "launchctl bootout gui/501/dev.yerd.daemon", "sudo rm "} {
+	for _, want := range []string{"sends .dldev to 127.0.0.1:1053, answered by Yerd", fmt.Sprintf("launchctl bootout gui/%d/dev.yerd.daemon", os.Getuid()), "sudo rm "} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
@@ -392,7 +394,7 @@ func TestInstallRestartsStuckService(t *testing.T) {
 	if err := m.Install(context.Background()); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if !fake.ran("launchctl kickstart -k gui/501/dev.dotlane.test") || !strings.Contains(out.String(), "restarted") {
+	if !fake.ran(fmt.Sprintf("launchctl kickstart -k gui/%d/dev.dotlane.test", os.Getuid())) || !strings.Contains(out.String(), "restarted") {
 		t.Errorf("not restarted:\n%s", out)
 	}
 }
@@ -534,5 +536,81 @@ func TestUninstallLeavesForeignResolver(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "not Dotlane's") {
 		t.Errorf("output:\n%s", out)
+	}
+}
+
+func TestInstallRestartsAfterRebuild(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	// The binary is rebuilt after the daemon started. (TMPDIR moves, or install would call the
+	// test's file a temporary build.)
+	m.Exe = filepath.Join(t.TempDir(), "dotlane")
+	t.Setenv("TMPDIR", "/nonexistent-tmp")
+	os.WriteFile(m.Exe, []byte("new build"), 0o755)
+	if err := m.Install(context.Background()); err != nil { // the plist names the new path: reinstall
+		t.Fatal(err)
+	}
+	started := time.Now().Add(-time.Hour)
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: "test", Started: started}, nil
+	}
+	if c := m.Doctor(context.Background())[2]; c.Name != "Daemon" || c.Status != Warning || !c.Repairable {
+		t.Errorf("doctor: %+v", c)
+	}
+	out.Reset()
+	fake.calls = nil
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.ran("launchctl kickstart -k") || !strings.Contains(out.String(), "to load the rebuilt binary") {
+		t.Errorf("not restarted: %v\n%s", fake.calls, out)
+	}
+
+	// Started after the build: left alone.
+	started = time.Now().Add(time.Hour)
+	fake.calls = nil
+	m.Install(context.Background())
+	if fake.ran("launchctl kickstart") {
+		t.Error("restarted a daemon that already runs this build")
+	}
+
+	// The config changes after the daemon started (a new ending, say): restarted to load it.
+	os.WriteFile(m.ConfigPath, []byte("tld = \"dldev\"\n"), 0o644)
+	os.Chtimes(m.ConfigPath, time.Now().Add(2*time.Hour), time.Now().Add(2*time.Hour))
+	out.Reset()
+	fake.calls = nil
+	m.Install(context.Background())
+	if !fake.ran("launchctl kickstart -k") || !strings.Contains(out.String(), "to load the changed config") {
+		t.Errorf("config change: %v\n%s", fake.calls, out)
+	}
+}
+
+func TestPrivateFiles(t *testing.T) {
+	m, _, out := newTestMac(t)
+	key := filepath.Join(proxy.CADir(m.Cfg), "root.key")
+	os.WriteFile(key, []byte("key"), 0o644)
+	os.Chmod(m.Cfg.StateDir, 0o755)
+	c := m.permissionsCheck()
+	if c.Status != Failed || !c.Repairable || !strings.Contains(c.Detail, "root.key is mode 644, want 600") {
+		t.Errorf("check = %+v", c)
+	}
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if info, _ := os.Stat(key); info.Mode().Perm() != 0o600 {
+		t.Errorf("root.key mode %o", info.Mode().Perm())
+	}
+	if info, _ := os.Stat(m.Cfg.StateDir); info.Mode().Perm() != 0o700 {
+		t.Errorf("state mode %o", info.Mode().Perm())
+	}
+	if c := m.permissionsCheck(); c.Status != Pass {
+		t.Errorf("after install: %+v", c)
+	}
+
+	m.UID = os.Getuid() + 1 // as if the files belonged to someone else
+	if c := m.permissionsCheck(); c.Status != Failed || c.Repairable || !strings.Contains(c.Fix, "chown") {
+		t.Errorf("other owner: %+v", c)
 	}
 }

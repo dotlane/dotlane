@@ -53,10 +53,20 @@ func main() {
 	}
 }
 
+// exactArgs is cobra.ExactArgs with the usage line in the error.
+func exactArgs(n int) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) != n {
+			return fmt.Errorf("usage: dotlane %s", cmd.Use)
+		}
+		return nil
+	}
+}
+
 // withUsageHint points to --help when the command line itself was wrong.
 func withUsageHint(err error) error {
 	msg := err.Error()
-	for _, prefix := range []string{"accepts ", "requires ", "unknown command", "unknown flag", "unknown shorthand flag", "flag needs an argument", "invalid argument"} {
+	for _, prefix := range []string{"usage: ", "accepts ", "requires ", "unknown command", "unknown flag", "unknown shorthand flag", "flag needs an argument", "invalid argument"} {
 		if strings.HasPrefix(msg, prefix) {
 			return fmt.Errorf("%w\ntry --help for usage", err)
 		}
@@ -68,11 +78,20 @@ func newRoot() *cobra.Command {
 	var configPath string
 	loadConfig := func() (*config.Config, error) {
 		if configPath == "" {
-			p, err := config.DefaultPath()
-			if err != nil {
-				return nil, err
+			// A file named with --config or $DOTLANE_CONFIG must exist: a typo there would
+			// otherwise mean silently running with the defaults. The default file is optional.
+			if env := os.Getenv("DOTLANE_CONFIG"); env != "" {
+				configPath = env
+			} else {
+				p, err := config.DefaultPath()
+				if err != nil {
+					return nil, err
+				}
+				return config.Load(p)
 			}
-			configPath = p
+		}
+		if _, err := os.Stat(configPath); err != nil {
+			return nil, fmt.Errorf("config file %s: %w", configPath, errors.Unwrap(err))
 		}
 		return config.Load(configPath)
 	}
@@ -107,12 +126,20 @@ func newRoot() *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "add <name> <port>",
 		Short: "Serve https://<name>.<tld> from localhost:<port>",
-		Long:  "Serve https://<name>.<tld> from localhost:<port>. Running it again with a new port updates the site.",
-		Args:  cobra.ExactArgs(2),
+		Long: "Serves https://<name>.<tld> from localhost:<port>, and waits until its certificate is\n" +
+			"served, so the printed URL works on the first click. Running it again with a new port\n" +
+			"updates the site. A name a project's dotlane.toml uses is refused.",
+		Example: `  dotlane add myapp 5173
+  dotlane add api 8000`,
+		Args: exactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			port, err := strconv.Atoi(args[1])
 			if err != nil {
 				return fmt.Errorf("not a port: %s", args[1])
+			}
+			// Checked here too, so the reason shows even when the daemon is not running.
+			if err := (sites.Site{Name: args[0], Port: port}).Validate(); err != nil {
+				return err
 			}
 			c, err := client()
 			if err != nil {
@@ -137,7 +164,8 @@ func newRoot() *cobra.Command {
 		Use:     "rm <name>",
 		Aliases: []string{"remove"},
 		Short:   "Remove a site",
-		Args:    cobra.ExactArgs(1),
+		Example: "  dotlane rm myapp",
+		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
 			if err != nil {
@@ -156,7 +184,10 @@ func newRoot() *cobra.Command {
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List sites",
-		Args:    cobra.NoArgs,
+		Long:    "Lists the sites, their URLs, the port each forwards to, and the project that owns it.",
+		Example: `  dotlane ls
+  dotlane ls --json`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
 			if err != nil {
@@ -227,10 +258,11 @@ func newRoot() *cobra.Command {
 		Short: "Serve the sites in the project's dotlane.toml",
 		Long: "Serves the sites listed in dotlane.toml, found in the current directory or a parent, and\n" +
 			"removes this project's sites the file no longer lists. Names another project uses are\n" +
-			"reported and nothing changes. A site added by hand with the same name is taken over.",
-		Example: `  # dotlane.toml
-  [sites.myapp]
-  port = 5173`,
+			"reported and nothing changes. A site added by hand with the same name is taken over.\n\n" +
+			"dotlane.toml, committed in the project's root:\n\n" +
+			"  [sites.myapp]\n  port = 5173",
+		Example: `  cd ~/code/myapp
+  dotlane up`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, c, registered, err := loadProject(cmd)
@@ -272,7 +304,9 @@ func newRoot() *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "down",
 		Short: "Remove the sites the project's dotlane.toml registered",
-		Args:  cobra.NoArgs,
+		Long: "Removes every site this project registered with dotlane up, including any the file\n" +
+			"no longer lists. Other projects' sites and sites added by hand are left alone.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, c, registered, err := loadProject(cmd)
 			if err != nil {
@@ -297,7 +331,9 @@ func newRoot() *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "serve",
 		Short: "Run the background service (DNS, HTTPS proxy, control socket) in the foreground",
-		Args:  cobra.NoArgs,
+		Long: "Runs the service in the foreground. The login service set up by dotlane install runs\n" +
+			"this; run it yourself only for development (see the README).",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
@@ -381,8 +417,14 @@ func newRoot() *cobra.Command {
 		Long: "Checks the login service, the daemon, its ports, the certificate authority and DNS,\n" +
 			"and names any other tool in the way, with the fix for each. --fix runs dotlane install\n" +
 			"for what it can repair; other tools are left alone.",
+		Example: `  dotlane doctor
+  dotlane doctor --fix
+  dotlane doctor --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if fix && asJSON {
+				return errors.New("usage: --fix and --json cannot be used together")
+			}
 			i, err := installer()
 			if err != nil {
 				return err

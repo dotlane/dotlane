@@ -32,6 +32,7 @@ type Daemon struct {
 	version  string
 	registry *sites.Registry
 	dnsAddr  string
+	started  time.Time
 
 	mu sync.Mutex // serialises registry changes with the Caddy reload that follows them
 }
@@ -54,7 +55,7 @@ func Run(ctx context.Context, cfg *config.Config, version string) error {
 	if err != nil {
 		return err
 	}
-	d := &Daemon{cfg: cfg, version: version, registry: registry}
+	d := &Daemon{cfg: cfg, version: version, registry: registry, started: time.Now()}
 
 	resolver, err := dns.Start(net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.DNSPort)), cfg.TLDs)
 	if err != nil {
@@ -128,6 +129,7 @@ func (d *Daemon) Status() api.Status {
 		DNSAddr:   d.dnsAddr,
 		HTTPSPort: d.cfg.HTTPSPort,
 		StateDir:  d.cfg.StateDir,
+		Started:   d.started,
 	}
 }
 

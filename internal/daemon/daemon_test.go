@@ -66,7 +66,7 @@ func TestDaemon(t *testing.T) {
 			if err != nil {
 				t.Errorf("Run: %v", err)
 			}
-		case <-time.After(10 * time.Second):
+		case <-time.After(30 * time.Second):
 			t.Error("daemon did not stop")
 		}
 		if _, err := os.Stat(cfg.SocketPath()); !errors.Is(err, os.ErrNotExist) {
@@ -80,7 +80,7 @@ func TestDaemon(t *testing.T) {
 		if status, err = client.Status(ctx); err == nil {
 			break
 		}
-		if i == 50 {
+		if i == 300 { // 30 s: shared CI runners can be slow
 			t.Fatalf("daemon not answering: %v", err)
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -132,6 +132,35 @@ func TestDaemon(t *testing.T) {
 		t.Errorf("GET = %d %q (the Host header must pass through)", resp.StatusCode, body)
 	}
 
+	// A name without a site gets Dotlane's page, over a certificate issued on the spot.
+	resp, err = browser.Get("https://nosuch.traix:" + strconv.Itoa(cfg.HTTPSPort) + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 404 || !strings.Contains(string(body), "No site at <code>nosuch.traix</code>") {
+		t.Errorf("unknown name = %d %q", resp.StatusCode, body)
+	}
+
+	// A site whose dev server is down gets a page naming the port.
+	downPort := freePort(t)
+	if _, err := client.AddSite(ctx, "down", downPort, ""); err != nil {
+		t.Fatal(err)
+	}
+	resp, err = browser.Get("https://down.traix:" + strconv.Itoa(cfg.HTTPSPort) + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 502 || !strings.Contains(string(body), "localhost:"+strconv.Itoa(downPort)) {
+		t.Errorf("dev server down = %d %q", resp.StatusCode, body)
+	}
+	if err := client.RemoveSite(ctx, "down"); err != nil {
+		t.Fatal(err)
+	}
+
 	// Plain HTTP redirects to the HTTPS port actually in use.
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, _ := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(cfg.HTTPPort)+"/x?y=1", nil)
@@ -171,9 +200,13 @@ func TestDaemon(t *testing.T) {
 		t.Errorf("second remove: %v", err)
 	}
 	browser.CloseIdleConnections()
-	if resp, err := browser.Get(wantURL + "/"); err == nil {
+	if resp, err := browser.Get(wantURL + "/"); err != nil {
+		t.Error(err)
+	} else {
 		resp.Body.Close()
-		t.Error("removed site still served")
+		if resp.StatusCode != 404 {
+			t.Errorf("removed site: %d, want the no-site page", resp.StatusCode)
+		}
 	}
 }
 

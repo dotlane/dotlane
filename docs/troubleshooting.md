@@ -1,13 +1,38 @@
 # Troubleshooting and lessons learned
 
-Each of these happened while building the prototype. Several are things a product must detect
-and handle automatically.
-
 ## Start with
 
 ```bash
-dotlane doctor
+dotlane doctor          # each check, with the fix for anything wrong
+dotlane doctor --fix    # repairs what dotlane install can
 ```
+
+The service's log is `~/Library/Logs/dotlane/dev.dotlane.log`. To restart it by hand:
+`launchctl kickstart -k gui/$(id -u)/dev.dotlane`.
+
+## Go version
+
+- **"No site at …" page.** The name resolves, but no site is registered under it: `dotlane ls`,
+  then `dotlane add` or `dotlane up` in the project.
+- **"The dev server is not answering" page.** The site exists, but nothing listens on its port.
+  Start the dev server; the page names the port.
+- **`dotlane: command not found` after `migrate`.** `~/.local/bin` is not on your PATH; migrate
+  prints the line to add to `~/.zshrc`.
+- **A change does not take effect after rebuilding or editing `config.toml`.** The running daemon
+  started before it. `dotlane install` (or `doctor --fix`) restarts it.
+- **Another tool holds 80, 443 or the DNS port.** `install` and `doctor` name it (Caddy, dnsmasq,
+  Yerd, Herd, Valet, Docker, or the process and PID) with its fix. A port held by another user's
+  process shows up through a bind test, since `lsof` cannot see it.
+- **macOS asks whether `dotlane` may accept incoming connections.** Its firewall reacting to the
+  all-interfaces listeners on 80/443. Allowing it is fine: Dotlane drops requests from other
+  machines itself.
+- **Node.js rejects the certificate** (server-side calls to a `.traix` URL). Node ignores the
+  keychain: `NODE_EXTRA_CA_CERTS="$HOME/Library/Application Support/dotlane/caddy/pki/authorities/local/root.crt"`.
+
+## From the prototype
+
+Each of these happened while building the Bash prototype. Most are now detected or handled by
+the Go version.
 
 ## Name does not resolve
 

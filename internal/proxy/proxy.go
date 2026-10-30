@@ -3,11 +3,15 @@
 package proxy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/modules/caddytls"
 	// Only the Caddy modules Dotlane uses; modules/standard adds ~8 MB (S3, metrics, ACME
 	// server and more) to the binary.
 	_ "github.com/caddyserver/caddy/v2/modules/caddyevents"
@@ -20,6 +24,59 @@ import (
 
 	"github.com/pedrodee/dotlane/internal/config"
 	"github.com/pedrodee/dotlane/internal/sites"
+)
+
+func init() { caddy.RegisterModule(Permission{}) }
+
+// Permission lets Caddy issue a certificate on demand for any single-label name under the
+// domain endings (unknown.traix), so a name without a site gets a page saying so instead of a
+// TLS error. Anything else is refused. Only this Mac resolves the endings to Dotlane, and other
+// machines are dropped, so this cannot be used to mint certificates for someone else.
+type Permission struct {
+	TLDs []string `json:"tlds"`
+}
+
+// CaddyModule implements caddy.Module.
+func (Permission) CaddyModule() caddy.ModuleInfo {
+	return caddy.ModuleInfo{ID: "tls.permission.dotlane", New: func() caddy.Module { return new(Permission) }}
+}
+
+var labelPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+// CertificateAllowed implements caddytls.OnDemandPermission.
+func (p Permission) CertificateAllowed(_ context.Context, name string) error {
+	label, tld, ok := strings.Cut(name, ".")
+	for _, t := range p.TLDs {
+		if ok && tld == t && len(label) <= 63 && labelPattern.MatchString(label) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s is not a name under %v", name, p.TLDs)
+}
+
+var _ caddytls.OnDemandPermission = Permission{}
+
+// page is a minimal self-contained HTML page, readable in light and dark mode.
+func page(title, body string) string {
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>` + title + `</title>
+<style>:root{color-scheme:light dark;font:16px/1.5 -apple-system,system-ui,sans-serif}
+body{max-width:36rem;margin:15vh auto;padding:0 1rem}h1{font-size:1.4rem}
+code{font:0.95em ui-monospace,Menlo,monospace;background:color-mix(in srgb,currentColor 10%,transparent);padding:.1em .35em;border-radius:4px}
+p.dim{opacity:.6;font-size:.9rem}</style></head><body>` + body +
+		`<p class="dim">This page comes from Dotlane, not from your app.</p></body></html>`
+}
+
+// The pages use the TLS server name, which Permission has checked, rather than the Host header,
+// which a client could fill with markup.
+var (
+	noSitePage = page("No site here", `<h1>No site at <code>{http.request.tls.server_name}</code></h1>
+<p>Nothing is registered under this name. To serve a dev server here:</p>
+<p><code>dotlane add &lt;name&gt; &lt;port&gt;</code></p>
+<p>or list it in the project's <code>dotlane.toml</code> and run <code>dotlane up</code>. <code>dotlane ls</code> shows the sites there are.</p>`)
+	downPage = page("Dev server not running", `<h1>The dev server is not answering</h1>
+<p><code>{http.request.tls.server_name}</code> forwards to <code>{http.reverse_proxy.upstream.hostport}</code>, and nothing answered there.</p>
+<p>Start the dev server, then reload this page.</p>`)
 )
 
 // Hosts are the names a site answers on: one per domain ending.
@@ -91,8 +148,23 @@ func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
 			"grace_period": "2s",
 			"servers": obj{
 				"dotlane": obj{
-					"listen":          ListenAddrs(cfg.HTTPSPort),
-					"routes":          routes,
+					"listen": ListenAddrs(cfg.HTTPSPort),
+					// Sites first; every other name gets the page that says so.
+					"routes": append(routes, obj{"handle": []obj{{
+						"handler":     "static_response",
+						"status_code": 404,
+						"headers":     obj{"Content-Type": []string{"text/html; charset=utf-8"}},
+						"body":        noSitePage,
+					}}}),
+					"errors": obj{"routes": []obj{{
+						"match": []obj{{"vars": obj{"{http.error.status_code}": []string{"502"}}}},
+						"handle": []obj{{
+							"handler":     "static_response",
+							"status_code": 502,
+							"headers":     obj{"Content-Type": []string{"text/html; charset=utf-8"}},
+							"body":        downPage,
+						}},
+					}}},
 					"automatic_https": obj{"disable_redirects": true},
 				},
 				"dotlane-http": obj{
@@ -120,15 +192,18 @@ func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
 			},
 		},
 	}
+	// Registered sites get their certificates up front; any other name under the endings gets
+	// one at its first handshake, for the no-site page.
+	var policies []obj
 	if len(subjects) > 0 {
-		apps["tls"] = obj{
-			"automation": obj{
-				"policies": []obj{{
-					"subjects": subjects,
-					"issuers":  []obj{{"module": "internal"}},
-				}},
-			},
-		}
+		policies = append(policies, obj{"subjects": subjects, "issuers": []obj{{"module": "internal"}}})
+	}
+	policies = append(policies, obj{"issuers": []obj{{"module": "internal"}}, "on_demand": true})
+	apps["tls"] = obj{
+		"automation": obj{
+			"policies":  policies,
+			"on_demand": obj{"permission": obj{"module": "dotlane", "tlds": cfg.TLDs}},
+		},
 	}
 
 	return json.Marshal(obj{

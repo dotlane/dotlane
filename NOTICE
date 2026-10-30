@@ -1,0 +1,7 @@
+Dotlane
+Copyright 2026 Pedro Silva
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The dotlane binary embeds Caddy (https://caddyserver.com), Copyright 2015 Matthew Holt and The
+Caddy Authors, also under the Apache License, Version 2.0.

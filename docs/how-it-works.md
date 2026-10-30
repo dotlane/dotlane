@@ -1,6 +1,6 @@
 # How Dotlane works
 
-What the Go version of Dotlane does and how it does it, as of 2026-10-30 (Phase 1, M1–M5). The Bash
+What the Go version of Dotlane does and how it does it, as of 2026-10-30 (Phase 1, M1–M6). The Bash
 prototype it replaces is described in [`architecture.md`](architecture.md).
 
 ## What it does
@@ -67,6 +67,16 @@ localhost:5173  (the dev server, unchanged)
 3. Caddy forwards to `localhost:<port>`. WebSockets (Vite's live reload) and HTTP/2 work without
    configuration. `http://` gets a 308 redirect to the same URL on HTTPS.
 
+Two cases get a page from Dotlane instead of a browser error:
+
+- **A name with no site** (`typo.traix`) gets "No site at typo.traix" (404), with the command to
+  add one. Its certificate is issued at the first handshake: an in-process Caddy permission module
+  allows on-demand certificates only for single-label names under the configured endings.
+- **A site whose dev server is not running** gets a page naming the port (502).
+
+The pages show the TLS server name, which the permission module has checked, never the `Host`
+header, so a client cannot inject markup into them.
+
 ## Listening on 443 and 80
 
 macOS lets a normal user listen on ports below 1024 only on all interfaces (`*:443`). It refuses
@@ -116,6 +126,10 @@ the process and PID) with its fix, and stops. The one exception is a taken defau
 picks the next free one and saves it to `config.toml`. Each password step is explained and its
 exact `sudo` command shown before it runs. A loaded but unresponsive service is restarted.
 
+Re-running install also restarts the service when it is stuck, or when the binary or
+`config.toml` changed after the daemon started (the daemon reports its start time), and tightens
+the private files' modes if they drifted.
+
 `dotlane uninstall` reverses it: it stops and removes the service, removes the CA from the
 keychain, and removes resolver files whose content is exactly Dotlane's (resolver files cannot
 carry a marker). Sites and the CA's keys are kept unless `--purge` is given.
@@ -139,8 +153,10 @@ carry a marker). Sites and the CA's keys are kept unless `--purge` is given.
 
 ## Checking: `dotlane doctor`
 
-`doctor` checks the config, the login service, the daemon, the three ports, the CA's trust, each
-resolver file and a real lookup through the macOS resolver. For each problem it gives the fix, and
+`doctor` checks the config, the login service, the daemon (and whether it runs an older binary or
+config), the three ports, the private files (the state directory 0700, the socket and the CA's
+root key 0600, all owned by this user), the CA's trust, each resolver file and a real lookup
+through the macOS resolver. For each problem it gives the fix, and
 it names whatever is in the way. It reports every process on a port, not just the first: Caddy uses
 `SO_REUSEPORT`, so two servers can share 443 and split its traffic without either failing.
 `lsof` only sees this user's processes, so a bind test catches ports held by other users.
@@ -216,5 +232,4 @@ Output is coloured on a terminal only. `NO_COLOR=1` turns colour off and always 
 - macOS only. Linux and Windows are Phase 4 of the [roadmap](roadmap.md).
 - This Mac only: phones and other machines cannot resolve the ending, and are dropped if they
   connect.
-- A name with no site gets a TLS error instead of a page (planned for M6).
 - No PHP without a server on a port (Phase 3).

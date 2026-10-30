@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -35,7 +36,12 @@ func (m *Mac) Doctor(ctx context.Context) []Check {
 	pid := 0
 	if st, err := m.Daemon(ctx); err == nil {
 		pid = st.PID
-		add(Check{Name: "Daemon", Status: Pass, Detail: fmt.Sprintf("running · pid %d · %s", st.PID, st.Version)})
+		if stale := m.stale(st); stale != "" {
+			add(Check{Name: "Daemon", Status: Warning, Detail: fmt.Sprintf("pid %d started before the %s", st.PID, stale),
+				Fix: "dotlane doctor --fix (restarts it)", Repairable: installed})
+		} else {
+			add(Check{Name: "Daemon", Status: Pass, Detail: fmt.Sprintf("running · pid %d · %s", st.PID, st.Version)})
+		}
 	} else if installed {
 		add(Check{Name: "Daemon", Status: Failed, Detail: "not answering on its socket",
 			Fix: "dotlane doctor --fix (restarts it); its log: " + m.UI.Path(m.logPath()), Repairable: true})
@@ -57,6 +63,7 @@ func (m *Mac) Doctor(ctx context.Context) []Check {
 	} else {
 		add(Check{Name: "Certificate authority", Status: Skipped, Detail: "created and trusted by dotlane install"})
 	}
+	add(m.permissionsCheck())
 	resolversOK := true
 	for _, tld := range m.Cfg.TLDs {
 		c := m.resolverCheck(ctx, tld)
@@ -298,4 +305,66 @@ func bindable(proto string, port int) error {
 		return err
 	}
 	return ln.Close()
+}
+
+// privateFiles are the state that must be this user's alone, with the widest mode each may have:
+// the state directory (sites, socket, CA), the control socket and the CA's root key.
+func (m *Mac) privateFiles() []struct {
+	path string
+	max  os.FileMode
+} {
+	return []struct {
+		path string
+		max  os.FileMode
+	}{
+		{m.Cfg.StateDir, 0o700},
+		{m.Cfg.SocketPath(), 0o600},
+		{filepath.Join(proxy.CADir(m.Cfg), "root.key"), 0o600},
+	}
+}
+
+// permissionsCheck reports state that other users could read or that belongs to someone else.
+func (m *Mac) permissionsCheck() Check {
+	c := Check{Name: "Private files"}
+	var problems []string
+	for _, f := range m.privateFiles() {
+		info, err := os.Stat(f.path)
+		if err != nil {
+			continue // not created yet
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); ok && int(st.Uid) != m.UID {
+			problems = append(problems, fmt.Sprintf("%s belongs to another user", m.UI.Path(f.path)))
+			continue
+		}
+		if perm := info.Mode().Perm(); perm&^f.max != 0 {
+			problems = append(problems, fmt.Sprintf("%s is mode %o, want %o", m.UI.Path(f.path), perm, f.max))
+			c.Repairable = true
+		}
+	}
+	if len(problems) == 0 {
+		c.Status, c.Detail = Pass, "state, socket and CA key are yours alone · "+m.UI.Path(m.Cfg.StateDir)
+		return c
+	}
+	c.Status, c.Detail = Failed, strings.Join(problems, "; ")
+	if c.Repairable {
+		c.Fix = "dotlane doctor --fix (tightens the modes)"
+	} else {
+		c.Fix = "sudo chown -R $USER " + m.UI.Path(m.Cfg.StateDir)
+	}
+	return c
+}
+
+// tightenPermissions removes other users' access to the private files.
+func (m *Mac) tightenPermissions() error {
+	for _, f := range m.privateFiles() {
+		info, err := os.Stat(f.path)
+		if err != nil || info.Mode().Perm()&^f.max == 0 {
+			continue
+		}
+		if err := os.Chmod(f.path, info.Mode().Perm()&f.max); err != nil {
+			return err
+		}
+		m.UI.OK("Private files", fmt.Sprintf("%s tightened to %o", m.UI.Path(f.path), info.Mode().Perm()&f.max))
+	}
+	return nil
 }

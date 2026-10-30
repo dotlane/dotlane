@@ -42,12 +42,15 @@ The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1
 M1 (a daemon with DNS, embedded Caddy and a control socket), M2 (`dotlane install` /
 `uninstall`), M3 (`dotlane doctor`, conflict checks) and M4 (project files: `dotlane.toml`,
 `up` / `down`) and M5 (`dotlane migrate`) work: this Mac moved from the prototype to the binary
-on 2026-10-30 with no new password. M6 (hardening, release candidate) is next.
+on 2026-10-30 with no new password. M6 (hardening, release candidate) is built; its integration
+test on GitHub's macOS runners is the last check.
 
 ## Development (Go version)
 
-Go 1.27. The dev instance uses spare ports and `dev/state/`, so it runs next to the prototype
-without touching it:
+Go 1.27. The dev instance uses spare ports and `dev/state/`, so it runs next to a real install
+without touching it. `scripts/integration.sh` is the end-to-end test (install, HTTPS through the
+system's DNS and trust, uninstall); it changes the system, so it runs on CI's throwaway macOS
+runners, not on a development Mac.
 
 ```bash
 go test -race ./...
@@ -117,11 +120,12 @@ The same flow as text:
 | [`docs/how-it-works.md`](docs/how-it-works.md) | What the Go version does and how: the daemon, a request end to end, certificates, install, projects, `doctor`, `migrate` |
 | [`docs/architecture.md`](docs/architecture.md) | The Bash prototype: components, request flow, and why each design choice was made |
 | [`docs/diagrams/dotlane-components.svg`](docs/diagrams/dotlane-components.svg) | Diagram of the tools and libraries used and how a request flows (light and dark mode) |
-| [`docs/setup.md`](docs/setup.md) | Reproducible install, verification and uninstall on macOS |
-| [`docs/cli.md`](docs/cli.md) | The prototype script's command reference (the Go commands are in `how-it-works.md`) |
+| [`docs/setup.md`](docs/setup.md) | Build, install, first site, upgrade, migrate from the prototype, uninstall (macOS) |
+| [`docs/cli.md`](docs/cli.md) | Command reference: every command, `dotlane.toml`, `config.toml`, output and exit codes |
+| [`docs/prototype/`](docs/prototype/) | The Bash prototype's setup and command reference, kept for reference |
 | [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with MyApp as the example |
 | [`docs/security.md`](docs/security.md) | Trust model of the local certificate authority, what runs with which privileges |
-| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Failure modes found while building it, and their fixes |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common problems and their fixes, and lessons from the prototype |
 | [`docs/product-notes.md`](docs/product-notes.md) | Landscape, differentiators, gaps between this prototype and a product |
 | [`docs/roadmap.md`](docs/roadmap.md) | Phases from prototype to product: Go core, Homebrew/npm, PHP, Linux/Windows, desktop app |
 | [`docs/phase-1.md`](docs/phase-1.md) | Phase 1 in milestones: the Go daemon, install, `doctor`, `dotlane.toml`, migration |
@@ -138,3 +142,8 @@ The same flow as text:
 | `files/caddy/Caddyfile` | `/opt/homebrew/etc/Caddyfile` (with `$HOME` expanded) |
 | `files/caddy/sites/myapp.caddy` | `~/.config/caddy/sites/myapp.caddy` (written by `dotlane add`) |
 | `files/resolver/traix` | `/etc/resolver/traix` (root-owned) |
+
+## Licence
+
+Apache-2.0 ([`LICENSE`](LICENSE), [`NOTICE`](NOTICE)), the same licence as Caddy, which the binary
+embeds.

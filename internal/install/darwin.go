@@ -161,6 +161,9 @@ func (m *Mac) Install(ctx context.Context) error {
 	if err := m.installService(ctx); err != nil {
 		return err
 	}
+	if err := m.tightenPermissions(); err != nil {
+		return err
+	}
 	if err := m.trustCA(ctx); err != nil {
 		return err
 	}
@@ -189,11 +192,17 @@ func (m *Mac) installService(ctx context.Context) error {
 
 	if bytes.Equal(have, want) && loaded {
 		m.UI.OK("Login service", "already installed")
-		if _, err := m.Daemon(ctx); err != nil { // loaded but stuck: restart it
+		why := ""
+		if st, err := m.Daemon(ctx); err != nil {
+			why = "it was not answering"
+		} else if stale := m.stale(st); stale != "" {
+			why = "to load the " + stale
+		}
+		if why != "" {
 			if out, err := m.Runner.Run(ctx, "/bin/launchctl", "kickstart", "-k", m.target()); err != nil {
 				return fmt.Errorf("launchctl kickstart: %v: %s", err, bytes.TrimSpace(out))
 			}
-			m.UI.OK("Login service", "restarted (it was not answering)")
+			m.UI.OK("Login service", "restarted ("+why+")")
 		}
 	} else {
 		if err := os.WriteFile(m.plistPath(), want, 0o644); err != nil {
@@ -213,6 +222,24 @@ func (m *Mac) installService(ctx context.Context) error {
 	}
 	m.UI.OK("Running", "log: "+m.UI.Path(m.logPath()))
 	return nil
+}
+
+// stale names what changed on disk after the daemon started, so it is not what the daemon runs:
+// "rebuilt binary" or "changed config"; empty if neither.
+func (m *Mac) stale(st api.Status) string {
+	changed := func(path string) bool {
+		info, err := os.Stat(path)
+		return err == nil && info.ModTime().After(st.Started)
+	}
+	switch {
+	case st.Started.IsZero(): // a daemon from before M6, which did not report it
+		return "rebuilt binary"
+	case changed(m.Exe):
+		return "rebuilt binary"
+	case changed(m.ConfigPath):
+		return "changed config"
+	}
+	return ""
 }
 
 func (m *Mac) waitForDaemon(ctx context.Context, timeout time.Duration) error {

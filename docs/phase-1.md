@@ -167,7 +167,34 @@ Planned:
 - **Done when** this Mac moves from the prototype to the binary with no new password prompt and
   `https://myapp.traix` keeps working.
 
-### M6 — Hardening and release candidate (≈ 1 week)
+### M6 — Hardening and release candidate (≈ 1 week) — built 2026-10-30, integration run pending
+
+Shipped:
+- **Pages instead of browser errors**: a name with no site gets "No site at …" (404) over a
+  certificate issued on demand (an in-process permission module allows only single-label names
+  under the endings); a stopped dev server gets a page naming its port (502).
+- **Restarts when stale**: `install` (and `doctor --fix`) restart the daemon when the binary or
+  `config.toml` changed after it started; `doctor` warns. Found while documenting: a new ending
+  was written to the resolver but not loaded.
+- **Private files**: `doctor` checks the state directory (0700), socket and CA root key (0600)
+  and their owner; `install` tightens modes.
+- **Errors and help**: every command has a description and examples; `up --help` panicked (Fang
+  parses examples as commands) and is fixed, with a test over every command's help. `add`
+  validates before contacting the daemon; wrong argument counts print the usage line;
+  `--fix` with `--json` is refused; a `--config` or `$DOTLANE_CONFIG` file that does not exist is
+  an error instead of silently meaning defaults.
+- **Integration test** (`scripts/integration.sh`, CI job `integration`): install → add → HTTPS
+  through the system's DNS and trust on ports 80/443 → redirect, no-site and down pages → LAN
+  request dropped → `up`/`down` → `doctor` → `uninstall --purge` → nothing left. Fails if
+  install → first site takes 60 s or more.
+- **Docs** moved from Bash to Go (`setup.md`, `cli.md`, `troubleshooting.md`; the prototype's are
+  in `docs/prototype/`). **Licence**: Apache-2.0 (`LICENSE`, `NOTICE`), the same as Caddy.
+- The daemon test's start and stop waits went from 5 s/10 s to 30 s, after a slow shared runner
+  failed it once.
+- "Proxy bound to loopback by default" was replaced by the M5 decision: 80/443 on all interfaces
+  with other machines dropped; other ports on loopback.
+
+Planned:
 
 - Tests: unit tests per package; an integration test on GitHub's macOS runners (they allow `sudo`)
   covering install → add → HTTPS request → uninstall.
