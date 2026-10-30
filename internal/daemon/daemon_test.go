@@ -96,7 +96,7 @@ func TestDaemon(t *testing.T) {
 		t.Errorf("second daemon: %v, want 'already running'", err)
 	}
 
-	site, err := client.AddSite(ctx, "demo", upstreamPort)
+	site, err := client.AddSite(ctx, "demo", upstreamPort, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestDaemon(t *testing.T) {
 	if !site.Ready || len(site.URLs) != 1 || site.URLs[0] != wantURL {
 		t.Errorf("added = %+v, want ready at %s", site, wantURL)
 	}
-	if _, err := client.AddSite(ctx, "Bad", 1); err == nil || !strings.Contains(err.Error(), "lowercase") {
+	if _, err := client.AddSite(ctx, "Bad", 1, ""); err == nil || !strings.Contains(err.Error(), "lowercase") {
 		t.Errorf("invalid name: %v", err)
 	}
 
@@ -135,6 +135,20 @@ func TestDaemon(t *testing.T) {
 	list, err := client.Sites(ctx)
 	if err != nil || len(list) != 1 || list[0].Name != "demo" {
 		t.Errorf("Sites = %+v, %v", list, err)
+	}
+
+	// dotlane up adopts the site added by hand; then the name is that project's.
+	if site, err := client.AddSite(ctx, "demo", upstreamPort, "/p/a"); err != nil || site.Project != "/p/a" {
+		t.Fatalf("adopt: %+v, %v", site, err)
+	}
+	if _, err := client.AddSite(ctx, "demo", upstreamPort, "/p/b"); err == nil || !strings.Contains(err.Error(), "already used by the project in /p/a") {
+		t.Errorf("another project: %v", err)
+	}
+	if _, err := client.AddSite(ctx, "demo", 1, ""); err == nil || !strings.Contains(err.Error(), "already used") {
+		t.Errorf("add over a project's site: %v", err)
+	}
+	if site, err := client.AddSite(ctx, "demo", upstreamPort, "/p/a"); err != nil || !site.Ready {
+		t.Errorf("unchanged re-add: %+v, %v", site, err)
 	}
 
 	if err := client.RemoveSite(ctx, "demo"); err != nil {

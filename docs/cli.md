@@ -8,6 +8,8 @@ A Bash script (`files/bin/dotlane`, installed at `~/.local/bin/dotlane`). It man
 | `dotlane add <name> <port>` | Writes `<name>.caddy` (`https://<name>.<tld>` → `localhost:<port>`), reloads Caddy, waits until the site's certificate is served (typically 0.15–0.5 s, at most ~5 s), prints the URL. Re-running with a new port updates it. |
 | `dotlane rm <name>` | Deletes the site file, reloads Caddy. |
 | `dotlane ls` | Lists sites as `https://<name>.<tld> -> localhost:<port>`. |
+| `dotlane up` | Runs `add` for each site in the nearest `dotlane.toml` (current directory or a parent). |
+| `dotlane down` | Runs `rm` for each of them that exists. |
 | `dotlane doctor` | Shows the domain ending in use, then checks the resolver file, dnsmasq's answer, Caddy's admin API, and that the CA is in the System keychain. Exits non-zero on any failure, with the fix for each. |
 
 Names: lowercase letters, digits and dashes, not starting or ending with a dash. Ports: 1–65535.
@@ -45,18 +47,23 @@ earlier keep their old address until re-added.
 
 ## Using it from a project
 
-MyApp wraps it in a mise task so the project owns its name and port:
+A project lists its sites in a `dotlane.toml` at its root, committed with the code:
 
 ```toml
-[tasks.domain]
-description = "Serve the web app at https://myapp.traix"
-run = '''
-command -v dotlane >/dev/null || { echo "dotlane is not installed" >&2; exit 1; }
-dotlane add myapp 5173
-grep -q 'https://myapp.traix' backend/.env 2>/dev/null \
-  || echo "Add https://myapp.traix to ALLOWED_ORIGINS in backend/.env, or sign-in will be refused."
-'''
+# https://myapp.traix → the Vite dev server
+[sites.myapp]
+port = 5173
+
+[sites.myapp-api]
+port = 8000
 ```
+
+`dotlane up`, run anywhere inside the project, adds them; `dotlane down` removes them. The script
+reads only `[sites.<name>]` headers and `port = <n>` lines. The Go version reads the file as TOML
+and rejects unknown keys, records which project registered each site, refuses a name another
+project already uses (instead of silently pointing it elsewhere), and on `up` also removes the
+project's sites the file no longer lists. A site added by hand with `dotlane add` is taken over
+by the first project that lists it.
 
 ## Exit codes and errors
 

@@ -40,8 +40,8 @@ It is a set of configuration files plus a ~100-line Bash helper, not yet a packa
 
 The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1.md)): milestones
 M1 (a daemon with DNS, embedded Caddy and a control socket), M2 (`dotlane install` /
-`uninstall`) and M3 (`dotlane doctor`, conflict checks) work; project files (`dotlane.toml`,
-`up` / `down`) come next (M4).
+`uninstall`), M3 (`dotlane doctor`, conflict checks) and M4 (project files: `dotlane.toml`,
+`up` / `down`) work; migration from the prototype comes next (M5).
 
 ## Development (Go version)
 
@@ -82,7 +82,8 @@ Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORC
 | `internal/dns` | Answers `*.<tld>` with 127.0.0.1 / ::1, refuses everything else |
 | `internal/proxy` | Builds Caddy's JSON config; Caddy runs in-process, admin endpoint off |
 | `internal/api` | JSON over a Unix socket (mode 0600): handler and client |
-| `internal/sites` | Site registry, saved atomically to `sites.json` |
+| `internal/sites` | Site registry, saved atomically to `sites.json`; which project owns each name |
+| `internal/project` | `dotlane.toml`: finding it, reading it, what `up` and `down` change |
 | `internal/config` | `config.toml`: endings, ports, state directory |
 
 ## How it works, in one picture

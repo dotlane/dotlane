@@ -22,6 +22,9 @@ type Site struct {
 	Name string   `json:"name"`
 	Port int      `json:"port"`
 	URLs []string `json:"urls"`
+	// Project is the directory of the dotlane.toml that registered the site; empty when added
+	// by hand.
+	Project string `json:"project,omitempty"`
 	// Ready is false when the certificate was not served within the wait after adding;
 	// the site usually works a few seconds later.
 	Ready bool `json:"ready,omitempty"`
@@ -60,13 +63,14 @@ func Handler(b Backend) http.Handler {
 	})
 	mux.HandleFunc("PUT /v1/sites/{name}", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Port int `json:"port"`
+			Port    int    `json:"port"`
+			Project string `json:"project"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody{"invalid request body: " + err.Error()})
 			return
 		}
-		site, err := b.AddSite(r.Context(), sites.Site{Name: r.PathValue("name"), Port: body.Port})
+		site, err := b.AddSite(r.Context(), sites.Site{Name: r.PathValue("name"), Port: body.Port, Project: body.Project})
 		if err != nil {
 			writeError(w, err)
 			return
@@ -85,9 +89,12 @@ func Handler(b Backend) http.Handler {
 
 func writeError(w http.ResponseWriter, err error) {
 	var invalid *sites.InvalidError
+	var conflict *sites.ConflictError
 	switch {
 	case errors.As(err, &invalid):
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
+	case errors.As(err, &conflict):
+		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
 	case errors.Is(err, sites.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
 	default:
@@ -134,10 +141,12 @@ func (c *Client) Sites(ctx context.Context) ([]Site, error) {
 	return out, c.do(ctx, http.MethodGet, "/v1/sites", nil, &out)
 }
 
-// AddSite adds or updates a site and waits until its certificate is served.
-func (c *Client) AddSite(ctx context.Context, name string, port int) (Site, error) {
+// AddSite adds or updates a site and waits until its certificate is served. project is the
+// directory of the dotlane.toml it comes from, or empty for a site added by hand.
+func (c *Client) AddSite(ctx context.Context, name string, port int, project string) (Site, error) {
 	var s Site
-	return s, c.do(ctx, http.MethodPut, "/v1/sites/"+url.PathEscape(name), map[string]int{"port": port}, &s)
+	body := map[string]any{"port": port, "project": project}
+	return s, c.do(ctx, http.MethodPut, "/v1/sites/"+url.PathEscape(name), body, &s)
 }
 
 // RemoveSite removes a site.

@@ -40,15 +40,15 @@ func TestPlainOutput(t *testing.T) {
 func TestSiteTable(t *testing.T) {
 	var b bytes.Buffer
 	Plain(&b).SiteTable([]SiteRow{
-		{"api", "https://api.dldev:9443", 8000},
-		{"myapp", "https://myapp.dldev:9443", 5173},
-		{"", "https://myapp.test:9443", 5173},
+		{"api", "https://api.dldev:9443", 8000, ""},
+		{"myapp", "https://myapp.dldev:9443", 5173, "/p/myapp"},
+		{"", "https://myapp.test:9443", 5173, ""},
 	})
 	lines := strings.Split(strings.TrimRight(b.String(), "\n"), "\n")
 	if len(lines) != 5 {
 		t.Fatalf("want header, rule and 3 rows, got:\n%s", b.String())
 	}
-	if !strings.Contains(lines[0], "SITE") || !strings.Contains(lines[0], "FORWARDS TO") || !strings.Contains(lines[1], "─") {
+	if !strings.Contains(lines[0], "SITE") || !strings.Contains(lines[0], "FORWARDS TO") || !strings.Contains(lines[3], "/p/myapp") || !strings.Contains(lines[1], "─") {
 		t.Errorf("header:\n%s", b.String())
 	}
 	// Columns line up: every row has its URL at the same offset.

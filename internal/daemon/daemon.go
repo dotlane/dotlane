@@ -116,7 +116,7 @@ func (d *Daemon) view(s sites.Site) api.Site {
 			urls[i] += ":" + strconv.Itoa(d.cfg.HTTPSPort)
 		}
 	}
-	return api.Site{Name: s.Name, Port: s.Port, URLs: urls, Ready: true}
+	return api.Site{Name: s.Name, Port: s.Port, URLs: urls, Project: s.Project, Ready: true}
 }
 
 // Status implements api.Backend.
@@ -141,14 +141,27 @@ func (d *Daemon) Sites() []api.Site {
 	return out
 }
 
-// AddSite implements api.Backend. If Caddy rejects the new configuration, the registry is
-// restored, so a failed add leaves nothing behind.
+// AddSite implements api.Backend. A name another project owns is refused (sites.CheckOwner). If
+// Caddy rejects the new configuration, the registry is restored, so a failed add leaves nothing
+// behind.
 func (d *Daemon) AddSite(ctx context.Context, s sites.Site) (api.Site, error) {
 	if err := s.Validate(); err != nil {
 		return api.Site{}, err
 	}
 	d.mu.Lock()
 	prev, had := d.registry.Get(s.Name)
+	if had {
+		if err := sites.CheckOwner(prev, s); err != nil {
+			d.mu.Unlock()
+			return api.Site{}, err
+		}
+	}
+	if had && prev == s { // dotlane up re-run: nothing to reload
+		d.mu.Unlock()
+		v := d.view(s)
+		v.Ready = d.waitForTLS(ctx, proxy.Hosts(d.cfg, s)[0])
+		return v, nil
+	}
 	if err := d.registry.Put(s); err != nil {
 		d.mu.Unlock()
 		return api.Site{}, err

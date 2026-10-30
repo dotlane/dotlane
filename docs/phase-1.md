@@ -109,7 +109,19 @@ for unknown names (moved to M6).
 - **Done when** each conflict from the reference install log (Herd's resolver, Yerd on 1053) is
   detected with a correct fix message.
 
-### M4 — Project files: `dotlane.toml`, `up` / `down` (≈ 1 week)
+### M4 — Project files: `dotlane.toml`, `up` / `down` (≈ 1 week) — done 2026-10-30
+
+Shipped: `dotlane up` / `down`, run from the project's directory or below it. Each site records
+the project directory (symlinks resolved) that registered it; `ls` shows it. `up` checks every
+name first and changes nothing if another project owns one, adopts a site added by hand, skips
+the reload for unchanged sites, and removes the project's sites the file no longer lists. The
+daemon enforces the same ownership rule, so `dotlane add` cannot take a project's name either
+(HTTP 409). Several endings (`tlds = [...]`) already worked since M1/M2. The Bash prototype got
+a minimal `up` / `down` (no ownership), so MyApp could switch now, before migration (M5).
+Verified against the dev daemon with two scratch projects (adopt, conflict, re-run, stale site,
+down) and in MyApp with the prototype.
+
+Planned:
 
 - `dotlane.toml` in a project (`[sites.<name>] port = …`); `dotlane up` registers its sites,
   `dotlane down` removes them. Sites remember which project registered them.

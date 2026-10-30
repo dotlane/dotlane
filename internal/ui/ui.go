@@ -164,15 +164,16 @@ func (p *Printer) SiteOK(url string, port int) {
 
 // SiteRow is one line of SiteTable. Name may be empty to continue the previous site.
 type SiteRow struct {
-	Name string
-	URL  string
-	Port int
+	Name    string
+	URL     string
+	Port    int
+	Project string // directory of the dotlane.toml that registered it; empty when added by hand
 }
 
 // SiteTable prints sites as a table: a header, a rule under it, no other borders.
 func (p *Printer) SiteTable(rows []SiteRow) {
 	t := table.New().
-		Headers("SITE", "URL", "FORWARDS TO").
+		Headers("SITE", "URL", "FORWARDS TO", "PROJECT").
 		Border(lipgloss.NormalBorder()).
 		BorderTop(false).BorderBottom(false).BorderLeft(false).BorderRight(false).
 		BorderColumn(false).
@@ -186,11 +187,13 @@ func (p *Printer) SiteTable(rows []SiteRow) {
 				return cell.Inherit(p.s.bold)
 			case col == 1:
 				return cell.Inherit(p.s.url)
+			case col == 3:
+				return cell.Inherit(p.s.dim)
 			}
 			return cell
 		})
 	for _, r := range rows {
-		t.Row(r.Name, r.URL, fmt.Sprintf("localhost:%d", r.Port))
+		t.Row(r.Name, r.URL, fmt.Sprintf("localhost:%d", r.Port), p.Path(r.Project))
 	}
 	p.printf("%s\n", t.Render())
 }

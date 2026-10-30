@@ -22,6 +22,8 @@ import (
 	"github.com/pedrodee/dotlane/internal/config"
 	"github.com/pedrodee/dotlane/internal/daemon"
 	"github.com/pedrodee/dotlane/internal/install"
+	"github.com/pedrodee/dotlane/internal/project"
+	"github.com/pedrodee/dotlane/internal/sites"
 	"github.com/pedrodee/dotlane/internal/ui"
 )
 
@@ -92,7 +94,10 @@ func newRoot() *cobra.Command {
 
   # serve a dev server at https://myapp.traix
   dotlane add myapp 5173
-  dotlane ls`,
+  dotlane ls
+
+  # or declare a project's sites in its dotlane.toml, and serve them all
+  dotlane up`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -113,7 +118,7 @@ func newRoot() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			site, err := c.AddSite(cmd.Context(), args[0], port)
+			site, err := c.AddSite(cmd.Context(), args[0], port, "")
 			if err != nil {
 				return explain(err)
 			}
@@ -178,7 +183,7 @@ func newRoot() *cobra.Command {
 					if i > 0 { // further domain endings of the same site
 						name = ""
 					}
-					rows = append(rows, ui.SiteRow{Name: name, URL: u, Port: s.Port})
+					rows = append(rows, ui.SiteRow{Name: name, URL: u, Port: s.Port, Project: s.Project})
 				}
 			}
 			out.SiteTable(rows)
@@ -187,6 +192,107 @@ func newRoot() *cobra.Command {
 	}
 	ls.Flags().BoolVar(&asJSON, "json", false, "print JSON, for scripts")
 	root.AddCommand(ls)
+
+	// loadProject finds the dotlane.toml for up and down, and the registered sites.
+	loadProject := func(cmd *cobra.Command) (*project.Project, *api.Client, []sites.Site, error) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		path, err := project.Find(cwd)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("%w\ncreate one in the project's root:\n[sites.<name>]\nport = <port>", err)
+		}
+		p, err := project.Load(path)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		c, err := client()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		list, err := c.Sites(cmd.Context())
+		if err != nil {
+			return nil, nil, nil, explain(err)
+		}
+		registered := make([]sites.Site, len(list))
+		for i, s := range list {
+			registered[i] = sites.Site{Name: s.Name, Port: s.Port, Project: s.Project}
+		}
+		return p, c, registered, nil
+	}
+
+	root.AddCommand(&cobra.Command{
+		Use:   "up",
+		Short: "Serve the sites in the project's dotlane.toml",
+		Long: "Serves the sites listed in dotlane.toml, found in the current directory or a parent, and\n" +
+			"removes this project's sites the file no longer lists. Names another project uses are\n" +
+			"reported and nothing changes. A site added by hand with the same name is taken over.",
+		Example: `  # dotlane.toml
+  [sites.myapp]
+  port = 5173`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p, c, registered, err := loadProject(cmd)
+			if err != nil {
+				return err
+			}
+			out := ui.New(cmd.OutOrStdout())
+			conflicts, stale := p.Up(registered)
+			if len(conflicts) > 0 {
+				for _, conflict := range conflicts {
+					out.Fail(conflict.Name, "already used by the project in "+out.Path(conflict.Owner))
+					out.Hint(fmt.Sprintf("dotlane down in that project, or dotlane rm %s", conflict.Name))
+				}
+				return errors.New("another project uses these names; nothing was changed")
+			}
+			out.Title("Dotlane up", out.Path(p.Dir))
+			for _, s := range p.Sites {
+				site, err := c.AddSite(cmd.Context(), s.Name, s.Port, s.Project)
+				if err != nil {
+					return explain(err)
+				}
+				for _, u := range site.URLs {
+					out.SiteOK(u, site.Port)
+				}
+				if !site.Ready {
+					out.Warn("Not answering yet", "the certificate is still being issued; give it a few seconds")
+				}
+			}
+			for _, name := range stale {
+				if err := c.RemoveSite(cmd.Context(), name); err != nil {
+					return explain(err)
+				}
+				out.Check(fmt.Sprintf("removed %s (no longer in %s)", name, project.FileName))
+			}
+			return nil
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "down",
+		Short: "Remove the sites the project's dotlane.toml registered",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p, c, registered, err := loadProject(cmd)
+			if err != nil {
+				return err
+			}
+			out := ui.New(cmd.OutOrStdout())
+			names := p.Down(registered)
+			if len(names) == 0 {
+				out.Line("%s", out.Dim("Nothing to remove: no sites registered from "+out.Path(p.Path)))
+				return nil
+			}
+			for _, name := range names {
+				if err := c.RemoveSite(cmd.Context(), name); err != nil {
+					return explain(err)
+				}
+				out.Check("removed " + name)
+			}
+			return nil
+		},
+	})
 
 	root.AddCommand(&cobra.Command{
 		Use:   "serve",

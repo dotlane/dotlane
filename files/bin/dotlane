@@ -4,6 +4,8 @@
 #   dotlane add <name> <port>   https://<name>.<tld> -> localhost:<port>
 #   dotlane rm <name>           remove it
 #   dotlane ls                  list sites
+#   dotlane up                  add the sites in the project's dotlane.toml
+#   dotlane down                remove them
 #   dotlane doctor              check DNS, Caddy and the certificate authority
 #
 # Each site is one file in ~/.config/caddy/sites/, imported by Caddy's main config
@@ -81,6 +83,35 @@ cmd_rm() {
   echo "removed https://$1.$TLD"
 }
 
+# Prints "name port" for each [sites.<name>] in the nearest dotlane.toml, from here upwards.
+# A subset of the Go version: no record of which project added a site, so no collision checks.
+project_sites() {
+  local dir=$PWD
+  until [[ -f "$dir/dotlane.toml" ]]; do
+    [[ "$dir" != / ]] || die "no dotlane.toml here or in a parent directory"
+    dir=$(dirname "$dir")
+  done
+  awk 'match($0, /^\[sites\.[a-z0-9-]+\]/) { name = substr($0, 8, RLENGTH - 8) }
+       name && match($0, /^[[:space:]]*port[[:space:]]*=[[:space:]]*[0-9]+/) {
+         port = substr($0, RSTART, RLENGTH); sub(/.*=[[:space:]]*/, "", port); print name, port; name = "" }' \
+    "$dir/dotlane.toml"
+}
+
+cmd_up() {
+  local list name port
+  list=$(project_sites)
+  [[ -n "$list" ]] || die "dotlane.toml lists no sites"
+  while read -r name port; do cmd_add "$name" "$port"; done <<< "$list"
+}
+
+cmd_down() {
+  local list name port
+  list=$(project_sites)
+  while read -r name port; do
+    if [[ -n "$name" && -f "$SITES/$name.caddy" ]]; then cmd_rm "$name"; fi
+  done <<< "$list"
+}
+
 cmd_ls() {
   shopt -s nullglob
   local f
@@ -107,6 +138,8 @@ case "${1:-}" in
   add) shift; cmd_add "$@" ;;
   rm) shift; cmd_rm "$@" ;;
   ls) cmd_ls ;;
+  up) cmd_up ;;
+  down) cmd_down ;;
   doctor) cmd_doctor ;;
-  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

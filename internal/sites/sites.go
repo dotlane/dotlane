@@ -17,6 +17,9 @@ import (
 type Site struct {
 	Name string `json:"name"`
 	Port int    `json:"port"`
+	// Project is the directory of the dotlane.toml that registered the site (dotlane up), or
+	// empty for one added by hand (dotlane add).
+	Project string `json:"project,omitempty"`
 }
 
 // ErrNotFound is returned when removing a site that does not exist.
@@ -26,6 +29,34 @@ var ErrNotFound = errors.New("no such site")
 type InvalidError struct{ msg string }
 
 func (e *InvalidError) Error() string { return e.msg }
+
+// ConflictError reports a name another project already uses.
+type ConflictError struct {
+	Name  string
+	Owner string // the other project's directory
+}
+
+func (e *ConflictError) Error() string {
+	return fmt.Sprintf("%s is already used by the project in %s\nrun dotlane down there, or dotlane rm %s, to free the name",
+		e.Name, tilde(e.Owner), e.Name)
+}
+
+// CheckOwner allows s to replace existing (the site registered under the same name) when it is
+// the same project's, or existing was added by hand: dotlane up adopts it. A project's site
+// cannot be taken by another project, or by dotlane add.
+func CheckOwner(existing, s Site) error {
+	if existing.Project != "" && existing.Project != s.Project {
+		return &ConflictError{Name: s.Name, Owner: existing.Project}
+	}
+	return nil
+}
+
+func tilde(path string) string {
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(path, home+"/") {
+		return "~" + path[len(home):]
+	}
+	return path
+}
 
 var namePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
