@@ -4,6 +4,7 @@ package proxy
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -56,25 +57,39 @@ func (p Permission) CertificateAllowed(_ context.Context, name string) error {
 
 var _ caddytls.OnDemandPermission = Permission{}
 
-// page is a minimal self-contained HTML page, readable in light and dark mode.
-func page(title, body string) string {
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>` + title + `</title>
-<style>:root{color-scheme:light dark;font:16px/1.5 -apple-system,system-ui,sans-serif}
-body{max-width:36rem;margin:15vh auto;padding:0 1rem}h1{font-size:1.4rem}
-code{font:0.95em ui-monospace,Menlo,monospace;background:color-mix(in srgb,currentColor 10%,transparent);padding:.1em .35em;border-radius:4px}
-p.dim{opacity:.6;font-size:.9rem}</style></head><body>` + body +
-		`<p class="dim">This page comes from Dotlane, not from your app.</p></body></html>`
+// The pages Dotlane serves itself: one layout (page.html), with the mark and an adaptive favicon
+// (favicon.svg, written by scripts/brandgen), filled per page. Both are embedded, so the pages
+// need nothing from the network.
+var (
+	//go:embed page.html
+	pageLayout string
+	//go:embed favicon.svg
+	faviconSVG string
+)
+
+// faviconURI is favicon.svg as a data: URI for <link rel="icon">.
+var faviconURI = "data:image/svg+xml," + strings.NewReplacer(
+	"\n", "", `"`, "'", "#", "%23", "<", "%3C", ">", "%3E", "{", "%7B", "}", "%7D",
+).Replace(faviconSVG)
+
+// page fills the layout. light and dark colour the dot in the page's address bar: the state of
+// the address in each colour scheme.
+func page(title, light, dark, body string) string {
+	return strings.NewReplacer(
+		"%TITLE%", title, "%FAVICON%", faviconURI, "%STATE_LIGHT%", light, "%STATE_DARK%", dark, "%BODY%", body,
+	).Replace(pageLayout)
 }
 
 // The pages use the TLS server name, which Permission has checked, rather than the Host header,
 // which a client could fill with markup.
 var (
-	noSitePage = page("No site here", `<h1>No site at <code>{http.request.tls.server_name}</code></h1>
-<p>Nothing is registered under this name. To serve a dev server here:</p>
-<p><code>dotlane add &lt;name&gt; &lt;port&gt;</code></p>
-<p>or list it in the project's <code>dotlane.toml</code> and run <code>dotlane up</code>. <code>dotlane ls</code> shows the sites there are.</p>`)
-	downPage = page("Dev server not running", `<h1>The dev server is not answering</h1>
+	noSitePage = page("No site here", "#94a3b8", "#64748b", `<p class="status">404 · no site</p>
+<h1>No site at <code>{http.request.tls.server_name}</code></h1>
+<p>Nothing is registered under this name yet. To serve a dev server here:</p>
+<pre>dotlane add &lt;name&gt; &lt;port&gt;</pre>
+<p>Or list it in the project's <code>dotlane.toml</code> and run <code>dotlane up</code>. <code>dotlane ls</code> shows the sites there are.</p>`)
+	downPage = page("Dev server not running", "#d97706", "#f59e0b", `<p class="status">502 · not answering</p>
+<h1>The dev server is not answering</h1>
 <p><code>{http.request.tls.server_name}</code> forwards to <code>{http.reverse_proxy.upstream.hostport}</code>, and nothing answered there.</p>
 <p>Start the dev server, then reload this page.</p>`)
 )

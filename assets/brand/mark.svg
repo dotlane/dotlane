@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dotlane">
+  <rect width="64" height="64" rx="15" fill="#0f172a"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="14.5" fill="none" stroke="#6f747f" stroke-width="1"/>
+  <rect x="11.5" y="23.5" width="41" height="17" rx="8.5" fill="none" stroke="#f8fafc" stroke-width="3"/>
+  <circle cx="43.5" cy="32" r="3.75" fill="#22c55e"/>
+</svg>

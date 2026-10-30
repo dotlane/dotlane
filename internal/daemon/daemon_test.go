@@ -142,6 +142,12 @@ func TestDaemon(t *testing.T) {
 	if resp.StatusCode != 404 || !strings.Contains(string(body), "No site at <code>nosuch.traix</code>") {
 		t.Errorf("unknown name = %d %q", resp.StatusCode, body)
 	}
+	// Caddy fills {placeholders} in the body; the page's CSS and favicon must come through as written.
+	for _, want := range []string{":root{--bg:#f8fafc;", "@media (prefers-color-scheme:dark){:root{", `href="data:image/svg+xml,%3Csvg`, "https://nosuch.traix</span>"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
 
 	// A site whose dev server is down gets a page naming the port.
 	downPort := freePort(t)

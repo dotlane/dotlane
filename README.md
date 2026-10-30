@@ -1,3 +1,5 @@
+<img src="assets/brand/mark.svg" width="72" alt="Dotlane">
+
 # Dotlane
 
 > Your own lane after the dot.
@@ -50,7 +52,8 @@ test on GitHub's macOS runners is the last check.
 Go 1.27. The dev instance uses spare ports and `dev/state/`, so it runs next to a real install
 without touching it. `scripts/integration.sh` is the end-to-end test (install, HTTPS through the
 system's DNS and trust, uninstall); it changes the system, so it runs on CI's throwaway macOS
-runners, not on a development Mac.
+runners, not on a development Mac. `go run ./scripts/brandgen` redraws every icon file from the
+numbers in it (see [`docs/brand.md`](docs/brand.md)).
 
 ```bash
 go test -race ./...
@@ -117,6 +120,8 @@ The same flow as text:
 
 | File | What it covers |
 | --- | --- |
+| [`docs/brand.md`](docs/brand.md) | The mark, colours, type and Dotlane's own pages; the files are in `assets/brand/` |
+| [`site/`](site/) | The website: one self-contained page, no build step (`open site/index.html`) |
 | [`docs/how-it-works.md`](docs/how-it-works.md) | What the Go version does and how: the daemon, a request end to end, certificates, install, projects, `doctor`, `migrate` |
 | [`docs/architecture.md`](docs/architecture.md) | The Bash prototype: components, request flow, and why each design choice was made |
 | [`docs/diagrams/dotlane-components.svg`](docs/diagrams/dotlane-components.svg) | Diagram of the tools and libraries used and how a request flows (light and dark mode) |
