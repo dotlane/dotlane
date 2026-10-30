@@ -26,8 +26,10 @@ jobs:
     # 80/443, with passwordless sudo. See scripts/integration.sh.
     needs: test
     runs-on: macos-latest
-    # A step waiting on a macOS prompt nobody can answer would otherwise hang for hours.
-    timeout-minutes: 15
+    # A step waiting on a macOS prompt nobody can answer would otherwise hang for hours; each
+    # dotlane call also has its own two-minute limit in the script. The job's limit counts time
+    # queued for a macOS runner too, which can be long, hence 30 rather than 15.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
