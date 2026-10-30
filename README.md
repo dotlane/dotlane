@@ -41,8 +41,8 @@ It is a set of configuration files plus a ~100-line Bash helper, not yet a packa
 The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1.md)): milestones
 M1 (a daemon with DNS, embedded Caddy and a control socket), M2 (`dotlane install` /
 `uninstall`), M3 (`dotlane doctor`, conflict checks) and M4 (project files: `dotlane.toml`,
-`up` / `down`) work, and M5 (`dotlane migrate`, from the prototype to the binary with no new
-password) is built and about to replace the prototype on this Mac.
+`up` / `down`) and M5 (`dotlane migrate`) work: this Mac moved from the prototype to the binary
+on 2026-10-30 with no new password. M6 (hardening, release candidate) is next.
 
 ## Development (Go version)
 
@@ -89,7 +89,7 @@ Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORC
 
 ## How it works, in one picture
 
-The picture shows the Bash prototype, which this Mac still runs. The Go version keeps the same
+The picture shows the Bash prototype, which this Mac ran until 2026-10-30. The Go version keeps the same
 flow with DNS, Caddy and the CA inside one `dotlane` process: see
 [`docs/how-it-works.md`](docs/how-it-works.md).
 

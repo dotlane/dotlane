@@ -130,7 +130,7 @@ Planned:
 - **Done when** MyApp's `mise run domain` is replaced by a committed `dotlane.toml` and
   `dotlane up`.
 
-### M5 — Migration from the prototype (≈ 3 days) — built 2026-10-30, to run on this Mac
+### M5 — Migration from the prototype (≈ 3 days) — done 2026-10-30
 
 Shipped: `dotlane migrate`. It reads the prototype without changing anything first (a site file
 for an ending Dotlane is not set up for stops it), copies Homebrew Caddy's root certificate and
@@ -150,7 +150,10 @@ on 9443). Fix: 80 and 443 now bind on all interfaces with a first route that dro
 other machines (checked live on 444/81: loopback served, the LAN address got no answer); higher
 ports stay on loopback. The HTTP redirect is now an explicit server, so it also follows a
 non-standard HTTPS port. Install's bind test uses the same addresses, and a permission error is
-reported as such rather than as "another user". Verified: the embedded Caddy accepts the prototype's root (it issues its own
+reported as such rather than as "another user". Second run: migrated with no password; only
+`dotlane` listens on 443, 80 and 10053; `https://myapp.traix` verifies against the system
+roots, `http://` redirects, the LAN address gets no answer, `doctor` is all green, and `dotlane up`
+in MyApp claimed the site. Verified earlier: the embedded Caddy accepts the prototype's root (it issues its own
 intermediate under it) and curl trusts the result with no `--cacert`; the flow is covered by
 tests with a fake launchd/Homebrew, including the rollback.
 
