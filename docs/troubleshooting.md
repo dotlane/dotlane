@@ -18,6 +18,10 @@ The service's log is `~/Library/Logs/dotlane/dev.dotlane.log`. To restart it by 
   Start the dev server; the page names the port.
 - **`dotlane: command not found` after `migrate`.** `~/.local/bin` is not on your PATH; migrate
   prints the line to add to `~/.zshrc`.
+- **The service is loaded but never starts, and its log stays empty.** A launchd job started
+  from Documents, Desktop or Downloads waits for a privacy approval macOS may never show. Current
+  versions run a copy in `~/Library/Application Support/dotlane/bin/`; an older install fixes
+  itself with `dotlane install`.
 - **A change does not take effect after rebuilding or editing `config.toml`.** The running daemon
   started before it. `dotlane install` (or `doctor --fix`) restarts it.
 - **Another tool holds 80, 443 or the DNS port.** `install` and `doctor` name it (Caddy, dnsmasq,

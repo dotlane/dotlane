@@ -24,8 +24,9 @@ If `dotlane` is not found afterwards, `~/.local/bin` is not on your PATH:
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc   # then open a new terminal
 ```
 
-The login service runs the binary at the path it was installed from (`bin/dotlane` here, through
-the symlink), so keep the folder where it is.
+`dotlane install` copies the binary to `~/Library/Application Support/dotlane/bin/` and the login
+service runs that copy: macOS holds back background jobs started from Documents, Desktop or
+Downloads until you approve them, and a new build would need a new approval.
 
 ## 2. Install
 
@@ -79,8 +80,9 @@ curl -sI https://myapp.traix | head -1
 
 ## Upgrading
 
-Rebuild, then run `dotlane install`: it restarts the service when the binary (or the config
-file) changed after the daemon started. `doctor` warns about it too.
+Rebuild, then run `dotlane install`: it updates the service's copy of the binary and restarts the
+service, and does the same after a change to the config file. `doctor` warns when either is
+out of date.
 
 ```bash
 git pull && go build -o bin/dotlane ./cmd/dotlane && dotlane install

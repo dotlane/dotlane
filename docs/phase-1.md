@@ -189,6 +189,14 @@ Shipped:
   install → first site takes 60 s or more.
 - **Docs** moved from Bash to Go (`setup.md`, `cli.md`, `troubleshooting.md`; the prototype's are
   in `docs/prototype/`). **Licence**: Apache-2.0 (`LICENSE`, `NOTICE`), the same as Caddy.
+- **Found restarting this Mac's daemon** (2026-10-30), fixed with tests that fail without the
+  fix: (1) the default config path was no longer recorded, so `install` wrote the working
+  directory into the plist as `--config`; (2) the login service always names the default config,
+  which the new "named file must exist" rule rejected; (3) reinstalling bootstrapped the job before
+  launchd had finished booting it out ("Bootstrap failed: 5"), so install now waits; (4) a launchd
+  job started from `~/Documents` silently waited for a privacy approval after each rebuild, so the
+  service now runs a copy in `~/Library/Application Support/dotlane/bin/<service>`, updated only
+  when the binary changes and removed by uninstall.
 - The daemon test's start and stop waits went from 5 s/10 s to 30 s, after a slow shared runner
   failed it once.
 - "Proxy bound to loopback by default" was replaced by the M5 decision: 80/443 on all interfaces

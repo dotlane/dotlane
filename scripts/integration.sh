@@ -79,6 +79,7 @@ step "uninstall --purge"
 DL uninstall --purge
 [[ ! -e /etc/resolver/$TLD ]] || fail "/etc/resolver/$TLD left behind"
 [[ ! -e "$HOME/Library/LaunchAgents/$SERVICE.plist" ]] || fail "login service left behind"
+[[ ! -e "$HOME/Library/Application Support/dotlane/bin/$SERVICE" ]] || fail "the service's binary left behind"
 [[ ! -e "$WORK/state" ]] || fail "state left behind"
 launchctl print "gui/$(id -u)/$SERVICE" >/dev/null 2>&1 && fail "service still loaded"
 security find-certificate -a -c "Dotlane Local Authority" /Library/Keychains/System.keychain >/dev/null 2>&1 \

@@ -84,14 +84,37 @@ func TestRejected(t *testing.T) {
 	}
 }
 
-func TestDefaultPath(t *testing.T) {
-	t.Setenv("DOTLANE_CONFIG", "/x/y.toml")
-	if p, _ := DefaultPath(); p != "/x/y.toml" {
-		t.Errorf("DefaultPath = %q", p)
-	}
+func TestResolve(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	t.Setenv("DOTLANE_CONFIG", "")
-	if p, _ := DefaultPath(); !strings.HasSuffix(p, filepath.Join(".config", "dotlane", "config.toml")) {
-		t.Errorf("DefaultPath = %q", p)
+	def := filepath.Join(home, ".config", "dotlane", "config.toml")
+	other := filepath.Join(t.TempDir(), "other.toml")
+	os.WriteFile(other, []byte("tld = \"test\"\n"), 0o644)
+
+	for _, tc := range []struct {
+		flag, env, want, err string
+	}{
+		{want: def},            // nothing named: the default, missing is fine
+		{flag: def, want: def}, // the login service names the default: still optional
+		{env: def, want: def},
+		{flag: other, want: other}, // another file that exists
+		{env: other, want: other},
+		{flag: other, env: "/nope", want: other},                // the flag wins
+		{flag: "/nope/x.toml", err: "config file /nope/x.toml"}, // a typo is an error
+		{env: "/nope/x.toml", err: "config file /nope/x.toml"},
+	} {
+		t.Setenv("DOTLANE_CONFIG", tc.env)
+		got, err := Resolve(tc.flag)
+		if tc.err != "" {
+			if err == nil || !strings.Contains(err.Error(), tc.err) {
+				t.Errorf("%+v: err = %v, want %q", tc, err, tc.err)
+			}
+			continue
+		}
+		if err != nil || got != tc.want {
+			t.Errorf("%+v: got %q, %v; want %q", tc, got, err, tc.want)
+		}
 	}
 }
 

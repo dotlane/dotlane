@@ -31,7 +31,11 @@ const systemKeychain = "/Library/Keychains/System.keychain"
 type Mac struct {
 	Cfg        *config.Config
 	ConfigPath string // passed to the service, absolute
-	Exe        string // the dotlane binary the service runs, absolute
+	Exe        string // this dotlane binary, absolute; install copies it to ServiceDir
+	// ServiceDir holds the copy of the binary the login service runs, outside the folders macOS
+	// protects (Documents, Desktop, Downloads): a launchd job started from one of those waits,
+	// silently, for a privacy approval, and a new build needs a new one.
+	ServiceDir string
 	Home       string
 	UID        int
 	// ResolverDir is /etc/resolver; tests point it elsewhere.
@@ -81,6 +85,7 @@ func NewMac(cfg *config.Config, configPath string, daemon func(context.Context) 
 	}
 	return &Mac{
 		Cfg: cfg, ConfigPath: configPath, Exe: exe, Home: home, UID: os.Getuid(),
+		ServiceDir:  filepath.Join(home, "Library", "Application Support", "dotlane", "bin"),
 		ResolverDir: "/etc/resolver",
 		UI:          ui.New(os.Stdout),
 		Runner:      ExecRunner{},
@@ -108,6 +113,53 @@ func (m *Mac) summary() string {
 		tlds[i] = "." + t
 	}
 	return m.Cfg.ServiceName + " · " + strings.Join(tlds, " ")
+}
+
+// serviceExe is the binary the login service runs: a copy of Exe, one per service name, so a
+// development install and a real one keep their own.
+func (m *Mac) serviceExe() string { return filepath.Join(m.ServiceDir, m.Cfg.ServiceName) }
+
+// copyBinary puts this binary at serviceExe when the copy there differs, through a temporary file
+// and a rename, so a running daemon keeps its file. It reports whether it changed anything.
+func (m *Mac) copyBinary() (bool, error) {
+	if sameFile(m.Exe, m.serviceExe()) {
+		return false, nil
+	}
+	data, err := os.ReadFile(m.Exe)
+	if err != nil {
+		return false, err
+	}
+	if err := os.MkdirAll(m.ServiceDir, 0o755); err != nil {
+		return false, err
+	}
+	tmp, err := os.CreateTemp(m.ServiceDir, ".dotlane-*")
+	if err != nil {
+		return false, err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return false, err
+	}
+	if err := tmp.Close(); err != nil {
+		return false, err
+	}
+	if err := os.Chmod(tmp.Name(), 0o755); err != nil {
+		return false, err
+	}
+	return true, os.Rename(tmp.Name(), m.serviceExe())
+}
+
+// sameFile reports whether a and b have the same content.
+func sameFile(a, b string) bool {
+	ia, err1 := os.Stat(a)
+	ib, err2 := os.Stat(b)
+	if err1 != nil || err2 != nil || ia.Size() != ib.Size() {
+		return false
+	}
+	da, err1 := os.ReadFile(a)
+	db, err2 := os.ReadFile(b)
+	return err1 == nil && err2 == nil && bytes.Equal(da, db)
 }
 
 func (m *Mac) target() string { return fmt.Sprintf("gui/%d/%s", m.UID, m.Cfg.ServiceName) }
@@ -185,6 +237,9 @@ func (m *Mac) installService(ctx context.Context) error {
 	if err := os.MkdirAll(filepath.Dir(m.plistPath()), 0o755); err != nil {
 		return err
 	}
+	if _, err := m.copyBinary(); err != nil {
+		return fmt.Errorf("copying the binary to %s: %w", m.UI.Path(m.serviceExe()), err)
+	}
 	want := m.plist()
 	have, _ := os.ReadFile(m.plistPath())
 	_, printErr := m.Runner.Run(ctx, "/bin/launchctl", "print", m.target())
@@ -210,6 +265,14 @@ func (m *Mac) installService(ctx context.Context) error {
 		}
 		if loaded { // reinstall or upgrade: replace the running copy
 			m.Runner.Run(ctx, "/bin/launchctl", "bootout", m.target())
+			// bootout returns before launchd has removed the job; bootstrapping it again too soon
+			// fails with "Bootstrap failed: 5: Input/output error".
+			for i := 0; i < 50; i++ {
+				if _, err := m.Runner.Run(ctx, "/bin/launchctl", "print", m.target()); err != nil {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
 		}
 		if out, err := m.Runner.Run(ctx, "/bin/launchctl", "bootstrap", fmt.Sprintf("gui/%d", m.UID), m.plistPath()); err != nil {
 			return fmt.Errorf("launchctl bootstrap: %v: %s", err, bytes.TrimSpace(out))
@@ -234,7 +297,7 @@ func (m *Mac) stale(st api.Status) string {
 	switch {
 	case st.Started.IsZero(): // a daemon from before M6, which did not report it
 		return "rebuilt binary"
-	case changed(m.Exe):
+	case changed(m.serviceExe()):
 		return "rebuilt binary"
 	case changed(m.ConfigPath):
 		return "changed config"
@@ -272,7 +335,7 @@ func (m *Mac) plist() []byte {
   <key>Label</key><string>` + esc(m.Cfg.ServiceName) + `</string>
   <key>ProgramArguments</key>
   <array>
-    <string>` + esc(m.Exe) + `</string>
+    <string>` + esc(m.serviceExe()) + `</string>
     <string>--config</string>
     <string>` + esc(m.ConfigPath) + `</string>
     <string>serve</string>
@@ -387,6 +450,12 @@ func (m *Mac) Uninstall(ctx context.Context, purge bool) error {
 	}
 	if err := os.Remove(m.plistPath()); err == nil {
 		removed = true
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := os.Remove(m.serviceExe()); err == nil {
+		removed = true
+		os.Remove(m.ServiceDir) // only if no other service's copy is there
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

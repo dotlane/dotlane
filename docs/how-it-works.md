@@ -116,7 +116,7 @@ missing:
 
 | Step | What it writes | Password |
 | --- | --- | --- |
-| Login service | `~/Library/LaunchAgents/dev.dotlane.plist`: runs `dotlane serve` at login, restarts it if it exits | no |
+| Login service | Copies the binary to `~/Library/Application Support/dotlane/bin/dev.dotlane`, and writes `~/Library/LaunchAgents/dev.dotlane.plist` to run that copy's `serve` at login and restart it if it exits | no |
 | Certificate authority | Trusts `<state>/caddy/pki/authorities/local/root.crt` in the System keychain | yes, once |
 | DNS routing | `/etc/resolver/<tld>` for each ending | yes, once per ending |
 
@@ -199,7 +199,7 @@ The dev instance in this repo (`dev/config.toml`) uses `.dldev`, ports 10054, 94
 
 | What | Where |
 | --- | --- |
-| Binary | wherever it was built or installed; the login service runs that path |
+| Binary | wherever it was built; the login service runs a copy in `~/Library/Application Support/dotlane/bin/`, since macOS holds back background jobs started from Documents, Desktop or Downloads |
 | Config | `~/.config/dotlane/config.toml` (optional) |
 | Sites | `~/Library/Application Support/dotlane/sites.json` |
 | CA, certificates | `~/Library/Application Support/dotlane/caddy/` (keys mode 0600) |

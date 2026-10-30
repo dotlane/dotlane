@@ -108,6 +108,9 @@ func (m *Mac) serviceCheck(ctx context.Context) Check {
 		c.Fix = "dotlane install (updates it to this one)"
 	case printErr != nil:
 		c.Status, c.Detail = Failed, "installed but not loaded"
+	case !sameFile(m.Exe, m.serviceExe()):
+		c.Status, c.Detail = Warning, "runs an older copy of this binary"
+		c.Fix = "dotlane install (updates the copy and restarts the service)"
 	default:
 		c.Status, c.Detail, c.Fix, c.Repairable = Pass, m.Cfg.ServiceName+" · starts at login", "", false
 	}

@@ -77,23 +77,12 @@ func withUsageHint(err error) error {
 func newRoot() *cobra.Command {
 	var configPath string
 	loadConfig := func() (*config.Config, error) {
-		if configPath == "" {
-			// A file named with --config or $DOTLANE_CONFIG must exist: a typo there would
-			// otherwise mean silently running with the defaults. The default file is optional.
-			if env := os.Getenv("DOTLANE_CONFIG"); env != "" {
-				configPath = env
-			} else {
-				p, err := config.DefaultPath()
-				if err != nil {
-					return nil, err
-				}
-				return config.Load(p)
-			}
+		p, err := config.Resolve(configPath)
+		if err != nil {
+			return nil, err
 		}
-		if _, err := os.Stat(configPath); err != nil {
-			return nil, fmt.Errorf("config file %s: %w", configPath, errors.Unwrap(err))
-		}
-		return config.Load(configPath)
+		configPath = p // install writes it into the login service
+		return config.Load(p)
 	}
 	client := func() (*api.Client, error) {
 		cfg, err := loadConfig()

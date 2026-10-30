@@ -46,16 +46,27 @@ var (
 	servicePattern = regexp.MustCompile(`^[a-z0-9]+(\.[a-z0-9-]+)+$`)
 )
 
-// DefaultPath is $DOTLANE_CONFIG, or ~/.config/dotlane/config.toml.
-func DefaultPath() (string, error) {
-	if p := os.Getenv("DOTLANE_CONFIG"); p != "" {
-		return p, nil
-	}
+// Resolve picks the config file: flag (--config), else $DOTLANE_CONFIG, else
+// ~/.config/dotlane/config.toml. The default file is optional, also when named explicitly (the
+// login service always names it). Any other file must exist: a typo there would otherwise mean
+// silently running with the defaults.
+func Resolve(flag string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".config", "dotlane", "config.toml"), nil
+	def := filepath.Join(home, ".config", "dotlane", "config.toml")
+	path := flag
+	if path == "" {
+		path = os.Getenv("DOTLANE_CONFIG")
+	}
+	if path == "" || path == def {
+		return def, nil
+	}
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("config file %s: %w", path, errors.Unwrap(err))
+	}
+	return path, nil
 }
 
 // Load reads path (a missing file means defaults) and validates the result.

@@ -39,10 +39,13 @@ type fakeMac struct {
 	labels      map[int]string // pid → launchd label
 	// Other launchd jobs, by label (the prototype's Caddy and dnsmasq): loaded or not, the ports
 	// each listens on while loaded, and the ones disabled.
-	service  string
-	others   map[string]bool
-	ports    map[string][]string
-	disabled map[string]bool
+	service string
+	// linger is how many launchctl print calls still see the service after bootout, as launchd
+	// removes a job asynchronously.
+	linger, lingering int
+	others            map[string]bool
+	ports             map[string][]string
+	disabled          map[string]bool
 }
 
 // label is the job a launchctl target ("gui/501/x") or plist path ("…/x.plist") names.
@@ -58,6 +61,10 @@ func (f *fakeMac) Run(_ context.Context, name string, args ...string) ([]byte, e
 			if !f.others[l] {
 				return nil, errors.New("not loaded")
 			}
+		} else if f.lingering > 0 {
+			if f.lingering--; f.lingering == 0 {
+				f.loaded = false
+			}
 		} else if !f.loaded {
 			return nil, errors.New("not loaded")
 		}
@@ -67,12 +74,16 @@ func (f *fakeMac) Run(_ context.Context, name string, args ...string) ([]byte, e
 				return nil, errors.New("service is disabled")
 			}
 			f.others[l] = true
+		} else if f.loaded {
+			return []byte("Bootstrap failed: 5: Input/output error"), errors.New("exit status 5")
 		} else {
 			f.loaded = true
 		}
 	case "launchctl bootout":
 		if l := label(args[1]); l != f.service {
 			f.others[l] = false
+		} else if f.linger > 0 {
+			f.lingering = f.linger
 		} else {
 			f.loaded = false
 		}
@@ -185,9 +196,15 @@ func newTestMac(t *testing.T) (*Mac, *fakeMac, *bytes.Buffer) {
 		service: cfg.ServiceName, others: map[string]bool{}, ports: map[string][]string{}, disabled: map[string]bool{},
 	}
 	out := &bytes.Buffer{}
+	// A binary to install. TMPDIR moves away, or install would call it a temporary build.
+	exe := filepath.Join(dir, "build", "dotlane")
+	os.MkdirAll(filepath.Dir(exe), 0o755)
+	os.WriteFile(exe, []byte("dotlane build 1"), 0o755)
+	t.Setenv("TMPDIR", "/nonexistent-tmp")
 	m := &Mac{
-		Cfg: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Exe: "/opt/dotlane/bin/dotlane",
-		Home: filepath.Join(dir, "home"), UID: os.Getuid(),
+		Cfg: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Exe: exe,
+		ServiceDir: filepath.Join(dir, "home", "Library", "Application Support", "dotlane", "bin"),
+		Home:       filepath.Join(dir, "home"), UID: os.Getuid(),
 		ResolverDir: filepath.Join(dir, "resolver"),
 		UI:          ui.Plain(out), Runner: fake,
 		Daemon: func(context.Context) (api.Status, error) {
@@ -221,7 +238,7 @@ func TestInstallThenReinstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"<string>dev.dotlane.test</string>", "<string>/opt/dotlane/bin/dotlane</string>",
+		"<string>dev.dotlane.test</string>", "<string>" + m.serviceExe() + "</string>",
 		"<string>serve</string>", "<key>KeepAlive</key><true/>",
 	} {
 		if !bytes.Contains(plist, []byte(want)) {
@@ -544,13 +561,16 @@ func TestInstallRestartsAfterRebuild(t *testing.T) {
 	if err := m.Install(context.Background()); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	// The binary is rebuilt after the daemon started. (TMPDIR moves, or install would call the
-	// test's file a temporary build.)
-	m.Exe = filepath.Join(t.TempDir(), "dotlane")
-	t.Setenv("TMPDIR", "/nonexistent-tmp")
-	os.WriteFile(m.Exe, []byte("new build"), 0o755)
-	if err := m.Install(context.Background()); err != nil { // the plist names the new path: reinstall
+	// The binary is rebuilt after the daemon started.
+	os.WriteFile(m.Exe, []byte("dotlane build 2"), 0o755)
+	if c := m.serviceCheck(context.Background()); c.Status != Warning || !strings.Contains(c.Detail, "older copy") {
+		t.Errorf("service check before install: %+v", c)
+	}
+	if err := m.Install(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+	if !sameFile(m.Exe, m.serviceExe()) {
+		t.Error("the service's copy was not updated")
 	}
 	started := time.Now().Add(-time.Hour)
 	m.Daemon = func(context.Context) (api.Status, error) {
@@ -612,5 +632,49 @@ func TestPrivateFiles(t *testing.T) {
 	m.UID = os.Getuid() + 1 // as if the files belonged to someone else
 	if c := m.permissionsCheck(); c.Status != Failed || c.Repairable || !strings.Contains(c.Fix, "chown") {
 		t.Errorf("other owner: %+v", c)
+	}
+}
+
+// Reinstalling over a loaded service waits for launchd to finish removing it before bootstrapping
+// it again; bootstrapping too soon failed on a real Mac with "Bootstrap failed: 5".
+func TestReinstallWaitsForBootout(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	fake.linger = 3
+	m.ConfigPath = filepath.Join(t.TempDir(), "other.toml") // the plist changes: a reinstall
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("reinstall: %v\n%s", err, out)
+	}
+	if !fake.loaded {
+		t.Error("service not loaded after reinstall")
+	}
+}
+
+// The login service runs a copy outside the folders macOS protects, and uninstall removes it.
+func TestServiceRunsACopy(t *testing.T) {
+	m, _, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !sameFile(m.Exe, m.serviceExe()) {
+		t.Fatal("no copy of the binary for the service")
+	}
+	if info, _ := os.Stat(m.serviceExe()); info.Mode().Perm() != 0o755 {
+		t.Errorf("copy mode %o", info.Mode().Perm())
+	}
+	before, _ := os.Stat(m.serviceExe())
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := os.Stat(m.serviceExe()); !after.ModTime().Equal(before.ModTime()) {
+		t.Error("an unchanged binary was copied again (its newer time would restart the daemon)")
+	}
+	if err := m.Uninstall(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(m.serviceExe()); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("copy left behind: %v", err)
 	}
 }
