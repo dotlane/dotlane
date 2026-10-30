@@ -76,7 +76,7 @@ Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORC
 | --- | --- |
 | `cmd/dotlane` | CLI (`install`, `uninstall`, `add`, `rm`, `ls`, `serve`, `version`) |
 | `internal/install` | Login service, CA trust and resolver files; macOS now, other OSes in Phase 4 |
-| `internal/ui` | Output: one line per step, markers, aligned labels, colour on terminals |
+| `internal/ui` | Output on Lip Gloss: one line per step, markers, aligned labels, the `ls` table, colours adapted to light/dark terminals. Help and usage are styled by Fang |
 | `internal/daemon` | Runs DNS, Caddy and the control socket around the site registry |
 | `internal/dns` | Answers `*.<tld>` with 127.0.0.1 / ::1, refuses everything else |
 | `internal/proxy` | Builds Caddy's JSON config; Caddy runs in-process, admin endpoint off |

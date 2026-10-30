@@ -6,13 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"charm.land/fang/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/pedrodee/dotlane/internal/api"
@@ -36,10 +39,27 @@ func versionString() string {
 }
 
 func main() {
-	if err := newRoot().Execute(); err != nil {
-		ui.New(os.Stderr).Error(err)
+	// Fang styles help and usage, and adds --version, completions and a hidden man command.
+	err := fang.Execute(context.Background(), newRoot(),
+		fang.WithVersion(versionString()),
+		fang.WithErrorHandler(func(_ io.Writer, _ fang.Styles, err error) {
+			ui.New(os.Stderr).Error(withUsageHint(err))
+		}),
+	)
+	if err != nil {
 		os.Exit(1)
 	}
+}
+
+// withUsageHint points to --help when the command line itself was wrong.
+func withUsageHint(err error) error {
+	msg := err.Error()
+	for _, prefix := range []string{"accepts ", "requires ", "unknown command", "unknown flag", "unknown shorthand flag", "flag needs an argument", "invalid argument"} {
+		if strings.HasPrefix(msg, prefix) {
+			return fmt.Errorf("%w\ntry --help for usage", err)
+		}
+	}
+	return err
 }
 
 func newRoot() *cobra.Command {
@@ -67,6 +87,12 @@ func newRoot() *cobra.Command {
 		Short: "Real HTTPS addresses for local dev servers",
 		Long: "Dotlane gives every local project a real HTTPS address, like https://myapp.traix,\n" +
 			"forwarded to the dev server's port on this machine.",
+		Example: `  # once: run at login, trust the certificate authority, route the domain ending
+  dotlane install
+
+  # serve a dev server at https://myapp.traix
+  dotlane add myapp 5173
+  dotlane ls`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -145,17 +171,17 @@ func newRoot() *cobra.Command {
 				out.Line("%s", out.Dim("No sites yet. Add one: dotlane add <name> <port>"))
 				return nil
 			}
-			width := 0
+			var rows []ui.SiteRow
 			for _, s := range list {
-				for _, u := range s.URLs {
-					width = max(width, len(u))
+				for i, u := range s.URLs {
+					name := s.Name
+					if i > 0 { // further domain endings of the same site
+						name = ""
+					}
+					rows = append(rows, ui.SiteRow{Name: name, URL: u, Port: s.Port})
 				}
 			}
-			for _, s := range list {
-				for _, u := range s.URLs {
-					out.Site(u, s.Port, width)
-				}
-			}
+			out.SiteTable(rows)
 			return nil
 		},
 	}
