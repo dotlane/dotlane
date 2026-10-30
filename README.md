@@ -38,9 +38,9 @@ and Vite's live-reload websocket through the proxy.
 
 It is a set of configuration files plus a ~100-line Bash helper, not yet a packaged product.
 
-The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1.md)): milestone
-M1, a daemon with DNS, embedded Caddy and a control socket, works; installing it as a service
-comes next (M2).
+The Go version that replaces it is in progress ([`docs/phase-1.md`](docs/phase-1.md)): milestones
+M1 (a daemon with DNS, embedded Caddy and a control socket) and M2 (`dotlane install` /
+`uninstall`) work; the conflict scan and `doctor` come next (M3).
 
 ## Development (Go version)
 
@@ -60,11 +60,23 @@ curl --cacert dev/state/caddy/pki/authorities/local/root.crt \
 dig +short anything.dldev @127.0.0.1 -p 10054             # 127.0.0.1
 ```
 
-The dev CA is not trusted by the system (that is `dotlane install`, M2), hence `--cacert`.
+The dev CA is not trusted by the system until the dev instance is installed, hence `--cacert`. To
+test the full path (login service, CA trust, `/etc/resolver/dldev`), run in a terminal, since
+sudo asks for a password:
+
+```bash
+./bin/dotlane --config dev/config.toml install              # then: curl https://<name>.dldev:9443/
+./bin/dotlane --config dev/config.toml uninstall --purge
+```
+
+Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORCE=1` forces it
+(for `less -R`).
 
 | Package | Role |
 | --- | --- |
-| `cmd/dotlane` | CLI (`add`, `rm`, `ls`, `serve`, `version`) |
+| `cmd/dotlane` | CLI (`install`, `uninstall`, `add`, `rm`, `ls`, `serve`, `version`) |
+| `internal/install` | Login service, CA trust and resolver files; macOS now, other OSes in Phase 4 |
+| `internal/ui` | Output: one line per step, markers, aligned labels, colour on terminals |
 | `internal/daemon` | Runs DNS, Caddy and the control socket around the site registry |
 | `internal/dns` | Answers `*.<tld>` with 127.0.0.1 / ::1, refuses everything else |
 | `internal/proxy` | Builds Caddy's JSON config; Caddy runs in-process, admin endpoint off |

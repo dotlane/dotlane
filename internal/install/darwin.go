@@ -11,7 +11,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/pedrodee/dotlane/internal/config"
 	"github.com/pedrodee/dotlane/internal/proxy"
+	"github.com/pedrodee/dotlane/internal/ui"
 )
 
 const systemKeychain = "/Library/Keychains/System.keychain"
@@ -35,7 +35,7 @@ type Mac struct {
 	UID        int
 	// ResolverDir is /etc/resolver; tests point it elsewhere.
 	ResolverDir string
-	Out         io.Writer
+	UI          *ui.Printer
 	Runner      Runner
 	// Ready waits until the daemon answers on its socket.
 	Ready func(ctx context.Context) error
@@ -67,7 +67,7 @@ func NewMac(cfg *config.Config, configPath string, ready func(context.Context) e
 	return &Mac{
 		Cfg: cfg, ConfigPath: configPath, Exe: exe, Home: home, UID: os.Getuid(),
 		ResolverDir: "/etc/resolver",
-		Out:         os.Stdout,
+		UI:          ui.New(os.Stdout),
 		Runner:      ExecRunner{},
 		Ready:       ready,
 		Lookup:      net.DefaultResolver.LookupHost,
@@ -82,6 +82,15 @@ func (m *Mac) logPath() string {
 	return filepath.Join(m.Home, "Library", "Logs", "dotlane", m.Cfg.ServiceName+".log")
 }
 
+// summary names what is being installed, for the title line.
+func (m *Mac) summary() string {
+	tlds := make([]string, len(m.Cfg.TLDs))
+	for i, t := range m.Cfg.TLDs {
+		tlds[i] = "." + t
+	}
+	return m.Cfg.ServiceName + " · " + strings.Join(tlds, " ")
+}
+
 func (m *Mac) target() string { return fmt.Sprintf("gui/%d/%s", m.UID, m.Cfg.ServiceName) }
 
 func (m *Mac) rootCert() string { return filepath.Join(proxy.CADir(m.Cfg), "root.crt") }
@@ -94,14 +103,13 @@ func (m *Mac) resolverFile() []byte {
 	return []byte(fmt.Sprintf("nameserver 127.0.0.1\nport %d\n", m.Cfg.DNSPort))
 }
 
-func (m *Mac) say(format string, args ...any) { fmt.Fprintf(m.Out, format+"\n", args...) }
-
-// sudo explains, shows and runs one privileged command.
-func (m *Mac) sudo(ctx context.Context, why string, stdin []byte, name string, args ...string) error {
-	if why != "" {
-		m.say("\n%s", why)
+// sudo shows one privileged command, then runs it. Callers announce the step with UI.Ask first.
+func (m *Mac) sudo(ctx context.Context, stdin []byte, name string, args ...string) error {
+	shown := make([]string, len(args))
+	for i, a := range args {
+		shown[i] = m.UI.Path(a)
 	}
-	m.say("  $ sudo %s %s", name, strings.Join(quoteAll(args), " "))
+	m.UI.Command("sudo " + name + " " + strings.Join(quoteAll(shown), " "))
 	if err := m.Runner.Sudo(ctx, stdin, name, args...); err != nil {
 		return fmt.Errorf("sudo %s: %w (run dotlane in a terminal so sudo can ask for your password)",
 			filepath.Base(name), err)
@@ -122,6 +130,8 @@ func quoteAll(args []string) []string {
 
 // Install sets everything up; already-done steps are reported and skipped.
 func (m *Mac) Install(ctx context.Context) error {
+	m.UI.Title("Installing Dotlane", m.summary())
+
 	if strings.Contains(m.Exe, "go-build") || strings.HasPrefix(m.Exe, os.TempDir()) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin/dotlane ./cmd/dotlane) and install from it", m.Exe)
 	}
@@ -146,7 +156,7 @@ func (m *Mac) Install(ctx context.Context) error {
 	}
 	m.verifyDNS(ctx)
 
-	m.say("\nDotlane is installed. Add a site with: dotlane add <name> <port>")
+	m.UI.Done("Dotlane is installed.", "Add a site: dotlane add <name> <port>")
 	return nil
 }
 
@@ -163,7 +173,7 @@ func (m *Mac) installService(ctx context.Context) error {
 	loaded := printErr == nil
 
 	if bytes.Equal(have, want) && loaded {
-		m.say("ok    login service %s already installed", m.Cfg.ServiceName)
+		m.UI.OK("Login service", "already installed")
 	} else {
 		if err := os.WriteFile(m.plistPath(), want, 0o644); err != nil {
 			return err
@@ -174,7 +184,7 @@ func (m *Mac) installService(ctx context.Context) error {
 		if out, err := m.Runner.Run(ctx, "/bin/launchctl", "bootstrap", fmt.Sprintf("gui/%d", m.UID), m.plistPath()); err != nil {
 			return fmt.Errorf("launchctl bootstrap: %v: %s", err, bytes.TrimSpace(out))
 		}
-		m.say("ok    login service %s installed (%s)", m.Cfg.ServiceName, m.plistPath())
+		m.UI.OK("Login service", "installed · "+m.UI.Path(m.plistPath()))
 	}
 
 	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
@@ -182,7 +192,7 @@ func (m *Mac) installService(ctx context.Context) error {
 	if err := m.Ready(waitCtx); err != nil {
 		return fmt.Errorf("the service did not start: %v\nsee %s", err, m.logPath())
 	}
-	m.say("ok    service running, logging to %s", m.logPath())
+	m.UI.OK("Running", "log: "+m.UI.Path(m.logPath()))
 	return nil
 }
 
@@ -233,37 +243,39 @@ func (m *Mac) trustCA(ctx context.Context) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if m.caTrusted(ctx) {
-		m.say("ok    certificate authority already trusted")
+		m.UI.OK("Certificate authority", "already trusted")
 		return nil
 	}
-	err := m.sudo(ctx,
-		"Trust Dotlane's local certificate authority, so browsers and tools accept its HTTPS certificates.\n"+
-			"It is added to the System keychain; dotlane uninstall removes it. (macOS may also show a password dialog.)",
-		nil, "/usr/bin/security", "add-trusted-cert", "-d", "-r", "trustRoot", "-k", systemKeychain, m.rootCert())
+	m.UI.Ask("Certificate authority",
+		"Trusts Dotlane's local certificate authority, so browsers and tools accept its HTTPS\n"+
+			"    certificates. Added to the System keychain; dotlane uninstall removes it.\n"+
+			"    macOS may also show a password dialog.")
+	err := m.sudo(ctx, nil, "/usr/bin/security", "add-trusted-cert", "-d", "-r", "trustRoot", "-k", systemKeychain, m.rootCert())
 	if err != nil {
 		return err
 	}
 	if !m.caTrusted(ctx) {
 		return errors.New("the certificate authority was added but macOS still does not trust it")
 	}
-	m.say("ok    certificate authority trusted")
+	m.UI.OK("Certificate authority", "trusted")
 	return nil
 }
 
 func (m *Mac) installResolver(ctx context.Context, tld string) error {
 	path := m.resolverPath(tld)
 	if have, err := os.ReadFile(path); err == nil && bytes.Equal(have, m.resolverFile()) {
-		m.say("ok    %s already sends .%s lookups to Dotlane", path, tld)
+		m.UI.OK("DNS for ."+tld, "already routed · "+path)
 		return nil
 	}
-	why := fmt.Sprintf("Send lookups for *.%s, and only those, to Dotlane's DNS on 127.0.0.1:%d.", tld, m.Cfg.DNSPort)
-	if err := m.sudo(ctx, why, nil, "/bin/mkdir", "-p", m.ResolverDir); err != nil {
+	m.UI.Ask("DNS for ."+tld,
+		fmt.Sprintf("Sends lookups for *.%s, and only those, to Dotlane's DNS on 127.0.0.1:%d.", tld, m.Cfg.DNSPort))
+	if err := m.sudo(ctx, nil, "/bin/mkdir", "-p", m.ResolverDir); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, "", m.resolverFile(), "/usr/bin/tee", path); err != nil {
+	if err := m.sudo(ctx, m.resolverFile(), "/usr/bin/tee", path); err != nil {
 		return err
 	}
-	m.say("ok    %s written", path)
+	m.UI.OK("DNS for ."+tld, path+" written")
 	return nil
 }
 
@@ -279,14 +291,14 @@ func (m *Mac) verifyDNS(ctx context.Context) {
 			addrs, err = m.Lookup(lookupCtx, host)
 			cancel()
 			if err == nil && containsLoopback(addrs) {
-				m.say("ok    %s resolves to this Mac", host)
+				m.UI.OK("DNS check", host+" → this Mac")
 				break
 			}
 			time.Sleep(250 * time.Millisecond)
 		}
 		if err != nil || !containsLoopback(addrs) {
-			m.say("warn  %s does not resolve yet (%v %v); try again in a few seconds with: dscacheutil -q host -a name %s",
-				host, addrs, err, host)
+			m.UI.Warn("DNS check", fmt.Sprintf("%s does not resolve yet; macOS can take a few seconds.\n"+
+				"    Check with: dscacheutil -q host -a name %s", host, host))
 		}
 	}
 }
@@ -303,16 +315,24 @@ func containsLoopback(addrs []string) bool {
 // Uninstall reverses Install. With purge, it also deletes the state directory (sites and the
 // CA's keys) and the log.
 func (m *Mac) Uninstall(ctx context.Context, purge bool) error {
+	m.UI.Title("Uninstalling Dotlane", m.summary())
+
+	removed := false
 	if _, err := m.Runner.Run(ctx, "/bin/launchctl", "print", m.target()); err == nil {
 		if out, err := m.Runner.Run(ctx, "/bin/launchctl", "bootout", m.target()); err != nil {
 			return fmt.Errorf("launchctl bootout: %v: %s", err, bytes.TrimSpace(out))
 		}
-		m.say("ok    login service %s stopped", m.Cfg.ServiceName)
+		removed = true
 	}
 	if err := os.Remove(m.plistPath()); err == nil {
-		m.say("ok    %s removed", m.plistPath())
+		removed = true
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
+	}
+	if removed {
+		m.UI.OK("Login service", "stopped and removed")
+	} else {
+		m.UI.Skip("Login service", "not installed")
 	}
 
 	if err := m.untrustCA(ctx); err != nil {
@@ -320,40 +340,52 @@ func (m *Mac) Uninstall(ctx context.Context, purge bool) error {
 	}
 
 	for _, tld := range m.Cfg.TLDs {
+		label := "DNS for ." + tld
 		path := m.resolverPath(tld)
 		have, err := os.ReadFile(path)
 		switch {
 		case errors.Is(err, os.ErrNotExist):
+			m.UI.Skip(label, "not set")
 		case err != nil:
 			return err
 		case !bytes.Equal(have, m.resolverFile()):
-			m.say("skip  %s has other settings, so it is not Dotlane's; left in place", path)
+			m.UI.Skip(label, path+" has other settings, so it is not Dotlane's; left in place")
 		default:
-			if err := m.sudo(ctx, fmt.Sprintf("Stop sending *.%s lookups to Dotlane.", tld), nil, "/bin/rm", path); err != nil {
+			m.UI.Ask(label, fmt.Sprintf("Stops sending *.%s lookups to Dotlane.", tld))
+			if err := m.sudo(ctx, nil, "/bin/rm", path); err != nil {
 				return err
 			}
-			m.say("ok    %s removed", path)
+			m.UI.OK(label, path+" removed")
 		}
 	}
 
 	if purge {
-		for _, p := range []string{m.Cfg.StateDir, m.logPath()} {
-			if err := os.RemoveAll(p); err != nil {
-				return err
-			}
-			m.say("ok    %s deleted", p)
+		if err := os.RemoveAll(m.Cfg.StateDir); err != nil {
+			return err
 		}
+		m.UI.OK("Sites and CA keys", "deleted · "+m.UI.Path(m.Cfg.StateDir))
+		if err := os.RemoveAll(m.logPath()); err != nil {
+			return err
+		}
+		os.Remove(filepath.Dir(m.logPath())) // the logs folder, if no other service uses it
+		m.UI.OK("Log", "deleted · "+m.UI.Path(m.logPath()))
 	} else {
-		m.say("\nKept %s (sites and the certificate authority's keys) and the log at %s;\n"+
-			"dotlane uninstall --purge deletes them.", m.Cfg.StateDir, m.logPath())
+		m.UI.Skip("Sites and CA keys", "kept · "+m.UI.Path(m.Cfg.StateDir))
+		m.UI.Skip("Log", "kept · "+m.UI.Path(m.logPath()))
 	}
-	m.say("\nDotlane is uninstalled.")
+
+	next := ""
+	if !purge {
+		next = m.UI.Dim("To delete the kept files too: dotlane uninstall --purge")
+	}
+	m.UI.Done("Dotlane is uninstalled.", next)
 	return nil
 }
 
 func (m *Mac) untrustCA(ctx context.Context) error {
 	data, err := os.ReadFile(m.rootCert())
 	if errors.Is(err, os.ErrNotExist) {
+		m.UI.Skip("Certificate authority", "none created")
 		return nil
 	}
 	if err != nil {
@@ -368,17 +400,20 @@ func (m *Mac) untrustCA(ctx context.Context) error {
 
 	out, _ := m.Runner.Run(ctx, "/usr/bin/security", "find-certificate", "-a", "-Z", systemKeychain)
 	if !bytes.Contains(out, []byte(hash)) {
+		m.UI.Skip("Certificate authority", "not in the System keychain")
 		return nil
 	}
-	why := "Remove Dotlane's certificate authority from the System keychain, so its certificates are no longer trusted."
+	m.UI.Ask("Certificate authority",
+		"Removes Dotlane's certificate authority from the System keychain, so its certificates\n"+
+			"    are no longer trusted.")
 	// Trust settings first, then the certificate itself; one password covers both (sudo caches it).
-	if err := m.sudo(ctx, why, nil, "/usr/bin/security", "remove-trusted-cert", "-d", m.rootCert()); err != nil {
+	if err := m.sudo(ctx, nil, "/usr/bin/security", "remove-trusted-cert", "-d", m.rootCert()); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, "", nil, "/usr/bin/security", "delete-certificate", "-Z", hash, systemKeychain); err != nil {
+	if err := m.sudo(ctx, nil, "/usr/bin/security", "delete-certificate", "-Z", hash, systemKeychain); err != nil {
 		return err
 	}
-	m.say("ok    certificate authority removed from the System keychain")
+	m.UI.OK("Certificate authority", "removed from the System keychain")
 	return nil
 }
 

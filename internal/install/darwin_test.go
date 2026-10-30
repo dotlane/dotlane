@@ -16,6 +16,7 @@ import (
 
 	"github.com/pedrodee/dotlane/internal/config"
 	"github.com/pedrodee/dotlane/internal/proxy"
+	"github.com/pedrodee/dotlane/internal/ui"
 )
 
 // fakeMac simulates launchd, the keychain and sudo, so tests never touch the real system.
@@ -93,7 +94,7 @@ func newTestMac(t *testing.T) (*Mac, *fakeMac, *bytes.Buffer) {
 		Cfg: cfg, ConfigPath: "/cfg/config.toml", Exe: "/opt/dotlane/bin/dotlane",
 		Home: filepath.Join(dir, "home"), UID: 501,
 		ResolverDir: filepath.Join(dir, "resolver"),
-		Out:         out, Runner: fake,
+		UI:          ui.Plain(out), Runner: fake,
 		Ready:  func(context.Context) error { return nil },
 		Lookup: func(context.Context, string) ([]string, error) { return []string{"127.0.0.1", "::1"}, nil },
 	}
@@ -126,7 +127,7 @@ func TestInstallThenReinstall(t *testing.T) {
 		t.Errorf("loaded=%v trusted=%v", fake.loaded, fake.trusted)
 	}
 	text := out.String()
-	for _, want := range []string{"$ sudo /usr/bin/security add-trusted-cert", "$ sudo /usr/bin/tee", "Send lookups for *.dldev", "resolves to this Mac"} {
+	for _, want := range []string{"$ sudo /usr/bin/security add-trusted-cert", "$ sudo /usr/bin/tee", "Sends lookups for *.dldev", "dotlane-check.dldev → this Mac", "Dotlane is installed."} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output lacks %q:\n%s", want, text)
 		}
@@ -196,8 +197,10 @@ func TestUninstall(t *testing.T) {
 	if err := m.Uninstall(context.Background(), true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(m.Cfg.StateDir); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("state kept with --purge")
+	for _, p := range []string{m.Cfg.StateDir, filepath.Dir(m.logPath())} {
+		if _, err := os.Stat(p); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s kept with --purge", p)
+		}
 	}
 }
 

@@ -54,7 +54,22 @@ M3).
 - **Done when** the daemon, run by hand on spare ports (DNS 10054, HTTPS 9443), serves
   `https://myapp.traix:9443` next to the prototype, in tests and with `curl`.
 
-### M2 — Install and uninstall (≈ 1 week)
+### M2 — Install and uninstall (≈ 1 week) — done 2026-10-30
+
+Shipped as planned, with `--purge` instead of `--keep-ca`: uninstall always removes trust (keeping
+a trusted CA after uninstalling is the riskier default) and keeps sites and the CA's keys unless
+`--purge` is given. Install refuses, before changing anything, when another tool's file holds
+`/etc/resolver/<tld>`; resolver files cannot carry a comment, so "ours" means "exactly the content
+Dotlane writes". `service_name` lets the dev instance (`.dldev`, ports 10054/9443) install next to
+a real one. Output is grouped per step with colour (`internal/ui`; `NO_COLOR` and
+`CLICOLOR_FORCE` honoured).
+
+Verified on this Mac with the dev instance: `curl` and Chrome reached `https://api.dldev:9443`
+with no flags and no certificate warning; a second install asked for no password; launchd
+restarted the daemon within a second after `kill -9`; uninstall `--purge` left no launchd job,
+keychain entry, trust setting, resolver file or state, and the prototype kept working. Not yet
+measured: the "under a minute on a clean VM" criterion.
+
 
 - `dotlane install`: writes the resolver file(s), trusts the CA, installs and starts the launchd
   agent. Each admin step prints one sentence on what and why before asking for the password.
@@ -106,7 +121,7 @@ M3).
 ## Command surface at the end of Phase 1
 
 ```text
-dotlane install | uninstall [--keep-ca]
+dotlane install | uninstall [--purge]
 dotlane add <name> <port> | rm <name> | ls [--json]
 dotlane up | down                 # from ./dotlane.toml
 dotlane doctor [--fix] [--json]

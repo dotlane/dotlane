@@ -19,6 +19,7 @@ import (
 	"github.com/pedrodee/dotlane/internal/config"
 	"github.com/pedrodee/dotlane/internal/daemon"
 	"github.com/pedrodee/dotlane/internal/install"
+	"github.com/pedrodee/dotlane/internal/ui"
 )
 
 // version is set at release time with -ldflags "-X main.version=…".
@@ -36,7 +37,7 @@ func versionString() string {
 
 func main() {
 	if err := newRoot().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "dotlane:", err)
+		ui.New(os.Stderr).Error(err)
 		os.Exit(1)
 	}
 }
@@ -90,9 +91,12 @@ func newRoot() *cobra.Command {
 			if err != nil {
 				return explain(err)
 			}
-			printSite(cmd, site)
+			out := ui.New(cmd.OutOrStdout())
+			for _, u := range site.URLs {
+				out.SiteOK(u, site.Port)
+			}
 			if !site.Ready {
-				fmt.Fprintf(cmd.ErrOrStderr(), "dotlane: warning: %s is not answering yet; give it a few seconds\n", site.URLs[0])
+				out.Warn("Not answering yet", "the certificate is still being issued; give it a few seconds")
 			}
 			return nil
 		},
@@ -111,7 +115,7 @@ func newRoot() *cobra.Command {
 			if err := c.RemoveSite(cmd.Context(), args[0]); err != nil {
 				return explain(err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", args[0])
+			ui.New(cmd.OutOrStdout()).Check("removed " + args[0])
 			return nil
 		},
 	})
@@ -136,8 +140,21 @@ func newRoot() *cobra.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(list)
 			}
+			out := ui.New(cmd.OutOrStdout())
+			if len(list) == 0 {
+				out.Line("%s", out.Dim("No sites yet. Add one: dotlane add <name> <port>"))
+				return nil
+			}
+			width := 0
 			for _, s := range list {
-				printSite(cmd, s)
+				for _, u := range s.URLs {
+					width = max(width, len(u))
+				}
+			}
+			for _, s := range list {
+				for _, u := range s.URLs {
+					out.Site(u, s.Port, width)
+				}
 			}
 			return nil
 		},
@@ -228,15 +245,9 @@ func newRoot() *cobra.Command {
 	return root
 }
 
-func printSite(cmd *cobra.Command, s api.Site) {
-	for _, u := range s.URLs {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s -> localhost:%d\n", u, s.Port)
-	}
-}
-
 func explain(err error) error {
 	if errors.Is(err, api.ErrNotRunning) {
-		return fmt.Errorf("%w (set it up with: dotlane install, or run it once with: dotlane serve)", err)
+		return fmt.Errorf("%w\nset it up with: dotlane install   (or run it once: dotlane serve)", err)
 	}
 	return err
 }
