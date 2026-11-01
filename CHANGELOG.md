@@ -11,38 +11,10 @@ the release notes, and refuses a tag that has none.
 
 ## [Unreleased]
 
-### Added
+## [0.1.0] - 2026-11-01
 
-- npm packages: `dotlane` (a Node launcher) with the binary in `@dotlane/darwin-arm64` or
-  `@dotlane/darwin-x64`, built from each release and attached to it. `0.1.0-rc.2` is on npm under
-  the `next` tag (`npx dotlane@next`).
-- A Homebrew cask for `brew install dotlane/tap/dotlane`, built with each release and published
-  to the `dotlane/homebrew-tap` tap when the release is.
-- `NOTICE` lists every module the binary embeds, with its licence, and carries their own
-  notices; it ships in every archive and npm package. `scripts/notice.sh` regenerates it, and CI
-  fails when it is out of date.
-- `CONTRIBUTING.md`, and issue forms that ask for `dotlane doctor --json`. `SECURITY.md` says
-  where the CA's key lives and what to do if it leaks.
-- Install instructions for Homebrew and npm in the README and `docs/setup.md`, with building
-  from source as the third option.
-
-### Changed
-
-- Help, docs and examples use a neutral app name (`myapp`).
-- After an upgrade through Homebrew or npm, the next `add`, `rm`, `ls`, `up` or `down` restarts
-  the service on the new version, as `dotlane install --refresh` does: package managers replace
-  the binary but cannot restart the service. Only for a newer release, never a downgrade or a
-  development build; `DOTLANE_NO_AUTO_REFRESH=1` turns it off.
-
-### Security
-
-- `golang.org/x/net` v0.62.0, fixing two vulnerabilities in its `html` package (GO-2026-6860,
-  GO-2026-6866), in code Dotlane does not call.
-
-## [0.1.0] - 2026-10-30
-
-The first release: Phase 1 of the [roadmap](docs/roadmap.md), macOS only (Apple Silicon and
-Intel), built from source or downloaded from the release.
+The first public release: macOS only (Apple Silicon and Intel), installed with Homebrew or npm,
+or built from source. Phases 1 and 2 of the [roadmap](docs/roadmap.md).
 
 ### Added
 
@@ -51,23 +23,42 @@ Intel), built from source or downloaded from the release.
 - `install` / `uninstall [--purge]`: a login service, the CA trusted in the System keychain and
   `/etc/resolver` routing, each step explained before it asks for a password; conflicts with
   other tools are detected and named before anything changes.
-- `install --refresh`: updates an installed service to a new binary without a password.
+- `install --refresh`: updates an installed service to a new binary without a password. After an
+  upgrade through Homebrew or npm, the next `add`, `rm`, `ls`, `up` or `down` does the same on
+  its own, since package managers replace the binary but cannot restart the service; only for a
+  newer release, never a downgrade or a development build. `DOTLANE_NO_AUTO_REFRESH=1` turns it
+  off.
 - `doctor [--fix | --json]`: checks every piece, names what is in the way and repairs what
   `install` can.
 - `add`, `rm`, `ls [--json]`, and per-project sites in `dotlane.toml` with `up` / `down`.
 - `migrate`: moves a Bash-prototype install to Dotlane, keeping its sites and its trusted CA.
 - Pages instead of browser errors for a name with no site and for a dev server that is down.
-- Release pipeline: archives for macOS arm64 and amd64, SHA-256 checksums and SPDX SBOMs.
+- **Homebrew:** `brew install dotlane/tap/dotlane`, a cask built with each release and
+  published to the `dotlane/homebrew-tap` tap when the release is.
+- **npm:** `npm install -g dotlane` or `npx dotlane`: a Node launcher with the binary in
+  `@dotlane/darwin-arm64` or `@dotlane/darwin-x64`, with no install scripts.
+- Releases: archives for macOS arm64 and amd64, SHA-256 checksums and SPDX SBOMs, with the cask
+  and the npm packages built from the same binaries.
+- `NOTICE` lists every module the binary embeds, with its licence, and carries their own
+  notices; it ships in every archive and npm package.
+- Docs: install with Homebrew, npm or source ([`docs/setup.md`](docs/setup.md)), the command
+  reference, how it works, troubleshooting; `CONTRIBUTING.md` and issue forms that ask for
+  `dotlane doctor --json`; `SECURITY.md` says where the CA's key lives and what to do if it
+  leaks.
 
 ### Security
 
 - Ports 80 and 443 listen on all interfaces (macOS allows a normal user nothing else) and drop
   every request that does not come from this Mac.
 - The login service runs a copy of the binary outside the folders macOS protects.
-- `golang.org/x/net` v0.60.0, fixing five HTTP/2 vulnerabilities (GO-2026-6603, -6610, -6611,
-  -6612, -6617).
-- `github.com/go-jose/go-jose/v4` v4.1.6 (a security update from Dependabot, in code Dotlane does
-  not call).
+- The CA's keys, the state folder and the control socket are readable by their owner only;
+  `doctor` checks them and `doctor --fix` tightens them.
+- Dependencies are at versions without known vulnerabilities in code Dotlane calls
+  (`govulncheck` in CI). Three `go-jose/v3` advisories reach the binary through Caddy's PKI
+  module, in code Dotlane never runs; why, and when it goes, is in
+  [`docs/security-guide.md`](docs/security-guide.md).
+- Binaries are not yet signed or notarized by Apple; the Homebrew cask removes macOS's
+  quarantine attribute instead, and npm downloads are not quarantined.
 
-[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.1.0-rc.2...HEAD
-[0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0-rc.2
+[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0
