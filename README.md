@@ -158,6 +158,7 @@ The same flow as text:
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Issues, working on the code, what a pull request needs |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version; every version gets a section before it is tagged |
 | [`docs/distribution.md`](docs/distribution.md) | One binary, many channels: how a tag becomes the GitHub Release, the Homebrew cask and the npm packages; Linux, Windows and the desktop apps |
+| [`docs/launch.md`](docs/launch.md) | Launch day: the steps that take Dotlane public, in order, with the exact commands |
 | [`docs/releasing.md`](docs/releasing.md) | What a release contains and how to cut one (GoReleaser, `v*` tags, draft releases, npm packages) |
 | [`docs/security-guide.md`](docs/security-guide.md) | How the repositories, secrets, releases and website are protected; the checklist before going public |
 | [`docs/security.md`](docs/security.md) | Trust model of the local certificate authority, what runs with which privileges |
