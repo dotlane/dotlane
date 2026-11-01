@@ -155,39 +155,34 @@ Set once, in the organization's settings, and checked before the tool goes publi
 
 ## Before the tool's repository goes public
 
-The current private history (26 commits as of 2026-10-30) was scanned:
+**The history was cleaned on 2026-11-01**, keeping every commit instead of starting from one:
 
-- **Contents:** no secrets, personal paths or personal email addresses, in the tree or in any
-  diff of the history. Home paths appear only as placeholders (`/Users/<you>`, `/Users/me` in
-  tests).
-- **Commit metadata:** every commit carries the author's personal address. This is what a public
-  history would expose.
-- **The example app:** a real project's name was used throughout the docs, tests and the
-  prototype's files as the running example. Replaced with a neutral `myapp` (2026-10-30).
+- **Scanned:** every commit, file version and message, for employer names, personal paths,
+  email addresses, phone numbers, keys and tokens. Nothing found except what is below; home
+  paths appear only as placeholders (`/Users/<you>`, `/Users/me` in tests).
+- **Rewritten:** the real project used as the running example in early docs and tests is now
+  `MyApp` / `myapp` in every past version, and generated co-author lines were removed from
+  commit messages. Authors, dates and the latest files are unchanged.
+- **Kept, by choice:** the owner's personal email address on older commits.
+- **Where:** the cleaned history was pushed to a new `dotlane/dotlane`, because GitHub keeps
+  every pull request's original commits reachable after a force-push. The old repository is
+  `dotlane/dotlane-history`, private, with its pull requests #1–#9 and the `v0.1.0-rc.2` draft
+  release; it must stay private. Settings, the `release` environment and the tap's deploy key
+  were recreated for the new repository. `website`, `desktop` and `homebrew-tap` had no pull
+  requests and were rewritten in place.
 
-So the public repository starts from **a fresh history**; the full history stays private:
+Left, in order:
 
-1. **Email.** *Keep my email address private* is on (2026-11-01). Commit as the noreply address
-   in the new repository: `git config user.email 5757275+pedrodee@users.noreply.github.com`.
-   Blocking pushes that expose an email is skipped by choice (see the status above), so step 6
-   is what catches a wrong address.
-2. **Archive.** Rename the current repository to `dotlane/dotlane-history` (private, read-only
-   by convention). Nothing is lost.
-3. **Clean the tree** on a branch (the example app is already neutral);
-   `git grep -n -e "/Users/" -e "@gmail" -e "BEGIN .*PRIVATE KEY"`, plus any other private names
-   (employers, clients), must find only placeholders.
-4. **Scan** with [gitleaks](https://github.com/gitleaks/gitleaks) (`gitleaks detect --source .`)
-   and review every finding.
-5. **New history.** Create a new, empty `dotlane/dotlane`, and commit the cleaned tree as one
-   initial commit (author: the noreply address), tagged `v0.1.0`.
-6. **Check before publishing:** `git log --format='%an <%ae>' | sort -u` shows only the noreply
-   address; `gitleaks detect` is clean; CI is green in the new repository; links in the docs
-   point to the new repository (links to old CI runs are only valid in the archive).
-7. **Publish:** make it public, apply the repository settings above, and enable the checks of
+1. **Scan** with [gitleaks](https://github.com/gitleaks/gitleaks)
+   (`gitleaks git --log-opts=--all --redact`) and review every finding.
+2. **Check before publishing:** `git log --format='%an <%ae>' | sort -u` shows only expected
+   addresses, `git log --format=%B | grep -i co-authored` shows no generated co-author lines,
+   searching `git log -p` for the old example's name finds nothing, and CI is green.
+3. **Publish:** make it public, apply the repository settings above, and enable the checks of
    the ruleset.
-8. **Homebrew:** make `dotlane/homebrew-tap` public, and set the repository variable
+4. **Homebrew:** make `dotlane/homebrew-tap` public, and set the repository variable
    `HOMEBREW_PUBLISH` to `true` ([`releasing.md`](releasing.md#homebrew)).
-9. **npm:** set the trusted publishers and `NPM_PUBLISH`, then tag a release within two days
+5. **npm:** set the trusted publishers and `NPM_PUBLISH`, then tag a release within two days
    ([`releasing.md`](releasing.md#npm), steps 4 and 5). Not before: npm discards a trusted
    publisher that has not published within two days, and binds it to the repository it first
    publishes from.
