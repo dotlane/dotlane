@@ -22,6 +22,8 @@ dotlane add myapp 5173
 No hosts-file edits, no per-site certificates, no root daemon, and no change to how the dev server
 itself is started. Adding a domain takes about a second.
 
+<img src="assets/demo/dotlane.gif" width="720" alt="A terminal running dotlane install, then dotlane add myapp 5173, then curl https://myapp.traix, which prints the dev server's answer over trusted HTTPS">
+
 ## Install
 
 On macOS (Apple Silicon or Intel), with Homebrew or npm:
