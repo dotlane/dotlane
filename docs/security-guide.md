@@ -5,10 +5,11 @@ when the repositories moved into the `dotlane` organization. The product's own s
 (the CA, listeners, control socket) is in [`how-it-works.md`](how-it-works.md) and
 [`security.md`](security.md); how to report a vulnerability, in [`../SECURITY.md`](../SECURITY.md).
 
-## Status (updated 2026-11-01)
+## Status (updated 2026-11-01, launch day)
 
-What is applied, what waits for the tool's repository to go public (the free plan offers those
-features only on public repositories), and what an owner sets by hand in the web settings.
+`dotlane/dotlane` went public on 2026-11-01 with `v0.1.0`, released through GitHub and npm
+(Homebrew is on hold, see [`launch.md`](launch.md)). What is applied, and what an owner set by
+hand in the web settings.
 
 **Applied through the API:**
 
@@ -22,13 +23,18 @@ features only on public repositories), and what an owner sets by hand in the web
 | `dotlane/dotlane` CI | `permissions: contents: read`; actions pinned to full commit SHAs; `govulncheck` (it found five reachable HTTP/2 vulnerabilities in `golang.org/x/net` v0.59.0, fixed by v0.60.0); Dependabot version updates for Go modules and actions (`.github/dependabot.yml`) |
 | `dotlane/dotlane` in Snyk | Scheduled scans of `go.mod` and the npm launcher, imported 2026-11-01; no pull request checks, so no webhook on the repository (pull requests are covered by `govulncheck` and Dependabot). Mark the three `go-jose/v3` advisories there as not vulnerable, for the reason below |
 
-**When `dotlane/dotlane` goes public** (refused on private repositories on the free plan):
+**Applied when `dotlane/dotlane` went public** (2026-11-01; the free plan refuses these on
+private repositories):
 
-- [ ] The ruleset on `main`: `gh api -X POST repos/dotlane/dotlane/rulesets --input .github/settings/ruleset-main.json`
-- [ ] Secret scanning and push protection
-- [ ] Private vulnerability reporting (`SECURITY.md` points to it)
-- [ ] Fork pull requests: approval required for all outside contributors (`approval_policy=all_external_contributors`)
-- [ ] Required reviewer (a maintainer) on the `release` environment
+- [x] The ruleset on `main`: `gh api -X POST repos/dotlane/dotlane/rulesets --input .github/settings/ruleset-main.json`
+- [x] Secret scanning and push protection
+- [x] Private vulnerability reporting (`SECURITY.md` points to it)
+- [x] Fork pull requests: approval required for all outside contributors (`approval_policy=all_external_contributors`)
+- [x] Required reviewer (a maintainer) on the `release` environment
+- [x] npm trusted publishing from the release workflow (`NPM_PUBLISH=true`); `v0.1.0` was
+  published with provenance
+- [ ] npm lock-down: require two-factor authentication and disallow tokens on the three
+  packages, and revoke leftover tokens ([`launch.md`](launch.md#9-lock-down-npm))
 
 **By hand, in the web settings** (not settable through the API). Done on 2026-11-01:
 two-factor authentication required in the organization, after turning it on for the owner's
@@ -63,10 +69,10 @@ per repository, which is why there are four, not one.
 
 | Repository | Visibility | Holds | May use |
 | --- | --- | --- | --- |
-| `dotlane/dotlane` | private now, **public** at `v0.1.0` | The tool (CLI and daemon), its docs, the brand assets, the integration test | The `release` environment (signing, notarization); npm through trusted publishing; a deploy key for `homebrew-tap` |
+| `dotlane/dotlane` | **public** since `v0.1.0` (2026-11-01) | The tool (CLI and daemon), its docs, the brand assets, the integration test | The `release` environment (signing, notarization); npm through trusted publishing; a deploy key for `homebrew-tap` |
 | `dotlane/website` | private | The website | One deploy credential, in its own `production` environment |
 | `dotlane/desktop` | private until launch | The desktop apps | The `release` environment |
-| `dotlane/homebrew-tap` | private now, **public** with the tool | The cask, pushed by the tool's `tap.yml` when a release is published | Nothing |
+| `dotlane/homebrew-tap` | **public** since 2026-11-01; empty while Homebrew is on hold | The cask, pushed by the tool's `tap.yml` when a release is published | Nothing |
 
 Rules that follow from the split:
 
@@ -82,10 +88,9 @@ Set once, in the organization's settings, and checked before the tool goes publi
 - [x] **Require two-factor authentication** for every member and outside collaborator.
 - [x] **Base permission: none.** Members get access per repository.
 - [x] **Repository creation:** members cannot create public repositories.
-- [ ] **Actions:** allow only actions from GitHub and verified creators, plus those pinned by
+- [x] **Actions:** allow only actions from GitHub and verified creators, plus those pinned by
       the workflows; default `GITHUB_TOKEN` permission **read-only**; **require approval for
-      workflows from fork pull requests** (all outside contributors). The allow-list and the
-      read-only token are done; fork approval waits for the repository to go public.
+      workflows from fork pull requests** (all outside contributors; set at launch).
 - [x] **Deploy keys allowed**, for the tap's key (`HOMEBREW_TAP_DEPLOY_KEY`). Any other deploy
       key on any repository is a finding.
 - [x] **No self-hosted runners.** A pull request from a fork could run its code on the machine.
@@ -95,16 +100,18 @@ Set once, in the organization's settings, and checked before the tool goes publi
 
 ## Settings for the public repository
 
-- [ ] **Ruleset on `main`:** changes through pull requests only, the `test`, `install-tests`,
+All applied on 2026-11-01, when the repository went public.
+
+- [x] **Ruleset on `main`:** changes through pull requests only, the `test`, `install-tests`,
       `integration`, `release-snapshot` and `homebrew` checks must pass (the three macOS ones
       are skipped, which counts as passing, for docs-only changes), no force pushes, no
       deletion. Tags `v*` can be created only by maintainers.
-- [ ] **Secret scanning and push protection** on (free for public repositories): a push that
+- [x] **Secret scanning and push protection** on (free for public repositories): a push that
       contains a recognised secret is refused.
-- [ ] **Private vulnerability reporting** on (what `SECURITY.md` points to).
-- [ ] **Dependabot** alerts and version updates for `gomod` and `github-actions`.
+- [x] **Private vulnerability reporting** on (what `SECURITY.md` points to).
+- [x] **Dependabot** alerts and version updates for `gomod` and `github-actions`.
 - [x] **Snyk:** scheduled scans only, no pull request checks and no webhook (2026-11-01).
-- [ ] **`govulncheck ./...`** in CI, failing on vulnerabilities in code that is actually called.
+- [x] **`govulncheck ./...`** in CI, failing on vulnerabilities in code that is actually called.
 
 ## Secrets
 
@@ -173,21 +180,22 @@ Set once, in the organization's settings, and checked before the tool goes publi
   were recreated for the new repository. `website`, `desktop` and `homebrew-tap` had no pull
   requests and were rewritten in place.
 
-Left, in order:
+Then, on launch day (2026-11-01, following [`launch.md`](launch.md)):
 
 1. **Scan** with [gitleaks](https://github.com/gitleaks/gitleaks)
-   (`gitleaks git --log-opts=--all --redact`) and review every finding.
+   (`gitleaks git --log-opts=--all --redact`) and review every finding. Done: no leaks.
 2. **Check before publishing:** `git log --format='%an <%ae>' | sort -u` shows only expected
    addresses, `git log --format=%B | grep -i co-authored` shows no generated co-author lines,
-   searching `git log -p` for the old example's name finds nothing, and CI is green.
+   searching `git log -p` for the old example's name finds nothing, and CI is green. Done.
 3. **Publish:** make it public, apply the repository settings above, and enable the checks of
-   the ruleset.
+   the ruleset. Done.
 4. **Homebrew:** make `dotlane/homebrew-tap` public, and set the repository variable
-   `HOMEBREW_PUBLISH` to `true` ([`releasing.md`](releasing.md#homebrew)).
+   `HOMEBREW_PUBLISH` to `true` ([`releasing.md`](releasing.md#homebrew)). The tap is public;
+   `HOMEBREW_PUBLISH` stays `false` while Homebrew is on hold.
 5. **npm:** set the trusted publishers and `NPM_PUBLISH`, then tag a release within two days
    ([`releasing.md`](releasing.md#npm), steps 4 and 5). Not before: npm discards a trusted
    publisher that has not published within two days, and binds it to the repository it first
-   publishes from.
+   publishes from. Done: `v0.1.0` was published to npm from the release workflow.
 
 ## When something goes wrong
 

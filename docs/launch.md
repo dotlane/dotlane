@@ -8,6 +8,10 @@ in [`distribution.md`](distribution.md) and [`releasing.md`](releasing.md).
 **Before starting,** decide on signing (P2-M2). These steps launch unsigned: the Homebrew cask
 removes macOS's quarantine attribute, and npm downloads are not quarantined.
 
+**Launched on 2026-11-01:** steps 0 to 7 are done (step 5 was not needed: the tag matched the
+changelog's date), except what waits for Homebrew. `v0.1.0` is public on GitHub Releases and npm.
+Steps 8 and 9 are left.
+
 **Homebrew is on hold** (decided 2026-11-01): the launch ships through npm only. Step 3 and the tap
 check in step 7 wait until it resumes; the exit check uses npm.
 
@@ -16,7 +20,7 @@ published within two days of being set.
 
 ## 0. Pre-flight
 
-- [ ] `main` is green and nothing is open:
+- [x] `main` is green and nothing is open:
 
   ```bash
   git switch main && git pull --ff-only
@@ -24,7 +28,7 @@ published within two days of being set.
   gh pr list                                                 # empty
   ```
 
-- [ ] The old history stays private, and the history has no secrets:
+- [x] The old history stays private, and the history has no secrets:
 
   ```bash
   gh api repos/dotlane/dotlane-history --jq .private        # true
@@ -33,7 +37,7 @@ published within two days of being set.
 
 ## 1. Make the repository public
 
-- [ ] Make it public:
+- [x] Make it public:
 
   ```bash
   gh repo edit dotlane/dotlane --visibility public --accept-visibility-change-consequences
@@ -41,14 +45,14 @@ published within two days of being set.
 
 ## 2. Public-repository settings
 
-- [ ] The ruleset on `main`: changes through pull requests only, the five required checks, no
+- [x] The ruleset on `main`: changes through pull requests only, the five required checks, no
   force pushes, no deletion:
 
   ```bash
   gh api -X POST repos/dotlane/dotlane/rulesets --input .github/settings/ruleset-main.json
   ```
 
-- [ ] Secret scanning and push protection:
+- [x] Secret scanning and push protection:
 
   ```bash
   gh api -X PATCH repos/dotlane/dotlane --input - <<'EOF'
@@ -56,19 +60,19 @@ published within two days of being set.
   EOF
   ```
 
-- [ ] Private vulnerability reporting, which [`SECURITY.md`](../SECURITY.md) points to:
+- [x] Private vulnerability reporting, which [`SECURITY.md`](../SECURITY.md) points to:
 
   ```bash
   gh api -X PUT repos/dotlane/dotlane/private-vulnerability-reporting
   ```
 
-- [ ] Approval for workflows from forks, for all outside contributors:
+- [x] Approval for workflows from forks, for all outside contributors:
 
   ```bash
   gh api -X PUT repos/dotlane/dotlane/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors
   ```
 
-- [ ] A required reviewer on the `release` environment. With one maintainer, that maintainer
+- [x] A required reviewer on the `release` environment. With one maintainer, that maintainer
   approves their own releases, so self-review stays allowed; 5757275 is the GitHub user ID of
   `pedrodee` (`gh api users/<login> --jq .id` for another maintainer):
 
@@ -78,7 +82,7 @@ published within two days of being set.
   EOF
   ```
 
-- [ ] Check them all:
+- [x] Check them all:
 
   ```bash
   gh api repos/dotlane/dotlane --jq '{visibility, ss: .security_and_analysis.secret_scanning.status, pp: .security_and_analysis.secret_scanning_push_protection.status}'
@@ -102,7 +106,7 @@ publishing a release leaves it alone. Each release still builds the cask and att
 
 ## 4. npm trusted publishing (the two days start here)
 
-- [ ] On npmjs.com, for each of `dotlane`, `@dotlane/darwin-arm64` and `@dotlane/darwin-x64`:
+- [x] On npmjs.com, for each of `dotlane`, `@dotlane/darwin-arm64` and `@dotlane/darwin-x64`:
   *Settings → Trusted publisher → GitHub Actions*:
 
   | Field | Value |
@@ -113,7 +117,7 @@ publishing a release leaves it alone. Each release still builds the cask and att
   | Environment name | `release` |
   | Allowed actions | **npm publish** ticked |
 
-- [ ] Turn on publishing from the release workflow:
+- [x] Turn on publishing from the release workflow:
 
   ```bash
   gh variable set NPM_PUBLISH -R dotlane/dotlane --body true
@@ -121,7 +125,8 @@ publishing a release leaves it alone. Each release still builds the cask and att
 
 ## 5. The changelog date
 
-Only if the release is not tagged on the date in `CHANGELOG.md`'s `## [0.1.0]` heading.
+Only if the release is not tagged on the date in `CHANGELOG.md`'s `## [0.1.0]` heading. Not
+needed for `v0.1.0`: it was tagged on that date.
 
 - [ ] Change the date, open a pull request, and merge it once CI is green (docs only, so it
   skips the macOS jobs):
@@ -135,7 +140,7 @@ Only if the release is not tagged on the date in `CHANGELOG.md`'s `## [0.1.0]` h
 
 ## 6. Tag v0.1.0
 
-- [ ] Tag it and watch the release workflow:
+- [x] Tag it and watch the release workflow:
 
   ```bash
   scripts/changelog-section.sh v0.1.0 > /dev/null && echo notes ok
@@ -143,10 +148,10 @@ Only if the release is not tagged on the date in `CHANGELOG.md`'s `## [0.1.0]` h
   gh run watch "$(gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
   ```
 
-- [ ] When it stops at the `release` job, approve it on the run's page: *Review deployments →
+- [x] When it stops at the `release` job, approve it on the run's page: *Review deployments →
   release → Approve and deploy*.
 
-- [ ] The run creates the draft release and publishes the three npm packages under `latest`, with
+- [x] The run creates the draft release and publishes the three npm packages under `latest`, with
   provenance. Check:
 
   ```bash
@@ -155,7 +160,7 @@ Only if the release is not tagged on the date in `CHANGELOG.md`'s `## [0.1.0]` h
   npx --yes dotlane@latest version                            # 0.1.0 (...)
   ```
 
-- [ ] Check the draft: every file is there, the archives match `checksums.txt`, and each npm
+- [x] Check the draft: every file is there, the archives match `checksums.txt`, and each npm
   platform package holds the same binary as its archive:
 
   ```bash
@@ -170,7 +175,7 @@ Only if the release is not tagged on the date in `CHANGELOG.md`'s `## [0.1.0]` h
 
 ## 7. Publish the release
 
-- [ ] Publish the draft:
+- [x] Publish the draft:
 
   ```bash
   gh release edit v0.1.0 -R dotlane/dotlane --draft=false --latest
@@ -227,6 +232,6 @@ Ports 80 and 443 can be held by only one install, so stop yours first.
 
 ## 10. After launch
 
-- [ ] Mark the launch in [`security-guide.md`](security-guide.md) (the status section and the
+- [x] Mark the launch in [`security-guide.md`](security-guide.md) (the status section and the
   public-repository settings) and in [`phase-2.md`](phase-2.md) (P2-M5 done).
 - [ ] Keep `dotlane/dotlane-history` private.
