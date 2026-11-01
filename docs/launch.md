@@ -8,6 +8,9 @@ in [`distribution.md`](distribution.md) and [`releasing.md`](releasing.md).
 **Before starting,** decide on signing (P2-M2). These steps launch unsigned: the Homebrew cask
 removes macOS's quarantine attribute, and npm downloads are not quarantined.
 
+**Homebrew is on hold** (decided 2026-11-01): the launch ships through npm only. Step 3 and the tap
+check in step 7 wait until it resumes; the exit check uses npm.
+
 **Steps 4 to 7 must happen within two days:** npm discards a trusted publisher that has not
 published within two days of being set.
 
@@ -85,12 +88,15 @@ published within two days of being set.
   gh api repos/dotlane/dotlane/environments/release/deployment-branch-policies --jq '.branch_policies[].name'   # v*
   ```
 
-## 3. Homebrew tap
+## 3. Homebrew tap (on hold)
 
-- [ ] Make the tap public and turn on publishing to it:
+The tap repository is already public (2026-11-01) and empty; `HOMEBREW_PUBLISH` is `false`, so
+publishing a release leaves it alone. Each release still builds the cask and attaches it.
+
+- [ ] **To resume:** turn publishing on before publishing a release; that release then commits
+  the cask to the tap (step 7), and the README, `setup.md` and the changelog drop "coming soon":
 
   ```bash
-  gh repo edit dotlane/homebrew-tap --visibility public --accept-visibility-change-consequences
   gh variable set HOMEBREW_PUBLISH -R dotlane/dotlane --body true
   ```
 
@@ -164,14 +170,15 @@ Only if the release is not tagged on the date in `CHANGELOG.md`'s `## [0.1.0]` h
 
 ## 7. Publish the release
 
-- [ ] Publish the draft. This runs the *Homebrew tap* workflow, which commits the cask to
-  `dotlane/homebrew-tap`:
+- [ ] Publish the draft:
 
   ```bash
   gh release edit v0.1.0 -R dotlane/dotlane --draft=false --latest
   ```
 
-- [ ] Approve the *Homebrew tap* run the same way (*Review deployments → release*), then check:
+- [ ] **On hold with Homebrew.** Publishing also starts the *Homebrew tap* workflow, which skips
+  while `HOMEBREW_PUBLISH` is `false`. Once Homebrew resumes, approve that run (*Review
+  deployments → release*), then check:
 
   ```bash
   gh api repos/dotlane/homebrew-tap/commits --jq '.[0].commit.message'     # dotlane v0.1.0
@@ -184,10 +191,11 @@ Ports 80 and 443 can be held by only one install, so stop yours first.
 
 - [ ] In your own account: `dotlane uninstall`. It keeps your sites and the CA; `dotlane install`
   restores the service afterwards, with one password.
-- [ ] Create a test user (*System Settings → Users & Groups*), log in as it, and run:
+- [ ] Create a test user (*System Settings → Users & Groups*), log in as it, and run (with
+  Homebrew back, repeat with `brew install dotlane/tap/dotlane` and `brew uninstall --zap dotlane`):
 
   ```bash
-  brew install dotlane/tap/dotlane
+  npm install -g dotlane
   dotlane install
   mkdir -p /tmp/myapp && echo 'Hello from myapp' > /tmp/myapp/index.html
   python3 -m http.server 5173 --bind 127.0.0.1 --directory /tmp/myapp &
@@ -196,11 +204,11 @@ Ports 80 and 443 can be held by only one install, so stop yours first.
   ```
 
 - [ ] Open `https://myapp.traix` in Safari: the page loads with a trusted certificate.
-- [ ] Remove everything and try the npm channel:
+- [ ] Remove everything, then try `npx` with nothing installed:
 
   ```bash
   kill %1
-  dotlane uninstall --purge && brew uninstall --zap dotlane
+  dotlane uninstall --purge && npm uninstall -g dotlane
   npx --yes dotlane version                    # 0.1.0 (...)
   ```
 

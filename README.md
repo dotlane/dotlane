@@ -26,16 +26,17 @@ itself is started. Adding a domain takes about a second.
 
 ## Install
 
-On macOS (Apple Silicon or Intel), with Homebrew or npm:
+On macOS (Apple Silicon or Intel), with npm:
 
 ```bash
-brew install dotlane/tap/dotlane      # or: npm install -g dotlane
+npm install -g dotlane
 dotlane install                       # once: login service, trusted CA, DNS for .traix
 dotlane add myapp 5173                # https://myapp.traix -> localhost:5173
 ```
 
 `dotlane install` explains the two steps that ask for your password before running them. Or try
-it without installing anything, with `npx dotlane install`. Building from source, upgrading and
+it without installing anything, with `npx dotlane install`. Homebrew
+(`brew install dotlane/tap/dotlane`) is coming soon. Building from source, upgrading and
 uninstalling are in [`docs/setup.md`](docs/setup.md).
 
 ## Works with any language
@@ -150,7 +151,7 @@ The same flow as text:
 | [`docs/how-it-works.md`](docs/how-it-works.md) | What the Go version does and how: the daemon, a request end to end, certificates, install, projects, `doctor`, `migrate` |
 | [`docs/architecture.md`](docs/architecture.md) | The Bash prototype: components, request flow, and why each design choice was made |
 | [`docs/diagrams/dotlane-components.svg`](docs/diagrams/dotlane-components.svg) | Diagram of the tools and libraries used and how a request flows (light and dark mode) |
-| [`docs/setup.md`](docs/setup.md) | Install (Homebrew, npm or source), first site, upgrade, migrate from the prototype, uninstall (macOS) |
+| [`docs/setup.md`](docs/setup.md) | Install (npm or source; Homebrew coming soon), first site, upgrade, migrate from the prototype, uninstall (macOS) |
 | [`docs/cli.md`](docs/cli.md) | Command reference: every command, `dotlane.toml`, `config.toml`, output and exit codes |
 | [`docs/prototype/`](docs/prototype/) | The Bash prototype's setup and command reference, kept for reference |
 | [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with a Vite + FastAPI app as the example |
