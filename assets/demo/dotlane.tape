@@ -12,9 +12,10 @@ Require dotlane
 Require curl
 
 Set Shell "bash"
-Set FontSize 18
+Set FontSize 17
 Set Width 1100
-Set Height 620
+# Tall enough that nothing scrolls: Wait+Screen below only sees the top screenful.
+Set Height 800
 Set Padding 24
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 55ms
