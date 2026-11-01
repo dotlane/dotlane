@@ -25,14 +25,8 @@ type Server struct {
 // Start binds addr (such as 127.0.0.1:10053) before returning, so a busy port is reported here,
 // then serves in the background.
 func Start(addr string, tlds []string) (*Server, error) {
-	pc, err := net.ListenPacket("udp", addr)
+	pc, ln, err := listen(addr)
 	if err != nil {
-		return nil, err
-	}
-	// Bind TCP to the port UDP got, which matters when addr asks for port 0.
-	ln, err := net.Listen("tcp", pc.LocalAddr().String())
-	if err != nil {
-		pc.Close()
 		return nil, err
 	}
 	h := handler(tlds)
@@ -44,6 +38,33 @@ func Start(addr string, tlds []string) (*Server, error) {
 	go s.udp.ActivateAndServe()
 	go s.tcp.ActivateAndServe()
 	return s, nil
+}
+
+// listen binds UDP and TCP on the same port. When addr asks for port 0, the OS picks a free UDP
+// port whose TCP twin may be taken, so it tries a few fresh ports before giving up.
+func listen(addr string) (net.PacketConn, net.Listener, error) {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, nil, err
+	}
+	attempts := 1
+	if port == "0" {
+		attempts = 10
+	}
+	for i := 1; ; i++ {
+		pc, err := net.ListenPacket("udp", addr)
+		if err != nil {
+			return nil, nil, err
+		}
+		ln, err := net.Listen("tcp", pc.LocalAddr().String())
+		if err == nil {
+			return pc, ln, nil
+		}
+		pc.Close()
+		if i == attempts {
+			return nil, nil, err
+		}
+	}
 }
 
 // Addr is the address actually bound.
