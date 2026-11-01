@@ -19,6 +19,7 @@ hand in the web settings.
 | All repositories | Actions limited to GitHub-owned and verified-creator actions; `GITHUB_TOKEN` read-only by default and unable to approve pull requests; Dependabot alerts and security updates on, except in `homebrew-tap`, which has no dependencies |
 | `dotlane/dotlane` | `release` environment that accepts only `v*` tags |
 | The owner's account | Two-factor authentication on; primary email private |
+| npm | `dotlane`, `@dotlane/darwin-arm64` and `@dotlane/darwin-x64` publish only through trusted publishing from the release workflow (with provenance) or with two-factor authentication: publishing access requires 2FA and disallows tokens. One maintainer (`pedrodee`), whose account requires 2FA for logging in and for writes; no access tokens (2026-11-01) |
 | All three repositories (local) | Commits use the GitHub noreply address (`git config user.email`), so nothing new carries a personal address |
 | `dotlane/dotlane` CI | `permissions: contents: read`; actions pinned to full commit SHAs; `govulncheck` (it found five reachable HTTP/2 vulnerabilities in `golang.org/x/net` v0.59.0, fixed by v0.60.0); Dependabot version updates for Go modules and actions (`.github/dependabot.yml`) |
 
@@ -32,7 +33,7 @@ private repositories):
 - [x] Required reviewer (a maintainer) on the `release` environment
 - [x] npm trusted publishing from the release workflow (`NPM_PUBLISH=true`); `v0.1.0` was
   published with provenance
-- [ ] npm lock-down: require two-factor authentication and disallow tokens on the three
+- [x] npm lock-down: require two-factor authentication and disallow tokens on the three
   packages, and revoke leftover tokens ([`launch.md`](launch.md#9-lock-down-npm))
 
 **By hand, in the web settings** (not settable through the API). Done on 2026-11-01:
@@ -117,7 +118,7 @@ All applied on 2026-11-01, when the repository went public.
 | --- | --- | --- | --- |
 | Apple Developer ID Application certificate (`.p12`) and its password | Secrets of the `release` environment | `dotlane`, `desktop`, after a maintainer approves the run | Revoke in the Apple Developer portal; already notarized releases stay valid, new ones need a new certificate |
 | App Store Connect API key (notarization) | `release` environment | Same | Revoke the key in App Store Connect; issue a new one |
-| npm publishing | **None**: npm trusted publishing (OIDC) from the release workflow | The release workflow on a tag | Remove the trusted publisher in npm's package settings |
+| npm publishing | **None**: npm trusted publishing (OIDC) from the release workflow | The release workflow on a tag | Remove the trusted publisher in npm's package settings. Tokens are disallowed on all three packages, so a leaked token cannot publish |
 | Tap deploy key | SSH deploy key with write access, on `dotlane/homebrew-tap` only; its private half is the `release` environment's secret `HOMEBREW_TAP_DEPLOY_KEY` | `tap.yml`, when a release is published | Delete the deploy key on the tap and the secret; generate a new pair. A deploy key reaches one repository by construction, unlike a token, and does not expire, so rotate it yearly |
 | Website deploy credential | `production` environment of `dotlane/website` | That repository, after approval | Replace the key on the server and in the environment |
 

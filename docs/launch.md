@@ -10,8 +10,8 @@ removes macOS's quarantine attribute, and npm downloads are not quarantined.
 
 **Launched on 2026-11-01:** steps 0 to 7 are done (step 5 was not needed: the tag matched the
 changelog's date), except what waits for Homebrew. `v0.1.0` is public on GitHub Releases and npm.
-The exit check (step 8) passed on a new user account the same day, through npm; step 9 is
-left.
+The exit check (step 8) passed on a new user account the same day, through npm, and npm was
+locked down (step 9). Only the Homebrew items are left.
 
 **Homebrew is on hold** (decided 2026-11-01): the launch ships through npm only. Step 3 and the tap
 check in step 7 wait until it resumes; the exit check uses npm.
@@ -222,9 +222,9 @@ Ports 80 and 443 can be held by only one install, so stop yours first.
 
 ## 9. Lock down npm
 
-- [ ] On each of the three packages: *Settings → Publishing access → Require two-factor
+- [x] On each of the three packages: *Settings → Publishing access → Require two-factor
   authentication and disallow tokens*.
-- [ ] Revoke any npm token left on a maintainer's machine:
+- [x] Revoke any npm token left on a maintainer's machine:
 
   ```bash
   npm login && npm token list    # then: npm token revoke <id>, for each
