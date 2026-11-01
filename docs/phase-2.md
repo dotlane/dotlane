@@ -161,7 +161,7 @@ The esbuild/Biome pattern, with no install scripts:
 
 ### P2-M5: Public release (≈ 2 days)
 
-- Before the repository goes public: the fresh-history procedure and checklist in
+- Before the repository goes public: the history check and checklist in
   [`security-guide.md`](security-guide.md#before-the-tools-repository-goes-public), the
   organization and repository settings there, and `NOTICE` covering Caddy and the other embedded
   modules (from `go-licenses`).
@@ -181,7 +181,8 @@ Progress (2026-11-01):
   the README and `setup.md`.
 - Names reserved: npm `dotlane` and `@dotlane/*` (2026-10-31), the tap repository (private).
 - The organization's settings are done (`security-guide.md`).
-- Left: the terminal recording, the site, the fresh history, and the public-repository settings.
+- The history was cleaned and moved to a new repository (2026-11-01, `security-guide.md`).
+- Left: the terminal recording, the site, a gitleaks scan, and the public-repository settings.
 
 ## Exit criteria (from the roadmap)
 
