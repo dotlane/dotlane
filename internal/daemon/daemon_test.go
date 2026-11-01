@@ -206,7 +206,14 @@ func TestDaemon(t *testing.T) {
 		t.Errorf("second remove: %v", err)
 	}
 	browser.CloseIdleConnections()
-	if resp, err := browser.Get(wantURL + "/"); err != nil {
+	// Caddy may still be swapping in the config without the site, and resets a connection
+	// that arrives meanwhile; a request a moment later gets the new config.
+	for deadline := time.Now().Add(2 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		if resp, err = browser.Get(wantURL + "/"); err == nil || time.Now().After(deadline) {
+			break
+		}
+	}
+	if err != nil {
 		t.Error(err)
 	} else {
 		resp.Body.Close()
