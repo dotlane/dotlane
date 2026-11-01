@@ -21,7 +21,6 @@ hand in the web settings.
 | The owner's account | Two-factor authentication on; primary email private |
 | All three repositories (local) | Commits use the GitHub noreply address (`git config user.email`), so nothing new carries a personal address |
 | `dotlane/dotlane` CI | `permissions: contents: read`; actions pinned to full commit SHAs; `govulncheck` (it found five reachable HTTP/2 vulnerabilities in `golang.org/x/net` v0.59.0, fixed by v0.60.0); Dependabot version updates for Go modules and actions (`.github/dependabot.yml`) |
-| `dotlane/dotlane` in Snyk | Scheduled scans of `go.mod` and the npm launcher, imported 2026-11-01; no pull request checks, so no webhook on the repository (pull requests are covered by `govulncheck` and Dependabot). Mark the three `go-jose/v3` advisories there as not vulnerable, for the reason below |
 
 **Applied when `dotlane/dotlane` went public** (2026-11-01; the free plan refuses these on
 private repositories):
@@ -110,7 +109,6 @@ All applied on 2026-11-01, when the repository went public.
       contains a recognised secret is refused.
 - [x] **Private vulnerability reporting** on (what `SECURITY.md` points to).
 - [x] **Dependabot** alerts and version updates for `gomod` and `github-actions`.
-- [x] **Snyk:** scheduled scans only, no pull request checks and no webhook (2026-11-01).
 - [x] **`govulncheck ./...`** in CI, failing on vulnerabilities in code that is actually called.
 
 ## Secrets
