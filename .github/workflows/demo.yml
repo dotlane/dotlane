@@ -40,7 +40,15 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bin"
           go build -trimpath -o "$RUNNER_TEMP/bin/dotlane" ./cmd/dotlane
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-      - run: vhs assets/demo/dotlane.tape
+      - name: Record
+        run: |
+          # The dev server the recording reaches through https://myapp.traix, answering before
+          # the tape starts.
+          mkdir -p "$RUNNER_TEMP/site" && echo 'Hello from myapp' > "$RUNNER_TEMP/site/index.html"
+          python3 -m http.server 5173 --bind 127.0.0.1 --directory "$RUNNER_TEMP/site" >/dev/null 2>&1 &
+          for _ in $(seq 1 60); do curl -fsS --max-time 1 http://127.0.0.1:5173/ >/dev/null 2>&1 && break; sleep 0.5; done
+          curl -fsS http://127.0.0.1:5173/
+          vhs assets/demo/dotlane.tape
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: demo
