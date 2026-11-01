@@ -1,4 +1,4 @@
-# Release builds (docs/phase-2.md, P2-M1). Checked on every pull request with a snapshot build
+# Release builds (docs/history/phase-2.md, P2-M1). Checked on every pull request with a snapshot build
 # (.github/workflows/ci.yml) and used by .github/workflows/release.yml on v* tags.
 #
 #   goreleaser check
@@ -20,7 +20,7 @@ builds:
     env:
       - CGO_ENABLED=0
     # macOS only until Phase 4 makes install work elsewhere; linux and windows already build
-    # (docs/phase-2.md).
+    # (docs/history/phase-2.md).
     goos: [darwin]
     goarch: [arm64, amd64]
     flags:
@@ -66,7 +66,7 @@ release:
   draft: true
   prerelease: auto
 
-# The Homebrew tap, dotlane/homebrew-tap: brew install dotlane/tap/dotlane (docs/phase-2.md,
+# The Homebrew tap, dotlane/homebrew-tap: brew install dotlane/tap/dotlane (docs/homebrew.md,
 # P2-M3). GoReleaser only writes the cask, to dist/homebrew/Casks/dotlane.rb; release.yml attaches
 # it to the draft, and tap.yml pushes it to the tap when the release is published, not before:
 # its URLs point at the release's files, which cannot be downloaded while it is a draft.

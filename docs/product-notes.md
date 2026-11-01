@@ -1,6 +1,7 @@
 # Product notes
 
-Inputs for turning the prototype into **Dotlane**. The plan built from them is in [`roadmap.md`](roadmap.md).
+Inputs for turning the prototype into **Dotlane**. The first plan built from them is in [`history/roadmap-phases.md`](history/roadmap-phases.md);
+what is planned now is in the [roadmaps](history/README.md#where-the-plans-are-now).
 
 Name chosen 2026-10-29. At that date `dotlane` was free on npm and Homebrew, and `dotlane.dev` had
 no DNS records (a quick check, not a trademark search).
@@ -14,7 +15,7 @@ no DNS records (a quick check, not a trademark search).
 
 The service is the product; the CLI, `dotlane.toml` and the app are equal clients of it. That is
 why it is not described as "a CLI with an app on top": the app adds no capabilities, and it is the
-first thing to cut if time is short (see [`roadmap.md`](roadmap.md)).
+first thing to cut if time is short (see [`history/roadmap-phases.md`](history/roadmap-phases.md#suggested-order-and-what-to-cut)).
 
 ## Works with any language
 

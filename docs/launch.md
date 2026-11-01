@@ -234,5 +234,5 @@ Ports 80 and 443 can be held by only one install, so stop yours first.
 ## 10. After launch
 
 - [x] Mark the launch in [`security-guide.md`](security-guide.md) (the status section and the
-  public-repository settings) and in [`phase-2.md`](phase-2.md) (P2-M5 done).
+  public-repository settings) and in [`phase-2.md`](history/phase-2.md) (P2-M5 done).
 - [ ] Keep `dotlane/dotlane-history` private.

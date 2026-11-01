@@ -2,8 +2,9 @@
 
 How a Dotlane release is made. The pipeline is GoReleaser ([`.goreleaser.yaml`](../.goreleaser.yaml))
 in [`.github/workflows/release.yml`](../.github/workflows/release.yml), planned in
-[`phase-2.md`](phase-2.md) (P2-M1). Each release also builds the Homebrew cask (P2-M3) and the
-npm packages (P2-M4); signing and notarization (P2-M2) join it later. How the channels fit
+[`history/phase-2.md`](history/phase-2.md) (P2-M1). Each release also builds the Homebrew cask
+([`homebrew.md`](homebrew.md)) and the npm packages ([`npm/ROADMAP.md`](../npm/ROADMAP.md));
+signing and notarization join it later ([core roadmap](roadmap.md#now)). How the channels fit
 together, in a diagram: [`distribution.md`](distribution.md).
 
 ## What a release contains
