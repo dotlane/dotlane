@@ -1,0 +1,48 @@
+# Records the README's terminal recording (assets/demo/dotlane.tape) on a throwaway Mac, where the
+# real `dotlane install` can run with passwordless sudo, and uploads the GIF to commit by hand.
+# Runs when the tape or this workflow changes, or on demand.
+name: Demo
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - assets/demo/dotlane.tape
+      - .github/workflows/demo.yml
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: local
+  VHS_VERSION: v0.12.1
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+
+jobs:
+  record:
+    # Intel, like the other macOS jobs in ci.yml.
+    runs-on: macos-15-intel
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: VHS, ttyd and ffmpeg
+        run: |
+          brew install ttyd ffmpeg
+          go install "github.com/charmbracelet/vhs@$VHS_VERSION"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Build dotlane
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          go build -trimpath -o "$RUNNER_TEMP/bin/dotlane" ./cmd/dotlane
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - run: vhs assets/demo/dotlane.tape
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo
+          path: assets/demo/dotlane.gif
+          if-no-files-found: error
