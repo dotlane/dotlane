@@ -5,7 +5,7 @@ when the repositories moved into the `dotlane` organization. The product's own s
 (the CA, listeners, control socket) is in [`how-it-works.md`](how-it-works.md) and
 [`security.md`](security.md); how to report a vulnerability, in [`../SECURITY.md`](../SECURITY.md).
 
-## Status (2026-10-30)
+## Status (updated 2026-11-01)
 
 What is applied, what waits for the tool's repository to go public (the free plan offers those
 features only on public repositories), and what an owner sets by hand in the web settings.
@@ -14,9 +14,10 @@ features only on public repositories), and what an owner sets by hand in the web
 
 | Where | Setting |
 | --- | --- |
-| Organization | Base permission `none`; only owners create repositories; members cannot create Pages sites; Dependabot alerts, security updates and the dependency graph on for new repositories; deploy keys allowed (only the tap has one, see the secrets table) |
-| All three repositories | Actions limited to GitHub-owned and verified-creator actions; `GITHUB_TOKEN` read-only by default and unable to approve pull requests; Dependabot alerts and security updates on |
+| Organization | Two-factor authentication required for every member; Actions limited to GitHub-owned and verified-creator actions for every repository, new ones included; base permission `none`; only owners create repositories; members cannot create Pages sites; Dependabot alerts, security updates and the dependency graph on for new repositories; deploy keys allowed (only the tap has one, see the secrets table) |
+| All repositories | Actions limited to GitHub-owned and verified-creator actions; `GITHUB_TOKEN` read-only by default and unable to approve pull requests; Dependabot alerts and security updates on, except in `homebrew-tap`, which has no dependencies |
 | `dotlane/dotlane` | `release` environment that accepts only `v*` tags |
+| The owner's account | Two-factor authentication on; primary email private |
 | All three repositories (local) | Commits use the GitHub noreply address (`git config user.email`), so nothing new carries a personal address |
 | `dotlane/dotlane` CI | `permissions: contents: read`; actions pinned to full commit SHAs; `govulncheck` (it found five reachable HTTP/2 vulnerabilities in `golang.org/x/net` v0.59.0, fixed by v0.60.0); Dependabot version updates for Go modules and actions (`.github/dependabot.yml`) |
 
@@ -28,18 +29,22 @@ features only on public repositories), and what an owner sets by hand in the web
 - [ ] Fork pull requests: approval required for all outside contributors (`approval_policy=all_external_contributors`)
 - [ ] Required reviewer (a maintainer) on the `release` environment
 
-**By hand, in the organization's settings** (not settable through the API, or not with the
-current token, or accepted by the API but not saved):
+**By hand, in the web settings** (not settable through the API). Done on 2026-11-01:
+two-factor authentication required in the organization, after turning it on for the owner's
+account. Set through the API with the `admin:org` and `user` scopes, added for the change and
+removed afterwards: the organization's Actions policy and the private primary email.
 
-- [ ] Authentication security → **Require two-factor authentication**
-- [ ] Actions → General → **Allow GitHub-owned and verified-creator actions** for the whole
-      organization (each repository already is; this covers new ones)
-- [ ] Member privileges → turn off **changing repository visibility**, **deleting repositories**
-      and **inviting outside collaborators** (no effect while you are the only member and owner,
-      since owners can always do these)
-- [ ] Your account → Emails → **Keep my email address private** and **Block command line pushes
-      that expose my email** (step 1 of the go-public procedure below; the repositories already
-      commit as the noreply address, so pushes keep working once blocking is on)
+Skipped by choice (2026-11-01):
+
+- **Member privileges** (turning off changing repository visibility, deleting repositories and
+  inviting outside collaborators). These limit members only; owners can always do all three,
+  and the organization has no members besides its one owner. Its base permission is `none`, so
+  a future member reaches only the repositories they are given. Revisit before adding a member
+  who is not an owner.
+- **Block command line pushes that expose my email.** It applies to the whole GitHub account,
+  not only this organization, and would refuse pushes from the owner's other repositories,
+  which commit with a personal address. The owner does not mind that address being public.
+  Dotlane's repositories commit as the noreply address anyway (`git config user.email` in each).
 
 ### Advisories that do not affect Dotlane
 
@@ -73,15 +78,16 @@ Rules that follow from the split:
 
 Set once, in the organization's settings, and checked before the tool goes public:
 
-- [ ] **Require two-factor authentication** for every member and outside collaborator.
-- [ ] **Base permission: none.** Members get access per repository.
-- [ ] **Repository creation:** members cannot create public repositories.
+- [x] **Require two-factor authentication** for every member and outside collaborator.
+- [x] **Base permission: none.** Members get access per repository.
+- [x] **Repository creation:** members cannot create public repositories.
 - [ ] **Actions:** allow only actions from GitHub and verified creators, plus those pinned by
       the workflows; default `GITHUB_TOKEN` permission **read-only**; **require approval for
-      workflows from fork pull requests** (all outside contributors).
-- [ ] **Deploy keys allowed**, for the tap's key (`HOMEBREW_TAP_DEPLOY_KEY`). Any other deploy
+      workflows from fork pull requests** (all outside contributors). The allow-list and the
+      read-only token are done; fork approval waits for the repository to go public.
+- [x] **Deploy keys allowed**, for the tap's key (`HOMEBREW_TAP_DEPLOY_KEY`). Any other deploy
       key on any repository is a finding.
-- [ ] **No self-hosted runners.** A pull request from a fork could run its code on the machine.
+- [x] **No self-hosted runners.** A pull request from a fork could run its code on the machine.
       Every workflow uses GitHub-hosted runners.
 - [ ] Owners: at least two people once there is a second maintainer, each with 2FA and a
       recovery method stored offline, so the organization cannot be lost with one account.
@@ -161,9 +167,10 @@ The current private history (26 commits as of 2026-10-30) was scanned:
 
 So the public repository starts from **a fresh history**; the full history stays private:
 
-1. **Email.** In GitHub's email settings, turn on *Keep my email address private* and *Block
-   command line pushes that expose my email*. Commit as the noreply address:
-   `git config --global user.email 5757275+pedrodee@users.noreply.github.com`.
+1. **Email.** *Keep my email address private* is on (2026-11-01). Commit as the noreply address
+   in the new repository: `git config user.email 5757275+pedrodee@users.noreply.github.com`.
+   Blocking pushes that expose an email is skipped by choice (see the status above), so step 6
+   is what catches a wrong address.
 2. **Archive.** Rename the current repository to `dotlane/dotlane-history` (private, read-only
    by convention). Nothing is lost.
 3. **Clean the tree** on a branch (the example app is already neutral);
