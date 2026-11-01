@@ -7,18 +7,12 @@ How to install Dotlane, check it, upgrade it and remove it. What each step does 
 ## Requirements
 
 - macOS, Apple Silicon or Intel.
-- Homebrew or Node.js 18+ (npm) to install it, or Go 1.27 to build it from source.
+- Node.js 18+ (npm) to install it, or Go 1.27 to build it from source.
 - Free ports 80 and 443. `dotlane install` checks this first, and names whatever holds them.
 
 ## 1. Get the `dotlane` command
 
 Pick one. Each puts a single `dotlane` binary on your PATH; nothing runs until step 2.
-
-**Homebrew:**
-
-```bash
-brew install dotlane/tap/dotlane
-```
 
 **npm:**
 
@@ -44,9 +38,13 @@ If `dotlane` is not found afterwards, `~/.local/bin` is not on your PATH:
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc   # then open a new terminal
 ```
 
+**Homebrew (coming soon):** `brew install dotlane/tap/dotlane`. Each release already builds the
+cask; the tap is published after launch.
+
 Whichever way you install it, `dotlane install` copies the binary to
-`~/Library/Application Support/dotlane/bin/` and the login service runs that copy: macOS holds back background jobs started from Documents, Desktop or
-Downloads until you approve them, and a new build would need a new approval.
+`~/Library/Application Support/dotlane/bin/` and the login service runs that copy: macOS holds
+back background jobs started from Documents, Desktop or Downloads until you approve them, and a
+new build would need a new approval.
 
 ## 2. Install
 
@@ -101,8 +99,8 @@ curl -sI https://myapp.traix | head -1
 ## Upgrading
 
 ```bash
-brew upgrade dotlane          # Homebrew
 npm install -g dotlane        # npm
+brew upgrade dotlane          # Homebrew, once available
 ```
 
 The package manager replaces the `dotlane` command, but cannot restart the service. The next
@@ -159,7 +157,7 @@ alone (they belong to another tool). Run it **before** removing the command, or 
 running. Then:
 
 ```bash
-brew uninstall --zap dotlane  # Homebrew; --zap also trashes Dotlane's folders
 npm uninstall -g dotlane      # npm
 rm ~/.local/bin/dotlane       # from source, then delete the clone
+brew uninstall --zap dotlane  # Homebrew, once available; --zap also trashes Dotlane's folders
 ```
