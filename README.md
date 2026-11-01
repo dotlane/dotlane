@@ -157,6 +157,7 @@ The same flow as text:
 | [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, where the CA key lives, and what is in scope |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Issues, working on the code, what a pull request needs |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version; every version gets a section before it is tagged |
+| [`docs/distribution.md`](docs/distribution.md) | One binary, many channels: how a tag becomes the GitHub Release, the Homebrew cask and the npm packages; Linux, Windows and the desktop apps |
 | [`docs/releasing.md`](docs/releasing.md) | What a release contains and how to cut one (GoReleaser, `v*` tags, draft releases, npm packages) |
 | [`docs/security-guide.md`](docs/security-guide.md) | How the repositories, secrets, releases and website are protected; the checklist before going public |
 | [`docs/security.md`](docs/security.md) | Trust model of the local certificate authority, what runs with which privileges |
