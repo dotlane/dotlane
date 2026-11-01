@@ -10,7 +10,8 @@ removes macOS's quarantine attribute, and npm downloads are not quarantined.
 
 **Launched on 2026-11-01:** steps 0 to 7 are done (step 5 was not needed: the tag matched the
 changelog's date), except what waits for Homebrew. `v0.1.0` is public on GitHub Releases and npm.
-Steps 8 and 9 are left.
+The exit check (step 8) passed on a new user account the same day, through npm; step 9 is
+left.
 
 **Homebrew is on hold** (decided 2026-11-01): the launch ships through npm only. Step 3 and the tap
 check in step 7 wait until it resumes; the exit check uses npm.
@@ -194,9 +195,9 @@ needed for `v0.1.0`: it was tagged on that date.
 
 Ports 80 and 443 can be held by only one install, so stop yours first.
 
-- [ ] In your own account: `dotlane uninstall`. It keeps your sites and the CA; `dotlane install`
+- [x] In your own account: `dotlane uninstall`. It keeps your sites and the CA; `dotlane install`
   restores the service afterwards, with one password.
-- [ ] Create a test user (*System Settings → Users & Groups*), log in as it, and run (with
+- [x] Create a test user (*System Settings → Users & Groups*), log in as it, and run (with
   Homebrew back, repeat with `brew install dotlane/tap/dotlane` and `brew uninstall --zap dotlane`):
 
   ```bash
@@ -208,8 +209,8 @@ Ports 80 and 443 can be held by only one install, so stop yours first.
   curl https://myapp.traix                     # Hello from myapp
   ```
 
-- [ ] Open `https://myapp.traix` in Safari: the page loads with a trusted certificate.
-- [ ] Remove everything, then try `npx` with nothing installed:
+- [x] Open `https://myapp.traix` in Safari: the page loads with a trusted certificate.
+- [x] Remove everything, then try `npx` with nothing installed:
 
   ```bash
   kill %1
@@ -217,7 +218,7 @@ Ports 80 and 443 can be held by only one install, so stop yours first.
   npx --yes dotlane version                    # 0.1.0 (...)
   ```
 
-- [ ] Log out, delete the test user, and run `dotlane install` in your own account again.
+- [x] Log out, delete the test user, and run `dotlane install` in your own account again.
 
 ## 9. Lock down npm
 
