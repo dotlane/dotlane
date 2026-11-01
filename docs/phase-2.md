@@ -91,7 +91,7 @@ Planned:
   `spctl --assess --type execute -vv` accepts a binary downloaded with a browser, and Login Items
   lists Dotlane under the developer's name.
 
-### P2-M3: Homebrew tap (≈ 2 days) — built 2026-10-31, waiting for CI and going public
+### P2-M3: Homebrew tap (≈ 2 days) — built 2026-10-31, on hold since 2026-11-01
 
 Built: the cask (GoReleaser `homebrew_casks`, written by every build and attached to the draft
 release), [`tap.yml`](../.github/workflows/tap.yml) and
@@ -104,8 +104,10 @@ Instead the commands that use the daemon (`add`, `rm`, `ls`, `up`, `down`) updat
 when it runs an older release (`install.Newer`, `Installer.Upgrade`), which also covers npm.
 Tested: unit tests for both, and [`scripts/brew-e2e.sh`](../scripts/brew-e2e.sh) (the *homebrew*
 CI job: brew install → dotlane install → a site → brew upgrade → the next command restarts the
-service → uninstall and zap leave nothing), which has not run yet: the account's Actions
-minutes ran out for October. Details in [`releasing.md`](releasing.md#homebrew).
+service → uninstall and zap leave nothing), which passes on CI for every pull request that
+changes code. Details in [`releasing.md`](releasing.md#homebrew). On hold (decided 2026-11-01):
+the tap is public but empty and `HOMEBREW_PUBLISH` is `false`, so releases attach the cask
+without committing it; [`launch.md`](launch.md#3-homebrew-tap-on-hold) says how to resume.
 
 Planned:
 
@@ -128,7 +130,7 @@ Planned:
   (checked the way the integration test checks a reinstall); `dotlane uninstall && brew uninstall
   --zap` leaves nothing behind.
 
-### P2-M4: npm packages (≈ 3 days) — built 2026-10-30, first publish 2026-10-31
+### P2-M4: npm packages (≈ 3 days) — built 2026-10-30, published from CI 2026-11-01
 
 Built: the launcher package `dotlane` (Node shim, no install scripts) and the platform packages
 `@dotlane/darwin-arm64` and `@dotlane/darwin-x64`, packed from the release binaries by
@@ -137,8 +139,8 @@ Mach-O for its package's CPU). Tested by unit tests for the launcher and the bui
 an end-to-end `npm install` from the tarballs plus `npx dotlane` (`scripts/npm-e2e.sh`, arm64 on a
 development Mac, x64 in CI). Every release attaches the tarballs to its draft; publishing waits
 for the one-time steps in [`releasing.md`](releasing.md#npm). The names are claimed: `v0.1.0-rc.2`
-of all three was published by hand on 2026-10-31 (`npx dotlane@next version` works); publishing
-from CI starts when the repository goes public.
+of all three was published by hand on 2026-10-31. `v0.1.0` was published by the release
+workflow on 2026-11-01, through trusted publishing with provenance, under `latest`.
 
 Planned:
 
@@ -159,7 +161,7 @@ The esbuild/Biome pattern, with no install scripts:
   a project with `"devDependencies": {"dotlane": "…"}` runs `npx dotlane up` from its
   `dotlane.toml`.
 
-### P2-M5: Public release (≈ 2 days)
+### P2-M5: Public release (≈ 2 days) — done 2026-11-01, Homebrew on hold
 
 - Before the repository goes public: the history check and checklist in
   [`security-guide.md`](security-guide.md#before-the-tools-repository-goes-public), the
@@ -185,7 +187,13 @@ Progress (2026-11-01):
 - The README's terminal recording: `assets/demo/dotlane.tape` (VHS), recorded on a macOS runner
   by the `demo` workflow; re-record it after output changes by running that workflow.
 - gitleaks found no leaks in any of the four repositories (2026-11-01).
-- Left: the site, and the public-repository settings.
+- The site is live.
+- Launched (2026-11-01, [`launch.md`](launch.md)): `dotlane/dotlane` public with its settings
+  ([`security-guide.md`](security-guide.md)), and `v0.1.0` published on GitHub Releases and
+  npm (`npm install -g dotlane`, `npx dotlane`), with provenance.
+- Not met: the tap. Homebrew is on hold, so `v0.1.0` ships through npm and the source build.
+- Left: the exit check on a new user account and locking down npm (steps 8 and 9 of
+  [`launch.md`](launch.md)), and signing (P2-M2).
 
 ## Exit criteria (from the roadmap)
 
