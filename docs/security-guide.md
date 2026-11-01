@@ -95,9 +95,9 @@ Set once, in the organization's settings, and checked before the tool goes publi
 ## Settings for the public repository
 
 - [ ] **Ruleset on `main`:** changes through pull requests only, the `test`, `install-tests`,
-      `integration`, `release-snapshot` and `homebrew` checks must pass, no force pushes, no
-      deletion. Tags `v*` can be created only by
-      maintainers.
+      `integration`, `release-snapshot` and `homebrew` checks must pass (the three macOS ones
+      are skipped, which counts as passing, for docs-only changes), no force pushes, no
+      deletion. Tags `v*` can be created only by maintainers.
 - [ ] **Secret scanning and push protection** on (free for public repositories): a push that
       contains a recognised secret is refused.
 - [ ] **Private vulnerability reporting** on (what `SECURITY.md` points to).

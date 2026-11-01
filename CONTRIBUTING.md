@@ -28,7 +28,7 @@ module. After adding or removing a dependency, run `scripts/notice.sh` and commi
 
 **Don't run `scripts/integration.sh` or `scripts/brew-e2e.sh` on your Mac.** They install
 Dotlane system-wide with sudo, under the same service name as a real install, so they run only on
-CI's throwaway macOS runners. Pull requests run them there.
+CI's throwaway macOS runners. Pull requests that change code run them there.
 
 ## What a pull request needs
 
@@ -38,7 +38,9 @@ CI's throwaway macOS runners. Pull requests run them there.
   commands and flags, [`docs/setup.md`](docs/setup.md) for install steps.
 - **A line in [`CHANGELOG.md`](CHANGELOG.md)** under `[Unreleased]` for anything a user would
   notice (Added, Changed, Fixed, Security). Internal changes need none.
-- **Green CI:** `test`, `install-tests`, `integration`, `release-snapshot` and `homebrew`.
+- **Green CI:** `test`, `install-tests`, `integration`, `release-snapshot` and `homebrew`. The
+  three macOS jobs (`install-tests`, `integration`, `homebrew`) are skipped when a pull request
+  changes only docs (`*.md`, `docs/`, `assets/demo/`, issue forms), which counts as passing.
   Pull requests are squash-merged, so the title becomes the commit message: say what changes,
   in the imperative ("Retry fresh ports when Start is asked for port 0").
 
