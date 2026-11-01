@@ -192,8 +192,10 @@ Progress (2026-11-01):
   ([`security-guide.md`](security-guide.md)), and `v0.1.0` published on GitHub Releases and
   npm (`npm install -g dotlane`, `npx dotlane`), with provenance.
 - Not met: the tap. Homebrew is on hold, so `v0.1.0` ships through npm and the source build.
-- Left: the exit check on a new user account and locking down npm (steps 8 and 9 of
-  [`launch.md`](launch.md)), and signing (P2-M2).
+- The exit check passed through npm on a new user account on a real Mac (2026-11-01, step 8
+  of [`launch.md`](launch.md)): `npm install -g dotlane`, `dotlane install`, a site served
+  over HTTPS in Safari, `dotlane uninstall --purge`, then `npx dotlane` with nothing installed.
+- Left: locking down npm (step 9 of [`launch.md`](launch.md)), and signing (P2-M2).
 
 ## Exit criteria (from the roadmap)
 
@@ -201,6 +203,10 @@ Progress (2026-11-01):
 fresh macOS runner, and on a new user account on a real Mac (which also exercises Gatekeeper and
 Login Items): each channel goes from nothing to `https://<name>.traix` serving a dev server, then
 upgrades and uninstalls cleanly.
+
+Status (2026-11-01): **npm** goes from nothing to a site and uninstalls cleanly on a new user
+account; the upgrade waits for a second release. **Homebrew** is on hold (its CI job covers the
+install, upgrade and uninstall on a runner).
 
 ## Risks
 
