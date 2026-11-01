@@ -111,7 +111,7 @@ Planned:
   (checked the way the integration test checks a reinstall); `dotlane uninstall && brew uninstall
   --zap` leaves nothing behind.
 
-### P2-M4: npm packages (≈ 3 days) — built 2026-10-30, first publish pending
+### P2-M4: npm packages (≈ 3 days) — built 2026-10-30, first publish 2026-10-31
 
 Built: the launcher package `dotlane` (Node shim, no install scripts) and the platform packages
 `@dotlane/darwin-arm64` and `@dotlane/darwin-x64`, packed from the release binaries by
@@ -119,8 +119,9 @@ Built: the launcher package `dotlane` (Node shim, no install scripts) and the pl
 Mach-O for its package's CPU). Tested by unit tests for the launcher and the build (Linux CI) and
 an end-to-end `npm install` from the tarballs plus `npx dotlane` (`scripts/npm-e2e.sh`, arm64 on a
 development Mac, x64 in CI). Every release attaches the tarballs to its draft; publishing waits
-for the one-time steps in [`releasing.md`](releasing.md#npm), the first of which is claiming the
-unscoped name `dotlane` (still free on npm).
+for the one-time steps in [`releasing.md`](releasing.md#npm). The names are claimed: `v0.1.0-rc.2`
+of all three was published by hand on 2026-10-31 (`npx dotlane@next version` works); publishing
+from CI starts when the repository goes public.
 
 Planned:
 

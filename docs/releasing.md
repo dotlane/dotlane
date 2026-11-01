@@ -77,19 +77,35 @@ Tests: `node --test 'npm/test/*.test.*'` (the launcher and the build), and
 [`scripts/npm-e2e.sh`](../scripts/npm-e2e.sh), which packs real binaries, installs them into a
 scratch project and runs `npx dotlane` (on this Mac's architecture; CI's Intel job covers x64).
 
+The release workflow publishes with [`scripts/npm-publish.sh`](../scripts/npm-publish.sh),
+platform packages first; every pull request runs the same script with `--dry-run`.
+
 **Publishing is off** until these one-time steps are done (the *Publish to npm* step checks the
 repository variable `NPM_PUBLISH`):
 
-1. **Claim the name `dotlane` now.** The npm organization `dotlane` owns the `@dotlane/*`
-   packages, but the unscoped name `dotlane` is free (checked 2026-10-30) and goes to whoever
-   publishes it first.
-2. **First publish, by hand, from a maintainer's machine** (npm needs a package to exist before
-   a trusted publisher can be set on it): `npm login`, then `npm publish --access public --tag next`
-   for each tarball of a release candidate, platform packages first. Use npm's two-factor
-   authentication.
-3. **Trusted publishing**, on each of the three packages on npmjs.com (Settings → Trusted
-   publisher → GitHub Actions): repository `dotlane/dotlane`, workflow `release.yml`, environment
-   `release`. From then on the release workflow publishes with a short-lived OIDC token; there
-   is no npm token to store or steal.
-4. **Make the repository public**: npm provenance (`--provenance`) requires a public source
-   repository. Then set the repository variable `NPM_PUBLISH` to `true`.
+1. ~~**Claim the name `dotlane`.**~~ Done 2026-10-31.
+2. ~~**First publish, by hand**~~ (npm needs a package to exist before a trusted publisher can be
+   set on it): `v0.1.0-rc.2` of all three packages, under `next` (npm also points `latest` at
+   it until `0.1.0`). Done 2026-10-31.
+3. **Make the repository public** ([`security-guide.md`](security-guide.md), *Before the tool's
+   repository goes public*): npm provenance (`--provenance`) requires a public source
+   repository, and the public repository is a new one.
+4. **Trusted publishing, then a release within two days.** On each of the three packages on
+   npmjs.com, *Settings → Trusted publisher → GitHub Actions*:
+
+   | Field | Value |
+   | --- | --- |
+   | Organization or user | `dotlane` |
+   | Repository | `dotlane` |
+   | Workflow filename | `release.yml` |
+   | Environment name | `release` |
+   | Allowed actions | `npm publish` ticked (the workflow does not stage) |
+
+   npm discards a trusted publisher that has not published within two days of being set, and
+   the first publish binds it to the repository's identity; so set it only once the public
+   repository exists, then set the repository variable `NPM_PUBLISH` to `true` and tag the next
+   release right away. From then on the release workflow publishes with a short-lived OIDC
+   token; there is no npm token to store or steal.
+5. **Lock it down:** on each package, *Settings → Publishing access → Require two-factor
+   authentication and disallow tokens*, then revoke any npm token left on a maintainer's
+   machine (`npm token list`).

@@ -41,6 +41,15 @@ current token, or accepted by the API but not saved):
       that expose my email** (step 1 of the go-public procedure below; the repositories already
       commit as the noreply address, so pushes keep working once blocking is on)
 
+### Advisories that do not affect Dotlane
+
+Dependabot alerts dismissed as *vulnerable code not used*, with the reason; revisit each when its
+fix ships.
+
+| Advisory | Dependency | Why Dotlane is not affected | Remove when |
+| --- | --- | --- | --- |
+| GHSA-mgcc-cww5-fp2q (high), GHSA-4w3g-jfj2-cw2q, GHSA-vvm8-gf78-28g4 (2026-10-27/28; no v3 fix) | `github.com/go-jose/go-jose/v3` v3.0.5, imported only by `go.step.sm/crypto/jose`, through Caddy's internal CA (`caddytls` → `caddypki` → `smallstep/certificates`) | All three need untrusted JOSE input (nested JSON, a CBC ciphertext, a JWK with an RSA key). Dotlane parses none: no ACME server is compiled in, and the internal issuer signs a CSR certmagic made locally, without tokens. A VTA call graph (2026-10-31) finds v3 reached only to encrypt, generate keys, and `jwt.ParseSigned` in `newLinkedCAClient`, which runs only with a linked-CA token (Caddy never sets one). `govulncheck` cannot check them yet: they are not in the Go vulnerability database | [smallstep/crypto#1157](https://github.com/smallstep/crypto/pull/1157) (v3 → v4, approved) is released, then a `smallstep/certificates` release built on it (v0.30.2 does not compile against #1157). Upgrade both; `go mod why -m github.com/go-jose/go-jose/v3` must then find nothing outside tests |
+
 ## The repositories and their boundaries
 
 Repositories are split by who may see them and which secrets they may use. GitHub sets visibility
@@ -166,6 +175,10 @@ So the public repository starts from **a fresh history**; the full history stays
    point to the new repository (links to old CI runs are only valid in the archive).
 7. **Publish:** make it public, apply the repository settings above, and enable the checks of
    the ruleset.
+8. **npm:** set the trusted publishers and `NPM_PUBLISH`, then tag a release within two days
+   ([`releasing.md`](releasing.md#npm), steps 4 and 5). Not before: npm discards a trusted
+   publisher that has not published within two days, and binds it to the repository it first
+   publishes from.
 
 ## When something goes wrong
 

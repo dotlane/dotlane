@@ -14,11 +14,17 @@ the release notes, and refuses a tag that has none.
 ### Added
 
 - npm packages: `dotlane` (a Node launcher) with the binary in `@dotlane/darwin-arm64` or
-  `@dotlane/darwin-x64`, built from each release and attached to it; not yet published.
+  `@dotlane/darwin-x64`, built from each release and attached to it. `0.1.0-rc.2` is on npm under
+  the `next` tag (`npx dotlane@next`).
 
 ### Changed
 
 - Help, docs and examples use a neutral app name (`myapp`).
+
+### Security
+
+- `golang.org/x/net` v0.62.0, fixing two vulnerabilities in its `html` package (GO-2026-6860,
+  GO-2026-6866), in code Dotlane does not call.
 
 ## [0.1.0] - 2026-10-30
 

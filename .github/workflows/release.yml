@@ -59,13 +59,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to npm
-        # Off until the packages exist on npm with this workflow as their trusted publisher, and
-        # the repository is public (provenance needs it): see docs/releasing.md, npm. Platform
-        # packages first, so the launcher never points at versions that are not there yet.
+        # Off until the repository is public (provenance needs it) and the three packages have
+        # this workflow as their trusted publisher: see docs/releasing.md, npm.
         if: vars.NPM_PUBLISH == 'true'
-        working-directory: dist/npm
-        run: |
-          tag=$(cat dist-tag)
-          for p in dotlane-darwin-arm64 dotlane-darwin-x64 dotlane; do
-            npm publish --provenance --access public --tag "$tag" ./$p-*.tgz
-          done
+        run: scripts/npm-publish.sh dist/npm --provenance
