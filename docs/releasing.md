@@ -94,14 +94,27 @@ Dotlane up, serves a site, upgrades to a second build, and removes everything
 
 1. **The repository:** `dotlane/homebrew-tap`, private until the tool goes public (Homebrew cannot
    download a private repository's release files).
-2. **The deploy key**, which can write to the tap and nothing else:
+2. **The deploy key**, which can write to the tap and nothing else. The organization must allow
+   deploy keys (Settings → Repository → Deploy keys, or
+   `gh api -X PATCH orgs/dotlane -F deploy_keys_enabled_for_repositories=true`); otherwise
+   adding it is refused. Each command runs only if the one before it worked, so the secret is
+   replaced only by a key that can read the tap:
 
    ```bash
-   ssh-keygen -t ed25519 -N "" -C "dotlane release → homebrew-tap" -f tap-key
-   gh repo deploy-key add tap-key.pub -R dotlane/homebrew-tap --allow-write --title "dotlane release"
-   gh secret set HOMEBREW_TAP_DEPLOY_KEY -R dotlane/dotlane --env release < tap-key
-   rm tap-key tap-key.pub
+   d=$(mktemp -d) && cd "$d" && \
+   ssh-keygen -q -t ed25519 -N "" -C "dotlane release → homebrew-tap" -f tap-key && \
+   gh repo deploy-key add tap-key.pub -R dotlane/homebrew-tap --allow-write --title "dotlane release" && \
+   GIT_SSH_COMMAND="ssh -F /dev/null -i $d/tap-key -o IdentitiesOnly=yes -o IdentityAgent=none -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
+     git ls-remote git@github.com:dotlane/homebrew-tap.git && \
+   gh secret set HOMEBREW_TAP_DEPLOY_KEY -R dotlane/dotlane --env release < tap-key; \
+   cd ~ && rm -rf "$d"
    ```
+
+   `-F /dev/null` and `IdentityAgent=none` make SSH offer only the new key. Without them, a key
+   from `~/.ssh/config` or the agent can log in first as another GitHub account, and the check
+   fails with "Repository not found" although the deploy key is fine. If the check fails, the
+   secret is left as it was; delete the new deploy key on the tap (its private half is gone) and
+   start over.
 
 3. **When the tool goes public:** make the tap public, and set the repository variable
    `HOMEBREW_PUBLISH` to `true`. The next published release fills the tap.

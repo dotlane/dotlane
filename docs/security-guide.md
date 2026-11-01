@@ -14,7 +14,7 @@ features only on public repositories), and what an owner sets by hand in the web
 
 | Where | Setting |
 | --- | --- |
-| Organization | Base permission `none`; only owners create repositories; members cannot create Pages sites; Dependabot alerts, security updates and the dependency graph on for new repositories |
+| Organization | Base permission `none`; only owners create repositories; members cannot create Pages sites; Dependabot alerts, security updates and the dependency graph on for new repositories; deploy keys allowed (only the tap has one, see the secrets table) |
 | All three repositories | Actions limited to GitHub-owned and verified-creator actions; `GITHUB_TOKEN` read-only by default and unable to approve pull requests; Dependabot alerts and security updates on |
 | `dotlane/dotlane` | `release` environment that accepts only `v*` tags |
 | All three repositories (local) | Commits use the GitHub noreply address (`git config user.email`), so nothing new carries a personal address |
@@ -79,6 +79,8 @@ Set once, in the organization's settings, and checked before the tool goes publi
 - [ ] **Actions:** allow only actions from GitHub and verified creators, plus those pinned by
       the workflows; default `GITHUB_TOKEN` permission **read-only**; **require approval for
       workflows from fork pull requests** (all outside contributors).
+- [ ] **Deploy keys allowed**, for the tap's key (`HOMEBREW_TAP_DEPLOY_KEY`). Any other deploy
+      key on any repository is a finding.
 - [ ] **No self-hosted runners.** A pull request from a fork could run its code on the machine.
       Every workflow uses GitHub-hosted runners.
 - [ ] Owners: at least two people once there is a second maintainer, each with 2FA and a
