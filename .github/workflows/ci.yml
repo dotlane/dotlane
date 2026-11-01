@@ -18,6 +18,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    # Decides whether the three macOS jobs run, the expensive ones (a macOS minute costs ten
+    # Linux minutes on a private repository): for a release tag, always; for a pull request, only
+    # when it changes more than docs; for a push to main, never, since its pull request ran them
+    # and release.yml reruns everything before publishing. A skipped job counts as passed for
+    # the ruleset's required checks. The Linux jobs always run.
+    runs-on: ubuntu-latest
+    outputs:
+      macos: ${{ steps.decide.outputs.macos }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2 # a pull request's merge commit and its base
+      - id: decide
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            macos=true
+          elif [[ $GITHUB_EVENT_NAME == pull_request ]]; then
+            # The merge commit's first parent is the base branch, so this diff is the pull request.
+            code=$(git diff --name-only HEAD^1 HEAD | grep -vE '\.md$|^docs/|^assets/demo/|^\.github/ISSUE_TEMPLATE/' || true)
+            if [[ -n $code ]]; then macos=true; else macos=false; fi
+            printf 'Changed outside the docs:\n%s\n' "${code:-(nothing)}"
+          else
+            macos=false
+          fi
+          echo "macOS jobs: $macos"
+          echo "macos=$macos" >> "$GITHUB_OUTPUT"
+
   test:
     # Linux: starts in seconds and costs a tenth of macOS minutes. Everything but the installer
     # builds and tests here; the macOS-only code is still vetted and scanned (GOOS=darwin).
@@ -38,6 +66,8 @@ jobs:
     # The installer (launchd, keychain, /etc/resolver, its fakes) is macOS-only code. Intel:
     # GitHub's arm64 Macs kept failing to start this job for lack of capacity (2026-10-30), and
     # these tests use fakes, not the hardware. The integration test stays on arm64.
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
     runs-on: macos-15-intel
     timeout-minutes: 30 # counts time queued for a macOS runner too
     steps:
@@ -55,7 +85,8 @@ jobs:
   integration:
     # The real thing on a throwaway Mac: login service, System keychain, /etc/resolver, ports
     # 80/443, with passwordless sudo. See scripts/integration.sh.
-    needs: test
+    needs: [test, changes]
+    if: needs.changes.outputs.macos == 'true'
     # Intel, like install-tests: GitHub's arm64 Macs kept failing to start jobs for lack of
     # capacity (2026-10-30). The arm64 build is still produced and checked by release-snapshot.
     # Move back to macos-latest (arm64) once capacity recovers.
@@ -129,7 +160,8 @@ jobs:
     # install, a site, brew upgrade (the next command restarts the service on the new version),
     # then dotlane uninstall --purge and brew uninstall --zap leave nothing. See
     # scripts/brew-e2e.sh. Pull requests only, like release-snapshot; Intel, like integration.
-    needs: release-snapshot
+    needs: [release-snapshot, changes]
+    if: needs.changes.outputs.macos == 'true'
     runs-on: macos-15-intel
     timeout-minutes: 30
     steps:

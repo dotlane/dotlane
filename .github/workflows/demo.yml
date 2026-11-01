@@ -1,14 +1,12 @@
 # Records the README's terminal recording (assets/demo/dotlane.tape) on a throwaway Mac, where the
 # real `dotlane install` can run with passwordless sudo, and uploads the GIF to commit by hand.
-# Runs when the tape or this workflow changes, or on demand.
+# On demand only (`gh workflow run demo.yml --ref <branch>`), after changing the tape or the
+# output it shows: a pull_request paths filter matches the whole pull request, so it re-recorded
+# on every push to one.
 name: Demo
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - assets/demo/dotlane.tape
-      - .github/workflows/demo.yml
 
 permissions:
   contents: read
