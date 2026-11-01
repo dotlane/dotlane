@@ -57,8 +57,12 @@ system's DNS and trust, uninstall); it changes the system, so it runs on CI's th
 runners, not on a development Mac. `go run ./scripts/brandgen` redraws every icon file from the
 numbers in it (see [`docs/brand.md`](docs/brand.md)).
 
+Before pushing, `scripts/check.sh` runs what CI's `test` job runs (gofmt, build, vet and
+`govulncheck` for Linux and macOS, `go test -race`, the npm tests, `goreleaser check`); about a
+minute the first time, while it fetches its pinned tools, then under 20 seconds.
+
 ```bash
-go test -race ./...
+scripts/check.sh
 go build -o bin/dotlane ./cmd/dotlane
 
 ./bin/dotlane --config dev/config.toml serve             # terminal 1: DNS :10054, HTTPS :9443

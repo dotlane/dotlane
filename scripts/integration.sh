@@ -117,7 +117,8 @@ echo "$out" | grep -q "restarted" && { echo "$out"; fail "an unchanged binary re
 echo "restarted into the new build (pid $pid_before → $pid_after); an unchanged install left it alone"
 
 step "install --refresh after an upgrade"
-# What the Homebrew and npm packages run after an upgrade: no password, just the new build.
+# What a user runs after an upgrade (and what the next add, rm, ls, up or down does on its own
+# for a newer release): no password, just the new build.
 before=$(daemon)
 go build -ldflags "-X main.version=ci-build-3" -o "$BIN" ./cmd/dotlane
 out=$(DL install --refresh 2>&1) || { echo "$out"; fail "install --refresh failed"; }

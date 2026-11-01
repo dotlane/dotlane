@@ -57,10 +57,10 @@ per repository, which is why there are four, not one.
 
 | Repository | Visibility | Holds | May use |
 | --- | --- | --- | --- |
-| `dotlane/dotlane` | private now, **public** at `v0.1.0` | The tool (CLI and daemon), its docs, the brand assets, the integration test | The `release` environment (signing, notarization); npm through trusted publishing; a token limited to `homebrew-tap` |
+| `dotlane/dotlane` | private now, **public** at `v0.1.0` | The tool (CLI and daemon), its docs, the brand assets, the integration test | The `release` environment (signing, notarization); npm through trusted publishing; a deploy key for `homebrew-tap` |
 | `dotlane/website` | private | The website | One deploy credential, in its own `production` environment |
 | `dotlane/desktop` | private until launch | The desktop apps | The `release` environment |
-| `dotlane/homebrew-tap` (Phase 2) | public | The cask, written by the tool's release job | Nothing |
+| `dotlane/homebrew-tap` | private now, **public** with the tool | The cask, pushed by the tool's `tap.yml` when a release is published | Nothing |
 
 Rules that follow from the split:
 
@@ -86,8 +86,9 @@ Set once, in the organization's settings, and checked before the tool goes publi
 
 ## Settings for the public repository
 
-- [ ] **Ruleset on `main`:** changes through pull requests only, the `test` and `integration`
-      checks must pass, no force pushes, no deletion. Tags `v*` can be created only by
+- [ ] **Ruleset on `main`:** changes through pull requests only, the `test`, `install-tests`,
+      `integration`, `release-snapshot` and `homebrew` checks must pass, no force pushes, no
+      deletion. Tags `v*` can be created only by
       maintainers.
 - [ ] **Secret scanning and push protection** on (free for public repositories): a push that
       contains a recognised secret is refused.
@@ -102,7 +103,7 @@ Set once, in the organization's settings, and checked before the tool goes publi
 | Apple Developer ID Application certificate (`.p12`) and its password | Secrets of the `release` environment | `dotlane`, `desktop`, after a maintainer approves the run | Revoke in the Apple Developer portal; already notarized releases stay valid, new ones need a new certificate |
 | App Store Connect API key (notarization) | `release` environment | Same | Revoke the key in App Store Connect; issue a new one |
 | npm publishing | **None**: npm trusted publishing (OIDC) from the release workflow | The release workflow on a tag | Remove the trusted publisher in npm's package settings |
-| Tap token | Fine-grained token, write access to `dotlane/homebrew-tap` only | The release workflow | Revoke and recreate; expiry at most 90 days |
+| Tap deploy key | SSH deploy key with write access, on `dotlane/homebrew-tap` only; its private half is the `release` environment's secret `HOMEBREW_TAP_DEPLOY_KEY` | `tap.yml`, when a release is published | Delete the deploy key on the tap and the secret; generate a new pair. A deploy key reaches one repository by construction, unlike a token, and does not expire, so rotate it yearly |
 | Website deploy credential | `production` environment of `dotlane/website` | That repository, after approval | Replace the key on the server and in the environment |
 
 - The `release` environment requires a maintainer's approval and accepts only runs from `v*`
@@ -175,7 +176,9 @@ So the public repository starts from **a fresh history**; the full history stays
    point to the new repository (links to old CI runs are only valid in the archive).
 7. **Publish:** make it public, apply the repository settings above, and enable the checks of
    the ruleset.
-8. **npm:** set the trusted publishers and `NPM_PUBLISH`, then tag a release within two days
+8. **Homebrew:** make `dotlane/homebrew-tap` public, and set the repository variable
+   `HOMEBREW_PUBLISH` to `true` ([`releasing.md`](releasing.md#homebrew)).
+9. **npm:** set the trusted publishers and `NPM_PUBLISH`, then tag a release within two days
    ([`releasing.md`](releasing.md#npm), steps 4 and 5). Not before: npm discards a trusted
    publisher that has not published within two days, and binds it to the repository it first
    publishes from.

@@ -13,6 +13,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -220,6 +221,23 @@ func (m *Mac) Refresh(ctx context.Context) error {
 	}
 	m.UI.Done("Dotlane is up to date.", "")
 	return nil
+}
+
+// Upgrade implements Installer.
+func (m *Mac) Upgrade(ctx context.Context, version string, out io.Writer) (bool, error) {
+	if _, err := os.Stat(m.plistPath()); err != nil {
+		return false, nil
+	}
+	st, err := m.Daemon(ctx)
+	if err != nil || !Newer(version, st.Version) {
+		return false, nil
+	}
+	m.UI = ui.New(out)
+	m.UI.Title("Updating the Dotlane service", fmt.Sprintf("it runs %s, this is %s", st.Version, version))
+	if err := m.installService(ctx); err != nil {
+		return false, err
+	}
+	return true, m.tightenPermissions()
 }
 
 // Install sets everything up; already-done steps are reported and skipped.

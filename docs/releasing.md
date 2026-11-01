@@ -62,6 +62,53 @@ checks each against a SHA-256 pinned in the script, rather than using third-part
 six minutes per run). Updating a tool means changing its version and checksum there, and the
 version here.
 
+## Homebrew
+
+Every release also writes a cask, `dotlane.rb` (GoReleaser's `homebrew_casks` in
+[`.goreleaser.yaml`](../.goreleaser.yaml)), and attaches it to the draft. **Publishing** the
+draft runs [`tap.yml`](../.github/workflows/tap.yml), which commits it to
+[`dotlane/homebrew-tap`](https://github.com/dotlane/homebrew-tap) as `Casks/dotlane.rb`
+([`scripts/tap-update.sh`](../scripts/tap-update.sh)). Not earlier, because the cask's URLs point
+at the release's files, which cannot be downloaded while it is a draft; and not for
+pre-releases. Users then get it with `brew install dotlane/tap/dotlane` or `brew upgrade`.
+
+What the cask does:
+
+- Puts `dotlane` on the PATH and shows caveats: run `dotlane install` once, and `dotlane
+  uninstall` before `brew uninstall`.
+- Removes macOS's quarantine attribute from the binary (`postflight_steps`), which an unsigned
+  download needs. Remove this once releases are signed and notarized (P2-M2).
+- `brew uninstall --zap` also trashes `~/Library/Application Support/dotlane`,
+  `~/Library/Logs/dotlane` and `~/.config/dotlane`.
+- **Upgrades:** the cask does not restart the service. Homebrew runs cask hooks in a sandbox with
+  a temporary home, and its unsandboxed Ruby hooks are deprecated (checked with Homebrew 7.0.11,
+  2026-10-31). Instead, the next `add`, `rm`, `ls`, `up` or `down` finds the service running an
+  older release and updates it, as `dotlane install --refresh` does (no password). npm upgrades
+  get the same, since its packages have no install scripts.
+
+Tests: every pull request installs the snapshot's cask from a local tap on a macOS runner, sets
+Dotlane up, serves a site, upgrades to a second build, and removes everything
+([`scripts/brew-e2e.sh`](../scripts/brew-e2e.sh), the *homebrew* job in `ci.yml`).
+
+**Publishing to the tap is off** until these one-time steps are done:
+
+1. **The repository:** `dotlane/homebrew-tap`, private until the tool goes public (Homebrew cannot
+   download a private repository's release files).
+2. **The deploy key**, which can write to the tap and nothing else:
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C "dotlane release → homebrew-tap" -f tap-key
+   gh repo deploy-key add tap-key.pub -R dotlane/homebrew-tap --allow-write --title "dotlane release"
+   gh secret set HOMEBREW_TAP_DEPLOY_KEY -R dotlane/dotlane --env release < tap-key
+   rm tap-key tap-key.pub
+   ```
+
+3. **When the tool goes public:** make the tap public, and set the repository variable
+   `HOMEBREW_PUBLISH` to `true`. The next published release fills the tap.
+
+By hand (for example if the workflow failed): `scripts/tap-update.sh v0.1.0`, with SSH access to
+the tap.
+
 ## npm
 
 Every release also builds the npm packages from its own binaries

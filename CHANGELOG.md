@@ -16,10 +16,16 @@ the release notes, and refuses a tag that has none.
 - npm packages: `dotlane` (a Node launcher) with the binary in `@dotlane/darwin-arm64` or
   `@dotlane/darwin-x64`, built from each release and attached to it. `0.1.0-rc.2` is on npm under
   the `next` tag (`npx dotlane@next`).
+- A Homebrew cask for `brew install dotlane/tap/dotlane`, built with each release and published
+  to the `dotlane/homebrew-tap` tap when the release is.
 
 ### Changed
 
 - Help, docs and examples use a neutral app name (`myapp`).
+- After an upgrade through Homebrew or npm, the next `add`, `rm`, `ls`, `up` or `down` restarts
+  the service on the new version, as `dotlane install --refresh` does: package managers replace
+  the binary but cannot restart the service. Only for a newer release, never a downgrade or a
+  development build; `DOTLANE_NO_AUTO_REFRESH=1` turns it off.
 
 ### Security
 

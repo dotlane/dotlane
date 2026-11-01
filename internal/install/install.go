@@ -11,6 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
 )
 
 // Installer sets Dotlane up on one operating system, checks it, and removes it.
@@ -20,12 +23,38 @@ type Installer interface {
 	// older one, without administrator rights; it does nothing when Dotlane is not installed.
 	// Package managers run it after an upgrade.
 	Refresh(ctx context.Context) error
+	// Upgrade refreshes an installed login service when its daemon runs an older release than
+	// version (see Newer), reporting to out, and says whether it did. Package managers replace
+	// the binary on the PATH but cannot restart the service (Homebrew runs cask hooks in a
+	// sandbox, and the npm packages have no install scripts), so commands that use the daemon
+	// call it first.
+	Upgrade(ctx context.Context, version string, out io.Writer) (bool, error)
 	// Uninstall reverses Install; purge also deletes Dotlane's state and log.
 	Uninstall(ctx context.Context, purge bool) error
 	// Doctor checks the installation and what could get in its way.
 	Doctor(ctx context.Context) []Check
 	// Migrate moves the machine from the Bash prototype to Dotlane, keeping its sites and CA.
 	Migrate(ctx context.Context) error
+}
+
+// Newer reports whether version is a later release than running, the daemon's version. Both must
+// be semantic versions ("0.2.0", "v0.2.0-rc.1"). A development build ("dev", or a Go
+// pseudo-version such as "v0.0.0-20261030172955-9c941e1f9f7e") never counts on either side, so
+// a local build and an installed release do not replace each other.
+func Newer(version, running string) bool {
+	v, r := canonical(version), canonical(running)
+	return v != "" && r != "" && semver.Compare(v, r) > 0
+}
+
+// canonical is version with its "v", or "" for anything but a release's semantic version.
+func canonical(version string) string {
+	if !strings.HasPrefix(version, "v") {
+		version = "v" + version
+	}
+	if !semver.IsValid(version) || module.IsPseudoVersion(version) {
+		return ""
+	}
+	return version
 }
 
 // CheckStatus is the outcome of one check.

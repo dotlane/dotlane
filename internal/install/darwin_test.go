@@ -832,3 +832,44 @@ func indexOf(calls []string, prefix string) int {
 	}
 	return -1
 }
+
+// After brew upgrade or a new npm version: the next command that uses the daemon finds it running
+// an older release, updates the service's copy and restarts it, reporting to the writer it was
+// given (stderr, so `ls --json` stays JSON), with no password.
+func TestUpgrade(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	other := &bytes.Buffer{}
+	if done, err := m.Upgrade(context.Background(), "0.2.0", other); done || err != nil {
+		t.Fatalf("not installed: Upgrade = %v, %v", done, err)
+	}
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	running := "0.1.0"
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: running, Started: time.Now().Add(-time.Hour)}, nil
+	}
+	os.WriteFile(m.Exe, []byte("dotlane build 2"), 0o755) // the package manager's new binary
+	fake.calls, fake.sudoCalls = nil, 0
+
+	for _, version := range []string{"0.1.0", "0.0.9", "dev"} {
+		if done, err := m.Upgrade(context.Background(), version, other); done || err != nil {
+			t.Errorf("%s over %s: Upgrade = %v, %v", version, running, done, err)
+		}
+	}
+	if len(fake.calls) != 0 || other.Len() != 0 {
+		t.Fatalf("not newer, but: %v\n%s", fake.calls, other)
+	}
+
+	out.Reset()
+	done, err := m.Upgrade(context.Background(), "0.2.0", other)
+	if !done || err != nil {
+		t.Fatalf("Upgrade = %v, %v\n%s", done, err, other)
+	}
+	if fake.sudoCalls != 0 || !sameFile(m.Exe, m.serviceExe()) || !fake.ran("launchctl kickstart -k") {
+		t.Errorf("not upgraded: copy updated %v, calls %v", sameFile(m.Exe, m.serviceExe()), fake.calls)
+	}
+	if !strings.Contains(other.String(), "it runs 0.1.0, this is 0.2.0") || out.Len() != 0 {
+		t.Errorf("report went to the wrong place:\nwriter:\n%s\nstdout:\n%s", other, out)
+	}
+}

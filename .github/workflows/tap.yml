@@ -1,0 +1,26 @@
+name: Homebrew tap
+
+# Publishing a release updates dotlane/homebrew-tap with the cask the Release workflow attached to
+# the draft (scripts/tap-update.sh). Only then: the cask's URLs point at the release's files, which
+# cannot be downloaded while it is a draft. Pre-releases stay out of the tap. Off until the
+# repository variable HOMEBREW_PUBLISH is true and the `release` environment has the tap's deploy
+# key: see docs/releasing.md, Homebrew.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  tap:
+    if: ${{ !github.event.release.prerelease && vars.HOMEBREW_PUBLISH == 'true' }}
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: scripts/tap-update.sh "$TAG"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}

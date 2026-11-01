@@ -91,7 +91,24 @@ Planned:
   `spctl --assess --type execute -vv` accepts a binary downloaded with a browser, and Login Items
   lists Dotlane under the developer's name.
 
-### P2-M3: Homebrew tap (≈ 2 days)
+### P2-M3: Homebrew tap (≈ 2 days) — built 2026-10-31, waiting for CI and going public
+
+Built: the cask (GoReleaser `homebrew_casks`, written by every build and attached to the draft
+release), [`tap.yml`](../.github/workflows/tap.yml) and
+[`scripts/tap-update.sh`](../scripts/tap-update.sh), which push it to the tap when a release is
+published, and the `dotlane/homebrew-tap` repository (local; created on GitHub by a maintainer).
+Changed from the plan below: the cask does **not** run `dotlane install --refresh`. Homebrew 7
+runs cask hooks in a sandbox with a temporary home, so the refresh would find nothing installed,
+and its unsandboxed Ruby hooks are deprecated (checked with throwaway casks, 2026-10-31).
+Instead the commands that use the daemon (`add`, `rm`, `ls`, `up`, `down`) update the service
+when it runs an older release (`install.Newer`, `Installer.Upgrade`), which also covers npm.
+Tested: unit tests for both, and [`scripts/brew-e2e.sh`](../scripts/brew-e2e.sh) (the *homebrew*
+CI job: brew install → dotlane install → a site → brew upgrade → the next command restarts the
+service → uninstall and zap leave nothing), which has not run yet: the account's Actions
+minutes ran out for October. Details in [`releasing.md`](releasing.md#homebrew).
+
+Planned:
+
 
 - The `dotlane/homebrew-tap` repository. GoReleaser updates it on each release
   (`homebrew_casks`, which recent GoReleaser versions generate in place of formulas; the cask

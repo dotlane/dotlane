@@ -66,5 +66,44 @@ release:
   draft: true
   prerelease: auto
 
+# The Homebrew tap, dotlane/homebrew-tap: brew install dotlane/tap/dotlane (docs/phase-2.md,
+# P2-M3). GoReleaser only writes the cask, to dist/homebrew/Casks/dotlane.rb; release.yml attaches
+# it to the draft, and tap.yml pushes it to the tap when the release is published, not before:
+# its URLs point at the release's files, which cannot be downloaded while it is a draft.
+homebrew_casks:
+  - name: dotlane
+    binaries: [dotlane]
+    homepage: https://github.com/dotlane/dotlane
+    description: Real, trusted HTTPS addresses for local dev servers
+    repository:
+      owner: dotlane
+      name: homebrew-tap
+    skip_upload: true
+    hooks:
+      post:
+        # Until the binaries are signed and notarized (P2-M2), macOS would refuse to run a
+        # quarantined download. Remove this then.
+        install_steps: |
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/dotlane"]
+    # `brew uninstall` cannot undo `dotlane install` (it needs a password), so the caveats say to
+    # run `dotlane uninstall` first. After an upgrade, the next command that uses the daemon
+    # restarts it on the new version (install.Installer.Upgrade): cask hooks run in a sandbox
+    # that cannot.
+    caveats: |
+      Set Dotlane up once (it explains the two steps that ask for your password):
+        dotlane install
+      Then serve a dev server at https://myapp.traix:
+        dotlane add myapp 5173
+
+      After `brew upgrade`, the next dotlane command restarts the service on the new version.
+
+      Before `brew uninstall dotlane`, run `dotlane uninstall` (add --purge to also delete the
+      sites and the certificate authority); otherwise the service keeps running.
+    zap:
+      trash:
+        - ~/Library/Application Support/dotlane
+        - ~/Library/Logs/dotlane
+        - ~/.config/dotlane
+
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot+{{ .ShortCommit }}"

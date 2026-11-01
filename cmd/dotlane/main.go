@@ -97,10 +97,33 @@ func newRoot() *cobra.Command {
 		configPath = p // install writes it into the login service
 		return config.Load(p)
 	}
-	client := func() (*api.Client, error) {
+	installer := func() (install.Installer, error) {
 		cfg, err := loadConfig()
 		if err != nil {
 			return nil, err
+		}
+		c := api.NewClient(cfg.SocketPath())
+		status := func(ctx context.Context) (api.Status, error) {
+			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			return c.Status(ctx)
+		}
+		return install.New(cfg, configPath, status)
+	}
+	// client reaches the daemon, after bringing the login service up to this binary when it runs
+	// an older release: package managers replace the binary but cannot restart the service
+	// (install.Installer.Upgrade). DOTLANE_NO_AUTO_REFRESH=1 turns that off.
+	client := func(cmd *cobra.Command) (*api.Client, error) {
+		cfg, err := loadConfig()
+		if err != nil {
+			return nil, err
+		}
+		if os.Getenv("DOTLANE_NO_AUTO_REFRESH") == "" {
+			if i, err := installer(); err == nil {
+				if _, err := i.Upgrade(cmd.Context(), versionString(), cmd.ErrOrStderr()); err != nil {
+					ui.New(cmd.ErrOrStderr()).Warn("Login service", "not updated: "+err.Error()+"; run: dotlane install --refresh")
+				}
+			}
 		}
 		return api.NewClient(cfg.SocketPath()), nil
 	}
@@ -143,7 +166,7 @@ func newRoot() *cobra.Command {
 			if err := (sites.Site{Name: args[0], Port: port}).Validate(); err != nil {
 				return err
 			}
-			c, err := client()
+			c, err := client(cmd)
 			if err != nil {
 				return err
 			}
@@ -169,7 +192,7 @@ func newRoot() *cobra.Command {
 		Example: "  dotlane rm myapp",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := client()
+			c, err := client(cmd)
 			if err != nil {
 				return err
 			}
@@ -191,7 +214,7 @@ func newRoot() *cobra.Command {
   dotlane ls --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := client()
+			c, err := client(cmd)
 			if err != nil {
 				return err
 			}
@@ -240,7 +263,7 @@ func newRoot() *cobra.Command {
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		c, err := client()
+		c, err := client(cmd)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -347,20 +370,6 @@ func newRoot() *cobra.Command {
 		},
 	})
 
-	installer := func() (install.Installer, error) {
-		cfg, err := loadConfig()
-		if err != nil {
-			return nil, err
-		}
-		c := api.NewClient(cfg.SocketPath())
-		status := func(ctx context.Context) (api.Status, error) {
-			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			defer cancel()
-			return c.Status(ctx)
-		}
-		return install.New(cfg, configPath, status)
-	}
-
 	var refresh bool
 	install := &cobra.Command{
 		Use:   "install",
@@ -369,8 +378,8 @@ func newRoot() *cobra.Command {
 			"the domain endings at its DNS. Steps already done are skipped, so it is safe to re-run.\n" +
 			"Steps that need administrator rights are explained and run through sudo.\n\n" +
 			"--refresh only updates an installed service to this binary and restarts it if needed:\n" +
-			"no password, and nothing at all when Dotlane is not installed. Package managers run it\n" +
-			"after an upgrade.",
+			"no password, and nothing at all when Dotlane is not installed. After an upgrade, the next\n" +
+			"add, rm, ls, up or down does the same on its own.",
 		Example: `  dotlane install
   dotlane install --refresh`,
 		Args: cobra.NoArgs,

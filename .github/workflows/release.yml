@@ -45,6 +45,11 @@ jobs:
       - run: goreleaser release --clean --release-notes "$RUNNER_TEMP/notes.md"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Homebrew cask
+        # Pushed to dotlane/homebrew-tap by tap.yml once this draft is published.
+        run: gh release upload "$GITHUB_REF_NAME" dist/homebrew/Casks/dotlane.rb
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
