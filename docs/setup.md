@@ -7,10 +7,30 @@ How to install Dotlane, check it, upgrade it and remove it. What each step does 
 ## Requirements
 
 - macOS, Apple Silicon or Intel.
-- Go 1.27, to build the binary (packages come in Phase 2 of the [roadmap](roadmap.md)).
+- Homebrew or Node.js 18+ (npm) to install it, or Go 1.27 to build it from source.
 - Free ports 80 and 443. `dotlane install` checks this first, and names whatever holds them.
 
-## 1. Build and put it on your PATH
+## 1. Get the `dotlane` command
+
+Pick one. Each puts a single `dotlane` binary on your PATH; nothing runs until step 2.
+
+**Homebrew:**
+
+```bash
+brew install dotlane/tap/dotlane
+```
+
+**npm:**
+
+```bash
+npm install -g dotlane
+```
+
+The `dotlane` package is a small Node launcher; npm also installs the binary for your Mac's chip
+(`@dotlane/darwin-arm64` or `@dotlane/darwin-x64`), with no install scripts. To try it without
+installing, put `npx` in front of each command: `npx dotlane install`, `npx dotlane add …`.
+
+**From source:**
 
 ```bash
 git clone https://github.com/dotlane/dotlane && cd dotlane
@@ -24,8 +44,8 @@ If `dotlane` is not found afterwards, `~/.local/bin` is not on your PATH:
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc   # then open a new terminal
 ```
 
-`dotlane install` copies the binary to `~/Library/Application Support/dotlane/bin/` and the login
-service runs that copy: macOS holds back background jobs started from Documents, Desktop or
+Whichever way you install it, `dotlane install` copies the binary to
+`~/Library/Application Support/dotlane/bin/` and the login service runs that copy: macOS holds back background jobs started from Documents, Desktop or
 Downloads until you approve them, and a new build would need a new approval.
 
 ## 2. Install
@@ -80,16 +100,25 @@ curl -sI https://myapp.traix | head -1
 
 ## Upgrading
 
-Rebuild, then run `dotlane install`: it updates the service's copy of the binary and restarts the
-service, and does the same after a change to the config file. `doctor` warns when either is
-out of date.
+```bash
+brew upgrade dotlane          # Homebrew
+npm install -g dotlane        # npm
+```
+
+The package manager replaces the `dotlane` command, but cannot restart the service. The next
+`dotlane add`, `rm`, `ls`, `up` or `down` sees that the service runs an older release, updates its
+copy of the binary and restarts it, without a password (`DOTLANE_NO_AUTO_REFRESH=1` turns that
+off). To do it right away instead, run `dotlane install --refresh`.
+
+From source, rebuild and refresh the service yourself:
 
 ```bash
 git pull && go build -o bin/dotlane ./cmd/dotlane && dotlane install --refresh
 ```
 
-`--refresh` does only that part of install, so it never asks for a password; plain
-`dotlane install` also works and re-checks everything else.
+`--refresh` updates the service's copy of the binary and restarts it, and does the same after a
+change to the config file. It never asks for a password; plain `dotlane install` also works and
+re-checks everything else. `doctor` warns when the service runs an older binary or config.
 
 ## Using another domain ending
 
@@ -126,4 +155,11 @@ dotlane uninstall --purge   # also deletes the sites, the CA's keys and the log
 ```
 
 Each step that needs your password is explained first. Resolver files with other content are left
-alone (they belong to another tool). Then remove the binary and `~/.local/bin/dotlane`.
+alone (they belong to another tool). Run it **before** removing the command, or the service keeps
+running. Then:
+
+```bash
+brew uninstall --zap dotlane  # Homebrew; --zap also trashes Dotlane's folders
+npm uninstall -g dotlane      # npm
+rm ~/.local/bin/dotlane       # from source, then delete the clone
+```

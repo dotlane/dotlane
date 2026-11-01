@@ -22,6 +22,20 @@ dotlane add myapp 5173
 No hosts-file edits, no per-site certificates, no root daemon, and no change to how the dev server
 itself is started. Adding a domain takes about a second.
 
+## Install
+
+On macOS (Apple Silicon or Intel), with Homebrew or npm:
+
+```bash
+brew install dotlane/tap/dotlane      # or: npm install -g dotlane
+dotlane install                       # once: login service, trusted CA, DNS for .traix
+dotlane add myapp 5173                # https://myapp.traix -> localhost:5173
+```
+
+`dotlane install` explains the two steps that ask for your password before running them. Or try
+it without installing anything, with `npx dotlane install`. Building from source, upgrading and
+uninstalling are in [`docs/setup.md`](docs/setup.md).
+
 ## Works with any language
 
 Dotlane needs only a name and a port: it forwards `https://<name>.traix` to whatever listens on
@@ -34,7 +48,7 @@ must run PHP per request. That support (PHP-FPM, per-site PHP versions) is plann
 
 ## Status
 
-**Phase 1 is complete (2026-10-30):** one Go binary on macOS, built from source
+**Phase 1 is complete (2026-10-30):** one Go binary on macOS
 ([`docs/phase-1.md`](docs/phase-1.md)). It covers:
 - the daemon: DNS, embedded Caddy, a control socket;
 - `install` / `uninstall` / `doctor`;
@@ -46,8 +60,12 @@ The integration test on GitHub's macOS runners goes from install to the first si
 second, then checks upgrades and a clean uninstall. A real Vite + FastAPI project runs on it day to day.
 
 The Bash prototype it replaced (Caddy and dnsmasq around a ~100-line script, built 2026-10-29)
-is kept in [`docs/prototype/`](docs/prototype/). Next is Phase 2, packages for Homebrew and npm,
-planned in [`docs/phase-2.md`](docs/phase-2.md).
+is kept in [`docs/prototype/`](docs/prototype/).
+
+**Phase 2, packages, is under way** ([`docs/phase-2.md`](docs/phase-2.md)): releases with
+GoReleaser, the Homebrew cask and the npm packages are built, each tested on a macOS runner from
+install to the first site, then through an upgrade and a clean uninstall. Signing and
+notarization come next, then the public release.
 
 ## Development (Go version)
 
@@ -130,11 +148,12 @@ The same flow as text:
 | [`docs/how-it-works.md`](docs/how-it-works.md) | What the Go version does and how: the daemon, a request end to end, certificates, install, projects, `doctor`, `migrate` |
 | [`docs/architecture.md`](docs/architecture.md) | The Bash prototype: components, request flow, and why each design choice was made |
 | [`docs/diagrams/dotlane-components.svg`](docs/diagrams/dotlane-components.svg) | Diagram of the tools and libraries used and how a request flows (light and dark mode) |
-| [`docs/setup.md`](docs/setup.md) | Build, install, first site, upgrade, migrate from the prototype, uninstall (macOS) |
+| [`docs/setup.md`](docs/setup.md) | Install (Homebrew, npm or source), first site, upgrade, migrate from the prototype, uninstall (macOS) |
 | [`docs/cli.md`](docs/cli.md) | Command reference: every command, `dotlane.toml`, `config.toml`, output and exit codes |
 | [`docs/prototype/`](docs/prototype/) | The Bash prototype's setup and command reference, kept for reference |
 | [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with a Vite + FastAPI app as the example |
-| [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, and what is in scope |
+| [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, where the CA key lives, and what is in scope |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Issues, working on the code, what a pull request needs |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version; every version gets a section before it is tagged |
 | [`docs/releasing.md`](docs/releasing.md) | What a release contains and how to cut one (GoReleaser, `v*` tags, draft releases, npm packages) |
 | [`docs/security-guide.md`](docs/security-guide.md) | How the repositories, secrets, releases and website are protected; the checklist before going public |

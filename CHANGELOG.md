@@ -18,6 +18,13 @@ the release notes, and refuses a tag that has none.
   the `next` tag (`npx dotlane@next`).
 - A Homebrew cask for `brew install dotlane/tap/dotlane`, built with each release and published
   to the `dotlane/homebrew-tap` tap when the release is.
+- `NOTICE` lists every module the binary embeds, with its licence, and carries their own
+  notices; it ships in every archive and npm package. `scripts/notice.sh` regenerates it, and CI
+  fails when it is out of date.
+- `CONTRIBUTING.md`, and issue forms that ask for `dotlane doctor --json`. `SECURITY.md` says
+  where the CA's key lives and what to do if it leaks.
+- Install instructions for Homebrew and npm in the README and `docs/setup.md`, with building
+  from source as the third option.
 
 ### Changed
 

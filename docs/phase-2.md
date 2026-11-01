@@ -175,6 +175,14 @@ The esbuild/Biome pattern, with no install scripts:
   named `dotlane`) and the tap repository. The GitHub org exists (2026-10-30).
 - **Done when** `v0.1.0` is public on GitHub Releases, the tap and npm, and the site is live.
 
+Progress (2026-11-01):
+- Done: `NOTICE` from go-licenses (`scripts/notice.sh`, checked by CI), the CA key in
+  `SECURITY.md`, `CONTRIBUTING.md` and the issue forms, Homebrew and npm install instructions in
+  the README and `setup.md`.
+- Names reserved: npm `dotlane` and `@dotlane/*` (2026-10-31), the tap repository (private).
+- The organization's settings are done (`security-guide.md`).
+- Left: the terminal recording, the site, the fresh history, and the public-repository settings.
+
 ## Exit criteria (from the roadmap)
 
 `brew install dotlane/tap/dotlane` and `npx dotlane` both work on a clean machine. Checked on a

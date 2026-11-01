@@ -1,0 +1,58 @@
+name: Bug report
+description: Something does not work as the docs say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. A security problem? Don't open an issue: see [SECURITY.md](https://github.com/dotlane/dotlane/blob/main/SECURITY.md).
+        [Troubleshooting](https://github.com/dotlane/dotlane/blob/main/docs/troubleshooting.md) covers the common problems, and `dotlane doctor --fix` repairs what it can.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command you ran, what you expected, and what you got instead.
+      placeholder: |
+        dotlane add myapp 5173
+        Expected https://myapp.traix to load; Safari says the server cannot be found.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: dotlane doctor --json
+      description: |
+        Paste the output of `dotlane doctor --json`. It shows paths under your home folder as `~`, and the names of programs holding Dotlane's ports; look it over before posting.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: dotlane version
+      placeholder: 0.1.0 (abc1234, 2026-11-01T10:00:00Z)
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Installed with
+      options:
+        - Homebrew
+        - npm / npx
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip
+      placeholder: macOS 26.1, Apple Silicon
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Daemon log (optional)
+      description: The last lines of `~/Library/Logs/dotlane/dev.dotlane.log`, if the daemon is involved.
+      render: text
