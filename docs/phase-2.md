@@ -182,7 +182,10 @@ Progress (2026-11-01):
 - Names reserved: npm `dotlane` and `@dotlane/*` (2026-10-31), the tap repository (private).
 - The organization's settings are done (`security-guide.md`).
 - The history was cleaned and moved to a new repository (2026-11-01, `security-guide.md`).
-- Left: the terminal recording, the site, a gitleaks scan, and the public-repository settings.
+- The README's terminal recording: `assets/demo/dotlane.tape` (VHS), recorded on a macOS runner
+  by the `demo` workflow; re-record it after output changes by running that workflow.
+- gitleaks found no leaks in any of the four repositories (2026-11-01).
+- Left: the site, and the public-repository settings.
 
 ## Exit criteria (from the roadmap)
 
