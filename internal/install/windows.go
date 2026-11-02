@@ -234,14 +234,7 @@ func (w *Windows) Upgrade(ctx context.Context, version string, out io.Writer) (b
 
 // Install sets everything up; already-done steps are reported and skipped.
 func (w *Windows) Install(ctx context.Context) error {
-	pinned, err := keepOldDefault(ctx, w.Cfg, w.ConfigPath, w.Routed)
-	if err != nil {
-		return err
-	}
 	w.UI.Title("Installing Dotlane", w.summary())
-	if pinned {
-		w.UI.OK(keptNote(w.UI, w.ConfigPath))
-	}
 
 	if temporaryBuild(w.Exe) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin\\dotlane.exe .\\cmd\\dotlane) and install from it", w.Exe)
@@ -253,6 +246,14 @@ func (w *Windows) Install(ctx context.Context) error {
 	}
 	if _, err := w.spec().xml(); err != nil {
 		return err
+	}
+	// After the refusals above, which must not run anything: it lists the DNS rules.
+	pinned, err := keepOldDefault(ctx, w.Cfg, w.ConfigPath, w.Routed)
+	if err != nil {
+		return err
+	}
+	if pinned {
+		w.UI.OK(keptNote(w.UI, w.ConfigPath))
 	}
 	if err := w.preflight(ctx); err != nil {
 		return err

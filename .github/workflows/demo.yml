@@ -40,7 +40,7 @@ jobs:
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Record
         run: |
-          # The dev server the recording reaches through https://myapp.traix, answering before
+          # The dev server the recording reaches through https://myapp.dotlane, answering before
           # the tape starts.
           mkdir -p "$RUNNER_TEMP/site" && echo 'Hello from myapp' > "$RUNNER_TEMP/site/index.html"
           python3 -m http.server 5173 --bind 127.0.0.1 --directory "$RUNNER_TEMP/site" >/dev/null 2>&1 &
