@@ -144,7 +144,7 @@ func TestTLDAddWhenNotInstalled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if got, _ := os.ReadFile(path); !strings.Contains(string(got), `tlds = ["traix", "test"]`) {
+	if got, _ := os.ReadFile(path); !strings.Contains(string(got), `tlds = ["dotlane", "test"]`) {
 		t.Errorf("config = %q", got)
 	}
 	if len(fake.calls) != 0 || !strings.Contains(out, "dotlane install routes") {

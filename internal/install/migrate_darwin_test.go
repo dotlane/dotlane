@@ -210,3 +210,15 @@ func TestMigrateWithoutPrototype(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// The prototype's default was .traix as well: a migration with no ending in the file keeps it.
+func TestMigrateKeepsOldDefault(t *testing.T) {
+	m, _, out, _ := newPrototypeMac(t)
+	m.Cfg.TLDs, m.Cfg.TLDsSet = []string{"dotlane"}, false
+	if err := m.Migrate(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if strings.Join(m.Cfg.TLDs, " ") != "traix" || !strings.Contains(out.String(), ".traix kept") {
+		t.Errorf("TLDs = %q\n%s", m.Cfg.TLDs, out)
+	}
+}

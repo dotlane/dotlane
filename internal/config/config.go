@@ -18,9 +18,14 @@ import (
 	"github.com/dotlane/dotlane/internal/tld"
 )
 
+// DefaultTLD is the domain ending when the file sets none. Until v0.2.0 it was traix; the
+// integration tests build with -X to set it back, to test the upgrade from it.
+var DefaultTLD = "dotlane"
+
 // Config is the resolved configuration: defaults, overridden by the file.
 type Config struct {
 	TLDs    []string // domain endings, without the dot; sites answer on every one
+	TLDsSet bool     // the file chose the endings (tld or tlds), not DefaultTLD
 	DNSPort int      // DNS responder, on 127.0.0.1
 	// DNSPortSet is true when the file chose the DNS port. Otherwise install may pick another
 	// free one when the default is taken, and save it with SetDNSPort.
@@ -82,7 +87,7 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{
-		TLDs:      []string{"traix"},
+		TLDs:      []string{DefaultTLD},
 		DNSPort:   DefaultDNSPort,
 		HTTPPort:  80,
 		HTTPSPort: 443,
@@ -118,9 +123,9 @@ func Load(path string) (*Config, error) {
 	case raw.TLD != "" && len(raw.TLDs) > 0:
 		return nil, fmt.Errorf("%s: set tld or tlds, not both", path)
 	case raw.TLD != "":
-		cfg.TLDs = []string{raw.TLD}
+		cfg.TLDs, cfg.TLDsSet = []string{raw.TLD}, true
 	case len(raw.TLDs) > 0:
-		cfg.TLDs = raw.TLDs
+		cfg.TLDs, cfg.TLDsSet = raw.TLDs, true
 	}
 	if raw.DNSPort != 0 {
 		cfg.DNSPort, cfg.DNSPortSet = raw.DNSPort, true
@@ -184,6 +189,24 @@ func (c *Config) validate() error {
 // SetDNSPort records a DNS port in the config file at path, creating it if needed, with a
 // comment saying why. Only for files that do not set dns_port yet (see DNSPortSet).
 func SetDNSPort(path string, port int, why string) error {
+	return appendSetting(path, why, fmt.Sprintf("dns_port = %d", port))
+}
+
+// PinTLDs records endings in the config file at path, creating it if needed, with a comment
+// saying why. Only for files that do not set them yet (see TLDsSet); SetTLDs changes them.
+func PinTLDs(path string, tlds []string, why string) error {
+	quoted := make([]string, len(tlds))
+	for i, t := range tlds {
+		if err := tld.Syntax(t); err != nil {
+			return err
+		}
+		quoted[i] = strconv.Quote(t)
+	}
+	return appendSetting(path, why, "tlds = ["+strings.Join(quoted, ", ")+"]")
+}
+
+// appendSetting adds a commented setting at the end of the config file at path.
+func appendSetting(path, why, setting string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -191,7 +214,7 @@ func SetDNSPort(path string, port int, why string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(f, "\n# %s\ndns_port = %d\n", why, port); err != nil {
+	if _, err := fmt.Fprintf(f, "\n# %s\n%s\n", why, setting); err != nil {
 		f.Close()
 		return err
 	}

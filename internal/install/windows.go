@@ -161,7 +161,14 @@ func (w *Windows) taskState(ctx context.Context) (registered, current bool) {
 // task if needed, restart when stale). The CA and DNS steps are left out. Restarting the task is
 // tried without administrator rights; when Windows refuses, Refresh asks, saying so.
 func (w *Windows) Refresh(ctx context.Context) error {
+	pinned, err := keepOldDefault(ctx, w.Cfg, w.ConfigPath, w.Routed)
+	if err != nil {
+		return err
+	}
 	w.UI.Title("Refreshing Dotlane", w.summary())
+	if pinned {
+		w.UI.OK(keptNote(w.UI, w.ConfigPath))
+	}
 	registered, _ := w.taskState(ctx)
 	if _, err := os.Stat(w.serviceExe()); !registered && err != nil {
 		w.UI.Skip("Login service", "not installed; nothing to refresh (set it up with: dotlane install)")
@@ -211,7 +218,14 @@ func (w *Windows) Upgrade(ctx context.Context, version string, out io.Writer) (b
 		return false, nil
 	}
 	w.UI = ui.New(out)
+	pinned, err := keepOldDefault(ctx, w.Cfg, w.ConfigPath, w.Routed)
+	if err != nil {
+		return false, err
+	}
 	w.UI.Title("Updating the Dotlane service", fmt.Sprintf("it runs %s, this is %s", st.Version, version))
+	if pinned {
+		w.UI.OK(keptNote(w.UI, w.ConfigPath))
+	}
 	if err := w.finishService(ctx, false); err != nil {
 		return false, err
 	}
@@ -220,7 +234,14 @@ func (w *Windows) Upgrade(ctx context.Context, version string, out io.Writer) (b
 
 // Install sets everything up; already-done steps are reported and skipped.
 func (w *Windows) Install(ctx context.Context) error {
+	pinned, err := keepOldDefault(ctx, w.Cfg, w.ConfigPath, w.Routed)
+	if err != nil {
+		return err
+	}
 	w.UI.Title("Installing Dotlane", w.summary())
+	if pinned {
+		w.UI.OK(keptNote(w.UI, w.ConfigPath))
+	}
 
 	if temporaryBuild(w.Exe) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin\\dotlane.exe .\\cmd\\dotlane) and install from it", w.Exe)

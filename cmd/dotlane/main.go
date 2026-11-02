@@ -1,4 +1,4 @@
-// Command dotlane gives local dev servers real HTTPS addresses such as https://myapp.traix.
+// Command dotlane gives local dev servers real HTTPS addresses such as https://myapp.dotlane.
 package main
 
 import (
@@ -142,12 +142,12 @@ func newRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "dotlane",
 		Short: "Real HTTPS addresses for local dev servers",
-		Long: "Dotlane gives every local project a real HTTPS address, like https://myapp.traix,\n" +
+		Long: "Dotlane gives every local project a real HTTPS address, like https://myapp.dotlane,\n" +
 			"forwarded to the dev server's port on this machine.",
 		Example: `  # once: run at login, trust the certificate authority, route the domain ending
   dotlane install
 
-  # serve a dev server at https://myapp.traix
+  # serve a dev server at https://myapp.dotlane
   dotlane add myapp 5173
   dotlane ls
 
@@ -414,7 +414,7 @@ func newRoot() *cobra.Command {
 			"--refresh only updates an installed service to this binary and restarts it if needed:\n" +
 			"no password, and nothing at all when Dotlane is not installed. After an upgrade, the next\n" +
 			"add, rm, ls, up or down does the same on its own.\n\n" +
-			"--tld makes an ending the primary one first, like dotlane tld use; the default is .traix.",
+			"--tld makes an ending the primary one first, like dotlane tld use; the default is .dotlane.",
 		Example: `  dotlane install
   dotlane install --tld test
   dotlane install --refresh`,

@@ -347,7 +347,14 @@ func (m *Linux) Migrate(ctx context.Context) error {
 // Refresh implements Installer: install's login-service step alone (copy the binary, rewrite the
 // unit if needed, restart when stale). The steps that need sudo are left out.
 func (m *Linux) Refresh(ctx context.Context) error {
+	pinned, err := keepOldDefault(ctx, m.Cfg, m.ConfigPath, m.Routed)
+	if err != nil {
+		return err
+	}
 	m.UI.Title("Refreshing Dotlane", m.summary())
+	if pinned {
+		m.UI.OK(keptNote(m.UI, m.ConfigPath))
+	}
 	if _, err := os.Stat(m.unitPath()); errors.Is(err, os.ErrNotExist) {
 		m.UI.Skip("Login service", "not installed; nothing to refresh (set it up with: dotlane install)")
 		return nil
@@ -375,7 +382,14 @@ func (m *Linux) Upgrade(ctx context.Context, version string, out io.Writer) (boo
 		return false, nil
 	}
 	m.UI = ui.New(out)
+	pinned, err := keepOldDefault(ctx, m.Cfg, m.ConfigPath, m.Routed)
+	if err != nil {
+		return false, err
+	}
 	m.UI.Title("Updating the Dotlane service", fmt.Sprintf("it runs %s, this is %s", st.Version, version))
+	if pinned {
+		m.UI.OK(keptNote(m.UI, m.ConfigPath))
+	}
 	if err := m.installService(ctx); err != nil {
 		return false, err
 	}
@@ -384,7 +398,14 @@ func (m *Linux) Upgrade(ctx context.Context, version string, out io.Writer) (boo
 
 // Install sets everything up; already-done steps are reported and skipped.
 func (m *Linux) Install(ctx context.Context) error {
+	pinned, err := keepOldDefault(ctx, m.Cfg, m.ConfigPath, m.Routed)
+	if err != nil {
+		return err
+	}
 	m.UI.Title("Installing Dotlane", m.summary())
+	if pinned {
+		m.UI.OK(keptNote(m.UI, m.ConfigPath))
+	}
 
 	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin/dotlane ./cmd/dotlane) and install from it", m.Exe)

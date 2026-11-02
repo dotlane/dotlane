@@ -181,9 +181,9 @@ state_dir = '$STATE'
 
     # Each build reports a release-like version, so the next command can tell that the service
     # runs an older one (an upgrade).
-    function Build($version) {
+    function Build($version, $extra = '') {
         Remove-Item $BIN -ErrorAction SilentlyContinue
-        & go build -ldflags "-X main.version=$version" -o $BIN ./cmd/dotlane
+        & go build -ldflags "-X main.version=$version $extra" -o $BIN ./cmd/dotlane
         if ($LASTEXITCODE -ne 0) { Fail "go build failed ($version)" }
     }
     Build '1.0.0-ci.1'
@@ -378,6 +378,33 @@ state_dir = '$STATE'
     if (Test-Task) { Fail 'install --refresh installed a service' }
     if (Test-Path $SERVICE_EXE) { Fail 'install --refresh copied the binary' }
     Write-Host 'no-op, as expected'
+
+    Step 'upgrade from the .traix default'
+    # An install from when .traix was the default, with a config file that sets no ending, keeps
+    # .traix through an upgrade: the next command after it pins tlds = ["traix"] in the file before
+    # the daemon restarts into the new build. The old build is this one with the old default.
+    Set-Content -Path $CONFIG -Encoding ascii -Value @"
+service_name = "$SERVICE"
+state_dir = '$STATE'
+"@
+    Build '1.0.0-ci.5' '-X github.com/dotlane/dotlane/internal/config.DefaultTLD=traix'
+    DL install | Out-Null
+    DL add web 18080 | Out-Null
+    CurlExe -f --max-time 10 'https://web.traix/hello.txt' -o NUL
+    if ($LASTEXITCODE -ne 0) { Fail 'the old build did not serve web.traix' }
+    Build '1.0.0-ci.6'
+    $r = DL ls
+    if ($r.Err -notmatch [regex]::Escape('.traix kept')) { Fail "the upgrade did not keep .traix; it printed: $($r.Err)" }
+    if ((Get-Content $CONFIG) -notcontains 'tlds = ["traix"]') { Fail ".traix not pinned in the config file: $((Get-Content $CONFIG) -join ' | ')" }
+    if ((Get-DaemonLine) -notlike '*1.0.0-ci.6*') { Fail "the daemon does not run the new build: $(Get-DaemonLine)" }
+    $body = (CurlExe -f --max-time 10 'https://web.traix/hello.txt') -join ''
+    if ($LASTEXITCODE -ne 0) { Fail 'web.traix not served after the upgrade' }
+    if ($body.Trim() -ne 'hello') { Fail "unexpected body after the upgrade: $body" }
+    $ours = @(Get-DnsClientNrptRule | Where-Object { $_.Comment -eq $RULE_COMMENT } | ForEach-Object { $_.Namespace })
+    if ($ours -contains '.dotlane') { Fail 'the upgrade routed .dotlane too' }
+    DL uninstall --purge | Out-Null
+    if (@(Get-DnsClientNrptRule | Where-Object { $_.Comment -eq $RULE_COMMENT }).Count -gt 0) { Fail 'DNS rule for .traix left behind' }
+    Write-Host 'kept .traix through the upgrade'
 }
 
 $failed = $false
