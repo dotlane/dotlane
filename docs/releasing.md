@@ -31,14 +31,20 @@ same commit twice gives the same bytes (checked 2026-10-30).
 
 ## Cutting a release
 
-1. `main` is green in CI, and the version's changes are in the docs.
+Releases go from `dev` to `main` through a release branch; which version number to pick, hotfixes,
+and what CI runs at each step are in [`branching.md`](branching.md).
+
+1. `dev` is green in CI, and the version's changes are in the docs. Cut the branch:
+   `git switch -c release/v0.1.0 origin/dev`.
 2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.1.0] - <date>`, start a new empty
-   `## [Unreleased]` above it, and update the links at the bottom. Commit and push that. A
-   pre-release tag (`v0.1.0-rc.1`) uses its own section if it has one, else its version's.
-   Check with `scripts/changelog-section.sh v0.1.0`.
-3. Tag and push:
+   `## [Unreleased]` above it, and update the links at the bottom. A pre-release tag
+   (`v0.1.0-rc.1`) uses its own section if it has one, else its version's. Check with
+   `scripts/changelog-section.sh v0.1.0`. Commit, push, and open a pull request into `main`:
+   `gh pr create --base main --title "Release v0.1.0"`. It runs the full CI suite.
+3. Merge it with a merge commit (`gh pr merge --merge --delete-branch`), then tag `main` and push:
 
    ```bash
+   git switch main && git pull --ff-only
    git tag -a v0.1.0-rc.1 -m "v0.1.0-rc.1"
    git push origin v0.1.0-rc.1
    ```
@@ -49,13 +55,16 @@ same commit twice gives the same bytes (checked 2026-10-30).
    Tags with a suffix (`-rc.1`) are marked as pre-releases.
 5. Review the draft: the files are all there, `checksums.txt` verifies
    (`shasum -a 256 -c checksums.txt` after downloading), the notes read well. Then publish it.
+6. Sync `dev` with `main` ([`branching.md`](branching.md), Releasing, step 3), so it has the
+   changelog commit.
 
 A tag that fails the tests produces no release; delete the tag (`git push --delete origin <tag>`),
-fix, and tag again.
+fix through a hotfix branch into `main`, and tag again.
 
 ## Dry run
 
-Every pull request runs `goreleaser check` and a snapshot build (the *release-snapshot* job in
+Every release and hotfix pull request runs a snapshot build (and every pull request runs
+`goreleaser check`, in `scripts/check.sh`) (the *release-snapshot* job in
 `ci.yml`), verifies the checksums and archive contents, and keeps the files as a workflow
 artifact for seven days. Locally (on macOS, `go install` builds the same versions from source):
 
