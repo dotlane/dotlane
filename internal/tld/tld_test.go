@@ -13,7 +13,7 @@ func TestCheck(t *testing.T) {
 		{tld: "dotlane"},
 		{tld: "test"},
 		{tld: "internal"},
-		{tld: "traix"},
+		{tld: "dotlane"},
 		{tld: "dldev"},
 		{tld: "my-company"},
 

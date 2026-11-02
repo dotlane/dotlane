@@ -10,11 +10,11 @@
 #
 # Each site is one file in ~/.config/caddy/sites/, imported by Caddy's main config
 # (/opt/homebrew/etc/Caddyfile). *.<tld> resolves to this Mac through dnsmasq
-# (~/.config/dnsmasq/traix.conf, which may list several endings) and /etc/resolver/<tld>, so no
+# (~/.config/dnsmasq/dotlane.conf, which may list several endings) and /etc/resolver/<tld>, so no
 # per-site DNS is needed.
 #
 # Settings come from ~/.config/dotlane/config.toml (or $DOTLANE_CONFIG), all optional:
-#   tld = "traix"      domain ending (default traix)
+#   tld = "dotlane"      domain ending (default dotlane)
 #   dns_port = 10053   port dnsmasq answers on, for doctor (default 10053)
 set -euo pipefail
 
@@ -38,7 +38,7 @@ setting() {
   echo "${value:-$2}"
 }
 
-TLD=$(setting tld traix)
+TLD=$(setting tld dotlane)
 DNS_PORT=$(setting dns_port 10053)
 [[ "$TLD" =~ ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ ]] || die "tld in $CONFIG must be lowercase letters, digits and dashes: $TLD"
 [[ "$TLD" != local ]] || die "tld cannot be local: macOS uses .local for Bonjour"
@@ -126,7 +126,7 @@ cmd_doctor() {
   if [[ -f /etc/resolver/$TLD ]]; then echo "ok   /etc/resolver/$TLD"; else echo "FAIL /etc/resolver/$TLD missing"; ok=0; fi
   if [[ "$(dig +short "doctor.$TLD" @127.0.0.1 -p "$DNS_PORT" 2>/dev/null | head -1)" == 127.0.0.1 ]]; then
     echo "ok   dnsmasq answers *.$TLD"
-  else echo "FAIL dnsmasq not answering (launchctl kickstart -k gui/$(id -u)/dev.traix.dnsmasq)"; ok=0; fi
+  else echo "FAIL dnsmasq not answering (launchctl kickstart -k gui/$(id -u)/dev.dotlane.dnsmasq)"; ok=0; fi
   if curl -s -o /dev/null localhost:2019/config/; then echo "ok   Caddy running"; else echo "FAIL Caddy not running (brew services start caddy)"; ok=0; fi
   if security find-certificate -c "Caddy Local Authority" /Library/Keychains/System.keychain >/dev/null 2>&1; then
     echo "ok   Caddy's certificate authority is trusted"

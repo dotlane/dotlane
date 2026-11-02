@@ -1,6 +1,6 @@
 // Package dns answers every name under Dotlane's domain endings with this machine.
 //
-// It replaces the prototype's dnsmasq rule (address=/traix/127.0.0.1 and ::1). The OS resolver
+// It replaces the prototype's dnsmasq rule (address=/dotlane/127.0.0.1 and ::1). The OS resolver
 // sends only those endings here, so anything else is refused rather than forwarded.
 package dns
 

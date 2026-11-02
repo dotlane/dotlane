@@ -21,10 +21,10 @@ func TestWithTLD(t *testing.T) {
 		primary bool
 		want    []string
 	}{
-		{[]string{"traix"}, "test", false, []string{"traix", "test"}},
-		{[]string{"traix", "test"}, "test", false, []string{"traix", "test"}}, // already there: unchanged
-		{[]string{"traix"}, "dotlane", true, []string{"dotlane", "traix"}},
-		{[]string{"traix", "test"}, "test", true, []string{"test", "traix"}},
+		{[]string{"dotlane"}, "test", false, []string{"dotlane", "test"}},
+		{[]string{"dotlane", "test"}, "test", false, []string{"dotlane", "test"}}, // already there: unchanged
+		{[]string{"test"}, "dotlane", true, []string{"dotlane", "test"}},
+		{[]string{"dotlane", "test"}, "test", true, []string{"test", "dotlane"}},
 		{[]string{"test"}, "test", true, []string{"test"}},
 	} {
 		if got := withTLD(tc.list, tc.tld, tc.primary); !slices.Equal(got, tc.want) {
@@ -39,13 +39,13 @@ func TestWithTLD(t *testing.T) {
 }
 
 func TestWithoutTLD(t *testing.T) {
-	if got, err := withoutTLD([]string{"traix", "test"}, "traix"); err != nil || !slices.Equal(got, []string{"test"}) {
+	if got, err := withoutTLD([]string{"dotlane", "test"}, "dotlane"); err != nil || !slices.Equal(got, []string{"test"}) {
 		t.Errorf("got %q, %v", got, err)
 	}
-	if got, err := withoutTLD([]string{"traix"}, "test"); err != nil || !slices.Equal(got, []string{"traix"}) {
+	if got, err := withoutTLD([]string{"dotlane"}, "test"); err != nil || !slices.Equal(got, []string{"dotlane"}) {
 		t.Errorf("not listed: got %q, %v", got, err)
 	}
-	if _, err := withoutTLD([]string{"traix"}, "traix"); err == nil || !strings.Contains(err.Error(), "only domain ending") {
+	if _, err := withoutTLD([]string{"dotlane"}, "dotlane"); err == nil || !strings.Contains(err.Error(), "only domain ending") {
 		t.Errorf("last one: %v", err)
 	}
 }
@@ -116,12 +116,12 @@ func run(t *testing.T, env tldEnv, args ...string) (string, error) {
 }
 
 func TestTLDAddWhenInstalled(t *testing.T) {
-	env, fake, path := newTestEnv(t, "# mine\ntld = \"traix\"\n", true)
+	env, fake, path := newTestEnv(t, "# mine\ntld = \"dotlane\"\n", true)
 	out, err := run(t, env, "add", ".test")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if got, _ := os.ReadFile(path); string(got) != "# mine\ntlds = [\"traix\", \"test\"]\n" {
+	if got, _ := os.ReadFile(path); string(got) != "# mine\ntlds = [\"dotlane\", \"test\"]\n" {
 		t.Errorf("config = %q", got)
 	}
 	if strings.Join(fake.calls, " ") != "sync refresh" {
@@ -153,13 +153,13 @@ func TestTLDAddWhenNotInstalled(t *testing.T) {
 }
 
 func TestTLDAddRefused(t *testing.T) {
-	env, fake, path := newTestEnv(t, "tld = \"traix\"\n", true)
+	env, fake, path := newTestEnv(t, "tld = \"dotlane\"\n", true)
 	for _, args := range [][]string{{"add", "dev"}, {"add", "lan"}, {"use", "com"}, {"add", "dl"}} {
 		if _, err := run(t, env, args...); err == nil {
 			t.Errorf("%q: accepted", args)
 		}
 	}
-	if got, _ := os.ReadFile(path); string(got) != "tld = \"traix\"\n" || len(fake.calls) != 0 {
+	if got, _ := os.ReadFile(path); string(got) != "tld = \"dotlane\"\n" || len(fake.calls) != 0 {
 		t.Errorf("a refused ending changed something: %q, calls %q", got, fake.calls)
 	}
 	if _, err := run(t, env, "add", "lan", "--force"); err != nil {
@@ -168,14 +168,14 @@ func TestTLDAddRefused(t *testing.T) {
 }
 
 func TestTLDUseAndRm(t *testing.T) {
-	env, fake, path := newTestEnv(t, "tlds = [\"traix\", \"test\"]\n", true)
+	env, fake, path := newTestEnv(t, "tlds = [\"dotlane\", \"test\"]\n", true)
 	if out, err := run(t, env, "use", "test"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if got, _ := os.ReadFile(path); string(got) != "tlds = [\"test\", \"traix\"]\n" {
+	if got, _ := os.ReadFile(path); string(got) != "tlds = [\"test\", \"dotlane\"]\n" {
 		t.Errorf("after use: %q", got)
 	}
-	if out, err := run(t, env, "rm", "traix"); err != nil {
+	if out, err := run(t, env, "rm", "dotlane"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if got, _ := os.ReadFile(path); string(got) != "tlds = [\"test\"]\n" {

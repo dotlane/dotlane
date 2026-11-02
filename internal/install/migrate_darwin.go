@@ -22,7 +22,7 @@ import (
 // The Bash prototype (files/bin/dotlane): Homebrew's Caddy service with one file per site, and a
 // dnsmasq launchd agent answering the domain ending.
 const (
-	prototypeDNSLabel = "dev.traix.dnsmasq"
+	prototypeDNSLabel = "dev.dotlane.dnsmasq"
 	prototypeScript   = "# dotlane: local https://<name>.<tld> sites in front of dev servers, via Caddy."
 )
 
@@ -98,15 +98,7 @@ func (m *Mac) findPrototype(ctx context.Context) (*prototype, error) {
 // installs Dotlane in their place. If the install fails, the prototype is started again. Nothing
 // of the prototype is deleted; the files that can go are listed at the end.
 func (m *Mac) Migrate(ctx context.Context) error {
-	// The prototype's default was .traix too, and its resolver file is the one Dotlane writes.
-	pinned, err := keepOldDefault(ctx, m.Cfg, m.ConfigPath, m.Routed)
-	if err != nil {
-		return err
-	}
 	m.UI.Title("Migrating from the prototype", m.summary())
-	if pinned {
-		m.UI.OK(keptNote(m.UI, m.ConfigPath))
-	}
 	p, err := m.findPrototype(ctx)
 	if err != nil {
 		return err
@@ -380,7 +372,7 @@ func (m *Mac) listLeftovers() {
 	var paths []string
 	for _, p := range []string{
 		m.sitesDir(),
-		filepath.Join(m.Home, ".config", "dnsmasq", "traix.conf"),
+		filepath.Join(m.Home, ".config", "dnsmasq", "dotlane.conf"),
 		filepath.Join(m.Home, "Library", "LaunchAgents", prototypeDNSLabel+".plist"),
 		filepath.Join(m.BrewPrefix, "etc", "Caddyfile"),
 		filepath.Join(m.BrewPrefix, "var", "lib", "caddy"),

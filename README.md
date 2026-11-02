@@ -22,7 +22,7 @@ dotlane add myapp 5173
 No hosts-file edits, no per-site certificates, no root daemon, and no change to how the dev server
 itself is started. Adding a domain takes about a second.
 
-<img src="assets/demo/dotlane.gif" width="720" alt="A terminal running dotlane install, then dotlane add myapp 5173, then curl https://myapp.traix, which prints the dev server's answer over trusted HTTPS">
+<img src="assets/demo/dotlane.gif" width="720" alt="A terminal running dotlane install, then dotlane add myapp 5173, then curl https://myapp.dotlane, which prints the dev server's answer over trusted HTTPS">
 
 ## Install
 
@@ -42,8 +42,7 @@ uninstalling are in [`docs/setup.md`](docs/setup.md) (macOS), [`docs/setup-linux
 [`docs/wsl.md`](docs/wsl.md).
 
 Another ending, or several: `dotlane tld add test`, `dotlane tld use <ending>`
-([`docs/cli.md`](docs/cli.md#domain-endings)). Installs from v0.2.0 and earlier keep `.traix`,
-the default then; `dotlane tld use dotlane` switches.
+([`docs/cli.md`](docs/cli.md#domain-endings)).
 
 ## Works with any language
 
@@ -139,10 +138,10 @@ The same flow as text:
 
 ```text
   browser / curl / any tool
-          │  myapp.traix ?
+          │  myapp.dotlane ?
           ▼
-  macOS resolver ── /etc/resolver/traix ──▶ dnsmasq 127.0.0.1:10053
-          │                                   "*.traix → 127.0.0.1, ::1"
+  macOS resolver ── /etc/resolver/dotlane ──▶ dnsmasq 127.0.0.1:10053
+          │                                   "*.dotlane → 127.0.0.1, ::1"
           ▼
   https://127.0.0.1:443  ──▶  Caddy  (one site file per domain, local CA certificates)
                                 │  reverse_proxy
@@ -186,11 +185,11 @@ The same flow as text:
 | Path | Installed at |
 | --- | --- |
 | `files/bin/dotlane` | `~/.local/bin/dotlane` |
-| `files/dnsmasq/traix.conf` | `~/.config/dnsmasq/traix.conf` |
-| `files/launchd/dev.traix.dnsmasq.plist` | `~/Library/LaunchAgents/dev.traix.dnsmasq.plist` (with `$HOME` expanded) |
+| `files/dnsmasq/dotlane.conf` | `~/.config/dnsmasq/dotlane.conf` |
+| `files/launchd/dev.dotlane.dnsmasq.plist` | `~/Library/LaunchAgents/dev.dotlane.dnsmasq.plist` (with `$HOME` expanded) |
 | `files/caddy/Caddyfile` | `/opt/homebrew/etc/Caddyfile` (with `$HOME` expanded) |
 | `files/caddy/sites/myapp.caddy` | `~/.config/caddy/sites/myapp.caddy` (written by `dotlane add`) |
-| `files/resolver/traix` | `/etc/resolver/traix` (root-owned) |
+| `files/resolver/dotlane` | `/etc/resolver/dotlane` (root-owned) |
 
 ## Licence
 

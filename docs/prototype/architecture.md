@@ -20,21 +20,21 @@ management.
 
 | Component | Role | Runs as | Listens on |
 | --- | --- | --- | --- |
-| macOS resolver (`/etc/resolver/traix`) | Routes only `*.traix` lookups to our DNS server | system | — |
-| dnsmasq 2.93 | Answers every `*.traix` name with `127.0.0.1` / `::1` | user (LaunchAgent) | `127.0.0.1:10053` UDP+TCP |
+| macOS resolver (`/etc/resolver/dotlane`) | Routes only `*.dotlane` lookups to our DNS server | system | — |
+| dnsmasq 2.93 | Answers every `*.dotlane` name with `127.0.0.1` / `::1` | user (LaunchAgent) | `127.0.0.1:10053` UDP+TCP |
 | Caddy 2.11.7 | TLS termination with its own local CA; reverse proxy per site | user (Homebrew service) | `:80`, `:443`, admin API `localhost:2019` |
 | `dotlane` | Writes/removes one site file per domain, reloads Caddy | user, on demand | — |
 | Dev server (e.g. Vite) | The app, untouched | user | e.g. `localhost:5173` |
 
 ## Request flow
 
-1. A browser or tool asks for `myapp.traix`.
-2. macOS sees `/etc/resolver/traix` (`nameserver 127.0.0.1`, `port 10053`) and sends **only** this
+1. A browser or tool asks for `myapp.dotlane`.
+2. macOS sees `/etc/resolver/dotlane` (`nameserver 127.0.0.1`, `port 10053`) and sends **only** this
    lookup to dnsmasq. All other DNS is unaffected.
-3. dnsmasq answers from one wildcard rule, `address=/traix/127.0.0.1` (and `::1`). There is no
-   per-site DNS: any `<anything>.traix` resolves the moment it is asked for.
+3. dnsmasq answers from one wildcard rule, `address=/dotlane/127.0.0.1` (and `::1`). There is no
+   per-site DNS: any `<anything>.dotlane` resolves the moment it is asked for.
 4. The client connects to `127.0.0.1:443` (or `[::1]:443`). Caddy picks the site by SNI/Host.
-5. Caddy presents a certificate for `myapp.traix`, issued on demand by its local CA, which the
+5. Caddy presents a certificate for `myapp.dotlane`, issued on demand by its local CA, which the
    system trusts (`caddy trust`).
 6. Caddy reverse-proxies to `localhost:5173`. WebSockets (Vite's live reload) pass through without
    configuration. `http://` requests get a 308 redirect to `https://`.
@@ -48,8 +48,8 @@ names cost nothing. It also works for every tool on the machine — `curl`, Node
 
 **dnsmasq on an unprivileged port as a user LaunchAgent.** macOS resolver files accept a `port`,
 so dnsmasq does not need port 53 and therefore does not need root. Homebrew's own dnsmasq service
-declares `require_root true`, so we ship our own LaunchAgent (`dev.traix.dnsmasq`) pointing at a
-dedicated config. The config has `no-resolv` and `no-hosts`: it answers `.traix` and nothing else,
+declares `require_root true`, so we ship our own LaunchAgent (`dev.dotlane.dnsmasq`) pointing at a
+dedicated config. The config has `no-resolv` and `no-hosts`: it answers `.dotlane` and nothing else,
 and cannot leak or alter other DNS.
 
 Port **10053**, not the common 1053: on the reference machine 1053 was already taken by another
@@ -83,10 +83,10 @@ manager works, including servers started by an IDE or a container.
 
 | What | Where | Owner |
 | --- | --- | --- |
-| Resolver | `/etc/resolver/traix` | root (written once) |
-| dnsmasq config | `~/.config/dnsmasq/traix.conf` | user |
-| dnsmasq LaunchAgent | `~/Library/LaunchAgents/dev.traix.dnsmasq.plist` | user |
-| dnsmasq log | `~/Library/Logs/dnsmasq-traix.log` | user |
+| Resolver | `/etc/resolver/dotlane` | root (written once) |
+| dnsmasq config | `~/.config/dnsmasq/dotlane.conf` | user |
+| dnsmasq LaunchAgent | `~/Library/LaunchAgents/dev.dotlane.dnsmasq.plist` | user |
+| dnsmasq log | `~/Library/Logs/dnsmasq-dotlane.log` | user |
 | Caddy main config | `/opt/homebrew/etc/Caddyfile` | user |
 | Caddy site files | `~/.config/caddy/sites/*.caddy` | user |
 | Caddy LaunchAgent | `~/Library/LaunchAgents/sh.brew.caddy.plist` (Homebrew) | user |
@@ -97,7 +97,7 @@ manager works, including servers started by an IDE or a container.
 ## Scope limits of the prototype
 
 - macOS only (resolver files, LaunchAgents, Homebrew paths).
-- One domain ending (`.traix`) hard-coded in three places: dnsmasq config, resolver file name,
+- One domain ending (`.dotlane`) hard-coded in three places: dnsmasq config, resolver file name,
   `dotlane`.
-- This Mac only: phones and other machines cannot resolve `.traix` (no LAN DNS or mDNS).
+- This Mac only: phones and other machines cannot resolve `.dotlane` (no LAN DNS or mDNS).
 - Targets are always `localhost:<port>`; no remote upstreams, path routing or per-site headers.

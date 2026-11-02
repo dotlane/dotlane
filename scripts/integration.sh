@@ -180,30 +180,5 @@ grep -q "nothing to refresh" <<<"$out" || { echo "$out"; fail "install --refresh
 [[ ! -e "$HOME/Library/Application Support/dotlane/bin/$SERVICE" ]] || fail "install --refresh copied the binary"
 echo "no-op, as expected"
 
-step "upgrade from the .traix default"
-# An install from when .traix was the default, with a config file that sets no ending, keeps
-# .traix through an upgrade: the next command after it pins tlds = ["traix"] in the file before
-# the daemon restarts into the new build. The old build is this one with the old default.
-cat > "$CONFIG" <<TOML
-service_name = "$SERVICE"
-state_dir = "$WORK/state"
-TOML
-go build -ldflags "-X main.version=1.0.0-ci.1 -X github.com/dotlane/dotlane/internal/config.DefaultTLD=traix" -o "$BIN" ./cmd/dotlane
-DL install
-DL add web 18080
-curl -fsS --max-time 10 https://web.traix/hello.txt >/dev/null || { why https://web.traix/hello.txt; fail "the old build did not serve web.traix"; }
-go build -ldflags "-X main.version=1.0.0-ci.2" -o "$BIN" ./cmd/dotlane
-out=$(DL ls 2>&1) || { echo "$out"; fail "dotlane ls after the upgrade failed"; }
-echo "$out"
-grep -q ".traix kept" <<<"$out" || fail "the upgrade did not keep .traix"
-grep -q '^tlds = \["traix"\]$' "$CONFIG" || { cat "$CONFIG"; fail ".traix not pinned in the config file"; }
-[[ "$(daemon)" == *"1.0.0-ci.2"* ]] || fail "the daemon does not run the new build: $(daemon)"
-body=$(curl -fsS --max-time 10 https://web.traix/hello.txt) || { why https://web.traix/hello.txt; fail "web.traix not served after the upgrade"; }
-[[ "$body" == hello ]] || fail "unexpected body after the upgrade: $body"
-[[ ! -e /etc/resolver/dotlane ]] || fail "the upgrade routed .dotlane too"
-out=$(DL uninstall --purge 2>&1) || { echo "$out"; fail "uninstall failed"; }
-[[ ! -e /etc/resolver/traix ]] || fail "/etc/resolver/traix left behind"
-echo "kept .traix through the upgrade"
-
 DONE=1
 step "passed (install → first site: ${elapsed}s)"

@@ -60,10 +60,10 @@ the Go version.
 
 ## Name does not resolve
 
-- `dig +short x.traix @127.0.0.1 -p 10053` empty → dnsmasq is down:
-  `launchctl kickstart -k gui/$(id -u)/dev.traix.dnsmasq`; log in `~/Library/Logs/dnsmasq-traix.log`.
-- dnsmasq answers but `dscacheutil -q host -a name x.traix` does not → `/etc/resolver/traix` is
-  missing or wrong (`scutil --dns` should list `domain : traix`, `port : 10053`).
+- `dig +short x.dotlane @127.0.0.1 -p 10053` empty → dnsmasq is down:
+  `launchctl kickstart -k gui/$(id -u)/dev.dotlane.dnsmasq`; log in `~/Library/Logs/dnsmasq-dotlane.log`.
+- dnsmasq answers but `dscacheutil -q host -a name x.dotlane` does not → `/etc/resolver/dotlane` is
+  missing or wrong (`scutil --dns` should list `domain : dotlane`, `port : 10053`).
 - **Port already in use.** On the reference machine UDP 1053 was held by Yerd (`yerdd`, a
   Herd-like dev tool). dnsmasq moved to 10053. *Product: probe for a free port and write the same
   port into both the dnsmasq config and the resolver file.*
@@ -91,15 +91,15 @@ the Go version.
   `security.enterprise_roots.enabled` to `true` in `about:config`. (Only Chrome and `curl` were
   verified on the reference machine.) Node.js ignores the keychain: use
   `NODE_EXTRA_CA_CERTS=/opt/homebrew/var/lib/caddy/pki/authorities/local/root.crt` for
-  server-side calls to `.traix` URLs.
+  server-side calls to `.dotlane` URLs.
 
 ## The app answers, but…
 
 - **"Blocked request. This host is not allowed."** — Vite's `server.allowedHosts` (see
   `app-integration.md`).
 - **403 / CSRF / "Cross-origin request rejected"** — the backend's origin allowlist lacks
-  `https://<name>.traix`, or it was added but the backend was not restarted.
-- **Chrome searches instead of opening the site** — type the full `https://myapp.traix`
+  `https://<name>.dotlane`, or it was added but the backend was not restarted.
+- **Chrome searches instead of opening the site** — type the full `https://myapp.dotlane`
   once; afterwards it autocompletes.
 
 ## Homebrew details

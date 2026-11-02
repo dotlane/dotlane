@@ -20,13 +20,13 @@ const (
 	dnsmasqPID = 2588
 )
 
-// newPrototypeMac is this Mac before migrating: the prototype serves myapp.traix with
+// newPrototypeMac is this Mac before migrating: the prototype serves myapp.dotlane with
 // Homebrew's Caddy (on 443 and 80) and the dnsmasq agent (on 10053), its CA is trusted, the
 // resolver file points at 10053, and ~/.local/bin/dotlane is the Bash script.
 func newPrototypeMac(t *testing.T) (*Mac, *fakeMac, *bytes.Buffer, *[]string) {
 	t.Helper()
 	m, fake, out := newTestMac(t)
-	m.Cfg.TLDs, m.Cfg.HTTPSPort, m.Cfg.HTTPPort, m.Cfg.DNSPort = []string{"traix"}, 443, 80, 10053
+	m.Cfg.TLDs, m.Cfg.HTTPSPort, m.Cfg.HTTPPort, m.Cfg.DNSPort = []string{"dotlane"}, 443, 80, 10053
 	fake.daemonPorts = daemonPorts(m.Cfg)
 	os.RemoveAll(proxy.CADir(m.Cfg)) // the daemon has never run
 
@@ -40,14 +40,14 @@ func newPrototypeMac(t *testing.T) (*Mac, *fakeMac, *bytes.Buffer, *[]string) {
 		}
 	}
 	write(filepath.Join(m.sitesDir(), "myapp.caddy"),
-		"# Managed by dotlane: https://myapp.traix -> localhost:5173\nmyapp.traix {\n\treverse_proxy localhost:5173\n}\n")
-	write(filepath.Join(m.sitesDir(), "notes.caddy"), "notes.traix {\n\trespond \"hi\"\n}\n")
+		"# Managed by dotlane: https://myapp.dotlane -> localhost:5173\nmyapp.dotlane {\n\treverse_proxy localhost:5173\n}\n")
+	write(filepath.Join(m.sitesDir(), "notes.caddy"), "notes.dotlane {\n\trespond \"hi\"\n}\n")
 	m.BrewPrefix = filepath.Join(t.TempDir(), "homebrew")
 	write(filepath.Join(m.prototypeCADir(), "root.crt"), "the prototype's root certificate")
 	write(filepath.Join(m.prototypeCADir(), "root.key"), "its key")
-	write(filepath.Join(m.ResolverDir, "traix"), "nameserver 127.0.0.1\nport 10053\n")
+	write(filepath.Join(m.ResolverDir, "dotlane"), "nameserver 127.0.0.1\nport 10053\n")
 	write(filepath.Join(m.Home, ".local", "bin", "dotlane"), "#!/usr/bin/env bash\n"+prototypeScript+"\n")
-	write(filepath.Join(m.Home, ".config", "dnsmasq", "traix.conf"), "port=10053\n")
+	write(filepath.Join(m.Home, ".config", "dnsmasq", "dotlane.conf"), "port=10053\n")
 	fake.trusted, fake.inKeychain = true, true
 
 	fake.others["sh.brew.caddy"], fake.others[prototypeDNSLabel] = true, true
@@ -118,7 +118,7 @@ func TestMigrate(t *testing.T) {
 	if !fake.loaded {
 		t.Error("Dotlane's service not loaded")
 	}
-	if len(*verified) != 1 || (*verified)[0] != "myapp.traix" {
+	if len(*verified) != 1 || (*verified)[0] != "myapp.dotlane" {
 		t.Errorf("verified = %v", *verified)
 	}
 	if target, err := os.Readlink(filepath.Join(m.Home, ".local", "bin", "dotlane")); err != nil || target != m.Exe {
@@ -134,7 +134,7 @@ func TestMigrate(t *testing.T) {
 	for _, want := range []string{
 		"notes.caddy", "not written by dotlane add", "already trusted", "imported · → localhost:5173",
 		"$ brew services stop caddy", "kept from starting at login", "already routed",
-		"https://myapp.traix → localhost:5173", "(was the prototype script)", "is not on your PATH",
+		"https://myapp.dotlane → localhost:5173", "(was the prototype script)", "is not on your PATH",
 		"/.config/caddy/sites\n", "brew uninstall caddy dnsmasq", "Moved to Dotlane.",
 	} {
 		if !strings.Contains(text, want) {
@@ -208,17 +208,5 @@ func TestMigrateWithoutPrototype(t *testing.T) {
 	m.BrewPrefix = t.TempDir()
 	if err := m.Migrate(context.Background()); err == nil || !strings.Contains(err.Error(), "no Dotlane prototype") {
 		t.Errorf("err = %v", err)
-	}
-}
-
-// The prototype's default was .traix as well: a migration with no ending in the file keeps it.
-func TestMigrateKeepsOldDefault(t *testing.T) {
-	m, _, out, _ := newPrototypeMac(t)
-	m.Cfg.TLDs, m.Cfg.TLDsSet = []string{"dotlane"}, false
-	if err := m.Migrate(context.Background()); err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
-	if strings.Join(m.Cfg.TLDs, " ") != "traix" || !strings.Contains(out.String(), ".traix kept") {
-		t.Errorf("TLDs = %q\n%s", m.Cfg.TLDs, out)
 	}
 }

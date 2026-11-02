@@ -32,7 +32,7 @@ of the [roadmap](roadmap-phases.md) (≈ 1–2 weeks) and builds on Phase 1 ([`p
 
 | Decision | Options | Recommendation |
 | --- | --- | --- |
-| Tap and npm owner | **Decided 2026-10-30: the `dotlane` organization.** The repository is `github.com/dotlane/dotlane` (Go module path too), the tap `dotlane/homebrew-tap` (`brew install dotlane/tap/dotlane`), the npm scope `@dotlane`. `traix` was not available (an unrelated personal account). | Done before any release, since moving a tap or module path later breaks every install command. |
+| Tap and npm owner | **Decided 2026-10-30: the `dotlane` organization.** The repository is `github.com/dotlane/dotlane` (Go module path too), the tap `dotlane/homebrew-tap` (`brew install dotlane/tap/dotlane`), the npm scope `@dotlane`. | Done before any release, since moving a tap or module path later breaks every install command. |
 | Platforms shipped | macOS only, or all six now | macOS (arm64 and amd64) only. Linux and Windows builds stay in CI so they keep compiling, but are not published until Phase 4 makes `install` work there. |
 | Apple Developer Program | join now ($99/year), or ship unsigned first | Join now: enrolment can take days, and signing is what keeps background-item approvals stable across updates (below). |
 | Repository visibility | public at the first release, or after | Public at `v0.1.0`; release candidates can come from the private repo. |
@@ -205,7 +205,7 @@ Progress (2026-11-01):
 
 `brew install dotlane/tap/dotlane` and `npx dotlane` both work on a clean machine. Checked on a
 fresh macOS runner, and on a new user account on a real Mac (which also exercises Gatekeeper and
-Login Items): each channel goes from nothing to `https://<name>.traix` serving a dev server, then
+Login Items): each channel goes from nothing to `https://<name>.dotlane` serving a dev server, then
 upgrades and uninstalls cleanly.
 
 Status (2026-11-01): **npm** goes from nothing to a site and uninstalls cleanly on a new user

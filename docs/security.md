@@ -9,7 +9,7 @@ socket, mode 0600, instead) and drops requests from other machines on 80/443. Se
 
 `caddy trust` adds Caddy's root certificate to the **System keychain**. From then on, this Mac's
 browsers and tools accept any certificate signed by that CA, for **any** hostname — not only
-`.traix`. Whoever holds the CA's private key could impersonate any website to this machine.
+`.dotlane`. Whoever holds the CA's private key could impersonate any website to this machine.
 
 | Item | Location | Protection |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ Consequences:
 
 | Step | Needs root | Why |
 | --- | --- | --- |
-| `/etc/resolver/traix` | once | system directory |
+| `/etc/resolver/dotlane` | once | system directory |
 | `caddy trust` / `untrust` | once | System keychain |
 | dnsmasq | never | runs as a user LaunchAgent on port 10053 |
 | Caddy, ports 80/443 | never | macOS allows unprivileged binding of low ports on all interfaces |
@@ -45,10 +45,10 @@ No long-running process runs as root, and nothing is installed into `/etc/sudoer
 
 ## Network exposure
 
-- dnsmasq listens on `127.0.0.1` only (`listen-address`, `bind-interfaces`), answers only `.traix`
+- dnsmasq listens on `127.0.0.1` only (`listen-address`, `bind-interfaces`), answers only `.dotlane`
   (`no-resolv`, `no-hosts`, single `address=` rule), and forwards nothing.
 - Caddy listens on all interfaces for 80/443 (its default). Another device on the LAN that sends
-  `Host: myapp.traix` to this Mac's IP would reach the dev server — the same exposure as a dev
+  `Host: myapp.dotlane` to this Mac's IP would reach the dev server — the same exposure as a dev
   server bound to `0.0.0.0`. A product should bind Caddy to loopback unless LAN access is wanted
   (`default_bind 127.0.0.1 ::1`).
 - Caddy's admin API listens on `localhost:2019` without authentication (Caddy's default). Any local

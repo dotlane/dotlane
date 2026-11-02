@@ -14,7 +14,7 @@ import (
 func TestConfig(t *testing.T) {
 	defer func(wide bool) { wideLowPorts = wide }(wideLowPorts)
 	wideLowPorts = true
-	cfg := &config.Config{TLDs: []string{"traix", "test"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
+	cfg := &config.Config{TLDs: []string{"dotlane", "test"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
 	data, err := Config(cfg, []sites.Site{{Name: "web", Port: 5173}})
 	if err != nil {
 		t.Fatal(err)
@@ -27,9 +27,9 @@ func TestConfig(t *testing.T) {
 		`"listen":[":80"]`,
 		`"127.0.0.0/8","::1/128"`, // so other machines are dropped
 		`"Location":["https://{http.request.host}{http.request.uri}"]`,
-		`"host":["web.traix","web.test"]`, // every ending
+		`"host":["web.dotlane","web.test"]`, // every ending
 		`"dial":"localhost:5173"`,
-		`"subjects":["web.traix","web.test"]`,
+		`"subjects":["web.dotlane","web.test"]`,
 		`"root":` + jsonString(filepath.Join("/s", "caddy")),
 	} {
 		if !strings.Contains(text, want) {
@@ -43,7 +43,7 @@ func TestConfig(t *testing.T) {
 }
 
 func TestConfigWithoutSites(t *testing.T) {
-	cfg := &config.Config{TLDs: []string{"traix"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
+	cfg := &config.Config{TLDs: []string{"dotlane"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
 	data, err := Config(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -80,13 +80,13 @@ func TestListenAddrs(t *testing.T) {
 }
 
 func TestPermission(t *testing.T) {
-	p := Permission{TLDs: []string{"traix", "test"}}
-	for _, name := range []string{"web.traix", "a.test", "my-app2.traix"} {
+	p := Permission{TLDs: []string{"dotlane", "test"}}
+	for _, name := range []string{"web.dotlane", "a.test", "my-app2.dotlane"} {
 		if err := p.CertificateAllowed(context.Background(), name); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
-	for _, name := range []string{"traix", "a.b.traix", "web.com", "-a.traix", "Web.traix", "web.traix.evil", ""} {
+	for _, name := range []string{"dotlane", "a.b.dotlane", "web.com", "-a.dotlane", "Web.dotlane", "web.dotlane.evil", ""} {
 		if p.CertificateAllowed(context.Background(), name) == nil {
 			t.Errorf("%s allowed", name)
 		}

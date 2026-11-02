@@ -27,7 +27,7 @@ func TestParseLsof(t *testing.T) {
 }
 
 func TestLaunchdLabel(t *testing.T) {
-	list := []byte("PID\tStatus\tLabel\n-\t0\tcom.apple.x\n2588\t0\tdev.traix.dnsmasq\n71950\t-9\tdev.yerd.daemon\n")
+	list := []byte("PID\tStatus\tLabel\n-\t0\tcom.apple.x\n2588\t0\tdev.dotlane.dnsmasq\n71950\t-9\tdev.yerd.daemon\n")
 	if got := launchdLabel(list, 71950); got != "dev.yerd.daemon" {
 		t.Errorf("label = %q", got)
 	}
@@ -43,7 +43,7 @@ func TestIdentify(t *testing.T) {
 		name, fixStart string
 	}{
 		{Process{PID: 2779, Path: "/opt/homebrew/opt/caddy/bin/caddy", Label: "sh.brew.caddy"}, "Caddy", "brew services stop caddy"},
-		{Process{PID: 2588, Path: "/opt/homebrew/sbin/dnsmasq", Label: "dev.traix.dnsmasq"}, "the Dotlane prototype's dnsmasq", "launchctl bootout gui/501/dev.traix.dnsmasq"},
+		{Process{PID: 2588, Path: "/opt/homebrew/sbin/dnsmasq", Label: "dev.dotlane.dnsmasq"}, "the Dotlane prototype's dnsmasq", "launchctl bootout gui/501/dev.dotlane.dnsmasq"},
 		{Process{PID: 3, Path: "/opt/homebrew/sbin/dnsmasq"}, "dnsmasq", "brew services stop dnsmasq"},
 		{Process{PID: 71950, Path: "yerdd", Label: "dev.yerd.daemon"}, "Yerd", "quit Yerd, or: launchctl bootout gui/501/dev.yerd.daemon"},
 		{Process{PID: 4, Path: "/Applications/Herd.app/Contents/Resources/nginx"}, "Laravel Herd", "quit Herd"},
@@ -60,7 +60,7 @@ func TestIdentify(t *testing.T) {
 	// With the prototype's site files present, Caddy is named as the prototype's.
 	sites := filepath.Join(home, ".config", "caddy", "sites")
 	os.MkdirAll(sites, 0o755)
-	os.WriteFile(filepath.Join(sites, "a.caddy"), []byte("# Managed by dotlane: https://a.traix -> localhost:1\n"), 0o644)
+	os.WriteFile(filepath.Join(sites, "a.caddy"), []byte("# Managed by dotlane: https://a.dotlane -> localhost:1\n"), 0o644)
 	if got := identify(Process{Path: "/opt/homebrew/opt/caddy/bin/caddy"}, 443, 501, home); got.Name != "the Dotlane prototype's Caddy" {
 		t.Errorf("prototype Caddy: %+v", got)
 	}

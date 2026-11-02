@@ -86,7 +86,7 @@ func identify(p Process, port, uid int, home string) Tool {
 		}
 		return Tool{"Caddy", "brew services stop caddy"}
 	case has("dnsmasq"):
-		if p.Label == "dev.traix.dnsmasq" {
+		if p.Label == "dev.dotlane.dnsmasq" {
 			return Tool{"the Dotlane prototype's dnsmasq", bootout()}
 		}
 		return Tool{"dnsmasq", "brew services stop dnsmasq"}
