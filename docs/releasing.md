@@ -16,6 +16,8 @@ For macOS, Linux and Windows, each on `arm64` and `amd64`:
 - the same name plus `.sbom.json`: an SPDX SBOM of everything compiled in (Syft);
 - for Linux, `.deb`, `.rpm` and `.pkg.tar.zst` packages that put the binary in `/usr/bin`, with no
   scripts (`dotlane install` stays a per-user step).
+  Every pull request installs the snapshot's packages on Ubuntu, Fedora and Arch, runs the
+  end-to-end test from `/usr/bin/dotlane`, and removes them again (CI's `linux-packages`).
 
 macOS is one GoReleaser build and Linux with Windows another (`dotlane-linux-windows`), so the
 Homebrew cask, which picks archives by build, stays macOS-only.

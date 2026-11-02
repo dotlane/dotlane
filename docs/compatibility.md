@@ -36,7 +36,7 @@ Setup per OS: [macOS](setup.md), [Linux](setup-linux.md), [Windows](setup-window
 | B3 | Unit tests run on CI | done | done | done | Linux in `test` (`go test -race ./...`), Windows in `test-windows` (without `-race`, which needs cgo). |
 | B4 | GoReleaser archives | done | done | done | tar.gz on macOS and Linux, zip with `dotlane.exe` on Windows. Linux and Windows come from a second build (`dotlane-linux-windows`), so the Homebrew cask, which filters by build, stays macOS-only. |
 | B5 | npm platform packages | done | done | done | `@dotlane/{linux,win32}-{x64,arm64}`; `npm-build.mjs` checks ELF and PE headers and requires all six binaries. Published from the next release; trusted publishing must be set up on the four new packages first. |
-| B6 | Other package managers | partial | partial | todo | macOS: Homebrew cask built, on hold. Linux: deb, rpm and Arch packages built on every release, not yet installed on CI. Windows: Scoop and winget need their own repositories. |
+| B6 | Other package managers | partial | done | todo | macOS: Homebrew cask built, on hold. Linux: every pull request installs the snapshot's .deb on Ubuntu, .rpm on Fedora and Arch package on Arch with the distribution's package manager, runs the end-to-end test from `/usr/bin/dotlane`, and checks that removing the package leaves nothing (`linux-packages`). Windows: Scoop and winget need their own repositories. |
 | B7 | Signed binaries | todo | — | todo | macOS: Developer ID and notarization (roadmap Now). Windows: Authenticode, or SmartScreen warns. |
 
 ### Daemon (shared code)
@@ -98,5 +98,5 @@ Setup per OS: [macOS](setup.md), [Linux](setup-linux.md), [Windows](setup-window
 ## Still open
 
 - Windows code signing and macOS notarization (B7).
-- Scoop and winget manifests, and installing the deb, rpm and Arch packages on CI (B6).
+- Scoop and winget manifests (B6).
 - A Windows desktop run with a real UAC prompt, and as a user without admin rights (I7, I10).

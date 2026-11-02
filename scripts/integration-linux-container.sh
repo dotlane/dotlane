@@ -11,11 +11,19 @@
 # ARCH_SNAPSHOT installs Arch's packages from that day's Arch Linux Archive instead of the live
 # mirrors, so a pinned image also gets pinned packages: the job changes only when the pin does.
 #
-# Fedora (dnf) and Arch (pacman) are supported. The repository is mounted at the same path and the
-# test runs as a user with this machine's UID, so its build lands in bin/ as usual; Go comes from
-# this machine (go env GOROOT), read-only. From a Mac, point LINUX_GOROOT at an unpacked Linux Go
-# for the container's CPU.
+#   PACKAGE=dist/dotlane_<version>_linux_amd64.deb scripts/integration-linux-container.sh ubuntu:24.04
+#
+# PACKAGE tests a release package instead of a build from this checkout: the container installs the
+# .deb, .rpm or .pkg.tar.zst with its own package manager, the test runs /usr/bin/dotlane (and skips
+# the steps that rebuild it), then the package is removed and must take /usr/bin/dotlane with it.
+#
+# Ubuntu and Debian (apt), Fedora (dnf) and Arch (pacman) are supported. The repository is mounted at
+# the same path and the test runs as a user with this machine's UID, so its build lands in bin/ as
+# usual; Go comes from this machine (go env GOROOT), read-only. From a Mac, point LINUX_GOROOT at an
+# unpacked Linux Go for the container's CPU.
 set -euo pipefail
+
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 IMAGE=${1:?usage: $0 <image>}
 NAME=dotlane-e2e-$$
@@ -24,9 +32,13 @@ REPO=$PWD
 GOROOT_HOST=${LINUX_GOROOT:-$(go env GOROOT)}
 GOMODCACHE_HOST=$(go env GOMODCACHE)
 mkdir -p "$GOMODCACHE_HOST"
+PACKAGE=${PACKAGE:-}
+if [[ -n $PACKAGE ]]; then
+  [[ -f $PACKAGE ]] || fail "no package at $PACKAGE"
+  PACKAGE=$(cd "$(dirname "$PACKAGE")" && pwd)/$(basename "$PACKAGE")
+fi
 
 step() { printf '\n== %s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 ctr() { docker exec "$NAME" "$@"; }
 
 cleanup() {
@@ -58,7 +70,13 @@ FROM ${BASE}
 ARG UID
 ARG ARCH_SNAPSHOT
 RUN set -eux; \
-    if command -v dnf >/dev/null; then \
+    if command -v apt-get >/dev/null; then \
+      export DEBIAN_FRONTEND=noninteractive; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends systemd systemd-sysv systemd-resolved dbus-user-session libpam-systemd \
+        sudo curl ca-certificates python3 iproute2 libnss3-tools procps findutils; \
+      rm -rf /var/lib/apt/lists/*; \
+    elif command -v dnf >/dev/null; then \
       dnf -y install systemd systemd-resolved sudo curl python3 iproute nss-tools procps-ng findutils which; \
       dnf clean all; \
     elif command -v pacman >/dev/null; then \
@@ -71,6 +89,7 @@ RUN set -eux; \
     else \
       echo "unsupported distribution" >&2; exit 1; \
     fi; \
+    if getent passwd "$UID" >/dev/null; then userdel -r "$(getent passwd "$UID" | cut -d: -f1)"; fi; \
     useradd -m -u "$UID" -s /bin/bash runner; \
     echo 'runner ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/runner; \
     systemctl enable systemd-resolved
@@ -85,6 +104,7 @@ docker run -d --name "$NAME" --privileged --cgroupns=private \
   --sysctl net.ipv4.ip_unprivileged_port_start=1024 \
   --tmpfs /run --tmpfs /run/lock --tmpfs /tmp:exec \
   -v "$REPO:$REPO" -v "$GOROOT_HOST:/usr/local/go:ro" -v "$GOMODCACHE_HOST:/home/runner/go/pkg/mod" \
+  ${PACKAGE:+-v "$PACKAGE:/pkg/$(basename "$PACKAGE"):ro"} \
   "$TAG" >/dev/null
 # is-system-running --wait needs systemd's bus, which is not up the moment the container starts.
 state=
@@ -101,7 +121,7 @@ ctr sh -c '. /etc/os-release && echo "$PRETTY_NAME"; systemctl --version | head 
 step "systemd-resolved as the resolver"
 # Docker bind-mounts its own resolv.conf. Keep its upstream servers for resolved (falling back to
 # public ones when Docker hands out a loopback address), then point programs at resolved's stub,
-# as a desktop Fedora or Arch with resolved enabled does (docs/setup-linux.md, Requirements).
+# as a desktop Ubuntu, or a Fedora or Arch with resolved enabled, does (docs/setup-linux.md, Requirements).
 ctr sh -c '
   set -e
   upstream=$(awk "/^nameserver/ && \$2 !~ /^127\\./ {print \$2}" /etc/resolv.conf | tr "\n" " ")
@@ -114,8 +134,43 @@ ctr sh -c '
   resolvectl dns
   getent hosts example.com >/dev/null'
 
+env=()
+if [[ -n $PACKAGE ]]; then
+  pkg=/pkg/$(basename "$PACKAGE")
+  step "install $(basename "$PACKAGE")"
+  case $pkg in
+    *.deb) ctr sh -c "DEBIAN_FRONTEND=noninteractive apt-get install -y $pkg" ;;
+    *.rpm) ctr dnf install -y "$pkg" ;;
+    *.pkg.tar.zst) ctr pacman -U --noconfirm "$pkg" ;;
+    *) fail "not a .deb, .rpm or .pkg.tar.zst: $pkg" ;;
+  esac
+  # By path and by owner, not `command -v`: on Fedora /usr/sbin is the same folder as /usr/bin and
+  # comes first on root's PATH.
+  ctr test -x /usr/bin/dotlane || fail "the package did not put dotlane in /usr/bin"
+  case $pkg in
+    *.deb) ctr dpkg -S /usr/bin/dotlane ;;
+    *.rpm) ctr rpm -qf /usr/bin/dotlane ;;
+    *.pkg.tar.zst) ctr pacman -Qo /usr/bin/dotlane ;;
+  esac
+  ctr /usr/bin/dotlane version
+  env=(-e DOTLANE_BIN=/usr/bin/dotlane)
+fi
+
 step "scripts/integration-linux.sh"
 docker exec -u runner -w "$REPO" \
   -e HOME=/home/runner -e PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
-  -e GOCACHE=/tmp/go-build -e GOFLAGS=-buildvcs=false -e GOTOOLCHAIN=local \
+  -e GOCACHE=/tmp/go-build -e GOFLAGS=-buildvcs=false -e GOTOOLCHAIN=local ${env[@]+"${env[@]}"} \
   "$NAME" scripts/integration-linux.sh
+
+if [[ -n $PACKAGE ]]; then
+  step "remove the package"
+  # After dotlane uninstall --purge (the test's last step), removing the package must leave no
+  # dotlane behind: the packages have no scripts, so this is the whole of what they own.
+  case $pkg in
+    *.deb) ctr sh -c 'DEBIAN_FRONTEND=noninteractive apt-get remove -y dotlane' ;;
+    *.rpm) ctr dnf remove -y dotlane ;;
+    *.pkg.tar.zst) ctr pacman -R --noconfirm dotlane ;;
+  esac
+  ctr test ! -e /usr/bin/dotlane || fail "/usr/bin/dotlane is still there after removing the package"
+  echo "removed; /usr/bin/dotlane is gone"
+fi

@@ -148,8 +148,9 @@ jobs:
     # an Ubuntu runner (scripts/integration-linux-container.sh): GitHub hosts no other distribution.
     # Arch is rolling, so it is pinned twice, to an image digest and to that image's day of the Arch
     # Linux Archive for its packages; a new Arch release cannot break unrelated pull requests. Move
-    # both pins together, from `docker buildx imagetools inspect archlinux:latest` (its
-    # org.opencontainers.image.version label is the day).
+    # both pins together, here and in linux-packages, from
+    # `docker buildx imagetools inspect archlinux:latest` (its org.opencontainers.image.version label
+    # is the day).
     name: integration-linux (${{ matrix.distro }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -265,6 +266,51 @@ jobs:
             dist/npm/*.tgz
             dist/homebrew/Casks/dotlane.rb
           retention-days: 7
+
+  linux-packages:
+    # The snapshot's Linux packages, the way a user meets them: the .deb on Ubuntu, the .rpm on
+    # Fedora and the Arch package on Arch, each installed with the distribution's own package manager
+    # in a container that boots systemd. dotlane install then runs from /usr/bin, the end-to-end test
+    # runs against it (minus the steps that rebuild the binary), and removing the package must take
+    # /usr/bin/dotlane with it (scripts/integration-linux-container.sh, PACKAGE). Pull requests only,
+    # like release-snapshot; Arch uses the same two pins as integration-linux-distros.
+    name: linux-packages (${{ matrix.distro }})
+    needs: release-snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu
+            image: ubuntu:24.04
+            package: deb
+          - distro: fedora
+            image: fedora:44
+            package: rpm
+          - distro: arch
+            image: archlinux@sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413 # 20261025.0.616225
+            snapshot: 2026/10/25
+            package: pkg.tar.zst
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false # see test
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: snapshot
+          path: dist
+      - name: Install the package, run the test from /usr/bin, remove the package
+        run: |
+          packages=(dist/dotlane_*_linux_amd64."$FORMAT")
+          (( ${#packages[@]} == 1 )) && [[ -f ${packages[0]} ]] || { echo "want one .$FORMAT for amd64"; ls dist; exit 1; }
+          PACKAGE=${packages[0]} scripts/integration-linux-container.sh "$IMAGE"
+        env:
+          IMAGE: ${{ matrix.image }}
+          FORMAT: ${{ matrix.package }}
+          ARCH_SNAPSHOT: ${{ matrix.snapshot }}
 
   homebrew:
     # The snapshot's cask on a throwaway Mac, the way a user meets it: brew install, dotlane
