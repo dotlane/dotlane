@@ -1,11 +1,17 @@
 name: CI
 
+# Pull requests only, into dev or main (docs/branching.md). No push trigger: a merge reruns what
+# its pull request already ran, and release.yml reruns everything on a v* tag before publishing.
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [dev, main]
+    # The default three, plus leaving draft: drafts run nothing until they are ready.
+    types: [opened, synchronize, reopened, ready_for_review]
   # release.yml runs the same tests before publishing a release.
   workflow_call:
+  # The full suite on any branch, before opening a release pull request:
+  # `gh workflow run ci.yml --ref <branch>`.
+  workflow_dispatch:
 
 # Least privilege (docs/security-guide.md): CI only reads the repository.
 permissions:
@@ -19,38 +25,66 @@ concurrency:
 
 jobs:
   changes:
-    # Decides whether the three macOS jobs run, the expensive ones (a macOS minute costs ten
-    # Linux minutes on a private repository): for a release tag, always; for a pull request, only
-    # when it changes more than docs; for a push to main, never, since its pull request ran them
-    # and release.yml reruns everything before publishing. A skipped job counts as passed for
-    # the ruleset's required checks. The Linux jobs always run.
+    # Picks the tier (docs/branching.md, CI):
+    # - run: the quick Linux tier (test, integration-linux). Every run except a draft pull request.
+    # - full: everything else, the macOS, Windows, distro and package jobs (a macOS minute costs ten
+    #   Linux minutes on a private repository, Windows two). For a release tag or a manual run,
+    #   always; for a pull request into main (a release or a hotfix), when it changes more than
+    #   docs; for a pull request into dev, never: the release pull request runs them once for the
+    #   whole batch.
+    # A skipped job counts as passed for the rulesets' required checks.
     runs-on: ubuntu-latest
     outputs:
-      macos: ${{ steps.decide.outputs.macos }}
+      run: ${{ steps.decide.outputs.run }}
+      full: ${{ steps.decide.outputs.full }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2 # a pull request's merge commit and its base
       - id: decide
+        env:
+          BASE: ${{ github.base_ref }}
+          DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            macos=true
+          run=true
+          if [[ $GITHUB_REF == refs/tags/* || $GITHUB_EVENT_NAME == workflow_dispatch ]]; then
+            full=true
           elif [[ $GITHUB_EVENT_NAME == pull_request ]]; then
-            # The merge commit's first parent is the base branch, so this diff is the pull request.
-            code=$(git diff --name-only HEAD^1 HEAD | grep -vE '\.md$|^docs/|^assets/demo/|^\.github/ISSUE_TEMPLATE/' || true)
-            if [[ -n $code ]]; then macos=true; else macos=false; fi
-            printf 'Changed outside the docs:\n%s\n' "${code:-(nothing)}"
+            if [[ $DRAFT == true ]]; then
+              run=false full=false
+            elif [[ $BASE == main ]]; then
+              # The merge commit's first parent is the base branch, so this diff is the pull request.
+              code=$(git diff --name-only HEAD^1 HEAD | grep -vE '\.md$|^docs/|^assets/demo/|^\.github/ISSUE_TEMPLATE/' || true)
+              if [[ -n $code ]]; then full=true; else full=false; fi
+              printf 'Changed outside the docs:\n%s\n' "${code:-(nothing)}"
+            else
+              full=false
+            fi
           else
-            macos=false
+            full=false
           fi
-          echo "macOS jobs: $macos"
-          echo "macos=$macos" >> "$GITHUB_OUTPUT"
+          echo "Quick tier: $run; full tier: $full"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "full=$full" >> "$GITHUB_OUTPUT"
 
   test:
     # Linux: starts in seconds and costs a tenth of macOS minutes. Everything but the installer
     # builds and tests here; the macOS-only code is still vetted and scanned (GOOS=darwin).
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
+      # Here rather than in changes: a failed changes job would skip the required checks, and a
+      # skipped check counts as passed.
+      - name: Only release, hotfix and Dependabot branches go into main
+        if: github.base_ref == 'main'
+        env:
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [[ ! $HEAD =~ ^(release|hotfix|dependabot)/ ]]; then
+            echo "::error::$HEAD targets main. Open it against dev instead (docs/branching.md)."
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -67,7 +101,7 @@ jobs:
     # GitHub's arm64 Macs kept failing to start this job for lack of capacity (2026-10-30), and
     # these tests use fakes, not the hardware. The integration test stays on arm64.
     needs: changes
-    if: needs.changes.outputs.macos == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: macos-15-intel
     timeout-minutes: 30 # counts time queued for a macOS runner too
     steps:
@@ -86,7 +120,7 @@ jobs:
     # The real thing on a throwaway Mac: login service, System keychain, /etc/resolver, ports
     # 80/443, with passwordless sudo. See scripts/integration.sh.
     needs: [test, changes]
-    if: needs.changes.outputs.macos == 'true'
+    if: needs.changes.outputs.full == 'true'
     # Intel, like install-tests: GitHub's arm64 Macs kept failing to start jobs for lack of
     # capacity (2026-10-30). The arm64 build is still produced and checked by release-snapshot.
     # Move back to macos-latest (arm64) once capacity recovers.
@@ -109,6 +143,8 @@ jobs:
     # The unit tests on Windows, where the installer's PowerShell builders, the state folder's access
     # control list and the Windows npm launcher get exercised. Without -race: it needs cgo, which
     # the runner's Go setup does not have.
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -124,6 +160,8 @@ jobs:
     # The real thing on a throwaway Ubuntu: systemd user unit, systemd-resolved, the system CA
     # store and NSS, ports 80/443 through the sysctl, with passwordless sudo. See
     # scripts/integration-linux.sh. Fedora and Arch run the same script in integration-linux-distros.
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -152,6 +190,8 @@ jobs:
     # `docker buildx imagetools inspect archlinux:latest` (its org.opencontainers.image.version label
     # is the day).
     name: integration-linux (${{ matrix.distro }})
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -179,6 +219,8 @@ jobs:
     # store, DNS on 127.0.0.1:53. The runner is already elevated, so no UAC prompt appears. Run in
     # PowerShell 7 and in Windows PowerShell 5.1, which a fresh Windows still uses by default.
     # See scripts/integration-windows.ps1.
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     strategy:
@@ -201,9 +243,12 @@ jobs:
         run: scripts/npm-e2e.sh
 
   release-snapshot:
-    # GoReleaser's dry run on every pull request, so .goreleaser.yaml cannot rot between releases.
+    # GoReleaser's dry run on every release and hotfix pull request, so .goreleaser.yaml cannot rot between releases.
     # Linux cross-compiles the macOS and Windows binaries (CGO_ENABLED=0) at a tenth of the macOS minutes.
-    if: github.event_name == 'pull_request'
+    # Full tier only; not on a release tag (release.yml calls this file as a push), which builds the
+    # real thing.
+    needs: changes
+    if: github.event_name != 'push' && needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -318,7 +363,7 @@ jobs:
     # then dotlane uninstall --purge and brew uninstall --zap leave nothing. See
     # scripts/brew-e2e.sh. Pull requests only, like release-snapshot; Intel, like integration.
     needs: [release-snapshot, changes]
-    if: needs.changes.outputs.macos == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: macos-15-intel
     timeout-minutes: 30
     steps:

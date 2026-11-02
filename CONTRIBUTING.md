@@ -7,7 +7,9 @@ problems go through [`SECURITY.md`](SECURITY.md), never a public issue.
 ## Before a pull request
 
 For anything bigger than a fix, open an issue first, so the design can be agreed before the
-code. The roadmaps say what is planned: the [core](docs/roadmap.md), [npm](npm/ROADMAP.md) and
+code. Branch from `dev` and open the pull request against **`dev`**, not `main`; `main` only takes
+releases and hotfixes ([`docs/branching.md`](docs/branching.md)). Open it as a draft while you are
+still pushing: CI starts when you mark it ready. The roadmaps say what is planned: the [core](docs/roadmap.md), [npm](npm/ROADMAP.md) and
 [Homebrew](docs/homebrew.md).
 
 ## Working on the code
@@ -29,7 +31,8 @@ module. After adding or removing a dependency, run `scripts/notice.sh` and commi
 
 **Don't run `scripts/integration.sh` or `scripts/brew-e2e.sh` on your Mac.** They install
 Dotlane system-wide with sudo, under the same service name as a real install, so they run only on
-CI's throwaway macOS runners. Pull requests that change code run them there.
+CI's throwaway macOS runners: on release pull requests, or on your branch with
+`gh workflow run ci.yml --ref <branch>`.
 
 ## What a pull request needs
 
@@ -39,11 +42,11 @@ CI's throwaway macOS runners. Pull requests that change code run them there.
   commands and flags, [`docs/setup.md`](docs/setup.md) for install steps.
 - **A line in [`CHANGELOG.md`](CHANGELOG.md)** under `[Unreleased]` for anything a user would
   notice (Added, Changed, Fixed, Security). Internal changes need none.
-- **Green CI:** `test`, `install-tests`, `integration`, `release-snapshot` and `homebrew`. The
-  three macOS jobs (`install-tests`, `integration`, `homebrew`) are skipped when a pull request
-  changes only docs (`*.md`, `docs/`, `assets/demo/`, issue forms), which counts as passing.
-  Pull requests are squash-merged, so the title becomes the commit message: say what changes,
-  in the imperative ("Retry fresh ports when Start is asked for port 0").
+- **Green CI:** `test` and `integration-linux`, the quick Linux tier. The macOS, Windows and
+  package jobs run once per release, on the release pull request into `main`
+  ([`docs/branching.md`](docs/branching.md), CI). Pull requests are squash-merged into `dev`, so
+  the title becomes the commit message: say what changes, in the imperative ("Retry fresh ports
+  when Start is asked for port 0").
 
 ## Style
 
