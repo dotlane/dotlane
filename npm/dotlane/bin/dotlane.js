@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The `dotlane` command from npm. The binary itself comes in a platform package
-// (@dotlane/darwin-arm64, @dotlane/darwin-x64) that npm installs as an optional dependency
-// matching this machine's `os` and `cpu`; this shim finds it and runs it with the same
+// (@dotlane/darwin-arm64, @dotlane/linux-x64, @dotlane/win32-x64, and so on) that npm installs
+// as an optional dependency matching this machine's `os` and `cpu`; this shim finds it and runs it with the same
 // arguments, standard streams, exit code and signals. No install scripts. npm/ROADMAP.md.
 'use strict';
 
@@ -12,6 +12,10 @@ const path = require('node:path');
 const PACKAGES = {
   'darwin-arm64': '@dotlane/darwin-arm64',
   'darwin-x64': '@dotlane/darwin-x64',
+  'linux-arm64': '@dotlane/linux-arm64',
+  'linux-x64': '@dotlane/linux-x64',
+  'win32-arm64': '@dotlane/win32-arm64',
+  'win32-x64': '@dotlane/win32-x64',
 };
 
 class ShimError extends Error {}
@@ -26,12 +30,13 @@ function binaryPath({ platform = process.platform, arch = process.arch, env = pr
   const pkg = PACKAGES[key];
   if (!pkg) {
     throw new ShimError(
-      `dotlane does not support ${key} yet; supported: ${Object.keys(PACKAGES).join(', ')}.\n` +
-        'Linux and Windows are planned: https://github.com/dotlane/dotlane/blob/main/docs/roadmap.md',
+      `dotlane does not support ${key}; supported: ${Object.keys(PACKAGES).join(', ')}.\n` +
+        'See https://github.com/dotlane/dotlane/blob/main/docs/roadmap.md',
     );
   }
   try {
-    return resolve(`${pkg}/bin/dotlane`);
+    // The Windows package holds dotlane.exe: Windows only runs files with an executable extension.
+    return resolve(`${pkg}/bin/${platform === 'win32' ? 'dotlane.exe' : 'dotlane'}`);
   } catch {
     throw new ShimError(
       `the package ${pkg}, which holds the dotlane binary for ${key}, is not installed.\n` +
@@ -50,6 +55,12 @@ function run(args, options = {}) {
     throw new ShimError(`could not run ${bin}: ${result.error.message}`);
   }
   if (result.signal) {
+    // Windows has no signals to re-raise: a process there ends with an exit code, and Node
+    // reports a signal only for a child it killed itself. Killing ourselves with SIGTERM or
+    // SIGINT would end with code 1 anyway, so say so instead.
+    if ((options.platform ?? process.platform) === 'win32') {
+      return { code: 1 };
+    }
     return { signal: result.signal };
   }
   return { code: result.status ?? 1 };

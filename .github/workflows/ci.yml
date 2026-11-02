@@ -105,9 +105,68 @@ jobs:
           cache: false
       - run: scripts/integration.sh
 
+  test-windows:
+    # The unit tests on Windows, where the installer's PowerShell builders, the state folder's access
+    # control list and the Windows npm launcher get exercised. Without -race: it needs cgo, which
+    # the runner's Go setup does not have.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false # see test
+      - run: go test ./...
+      - run: node --test npm/test/
+
+  integration-linux:
+    # The real thing on a throwaway Ubuntu: systemd user unit, systemd-resolved, the system CA
+    # store and NSS, ports 80/443 through the sysctl, with passwordless sudo. See
+    # scripts/integration-linux.sh. Fedora and Arch are checked by hand on full VMs (docs/compatibility.md, T3).
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false # see test
+      - name: certutil, so the NSS step (Firefox, Chromium) runs too
+        run: sudo apt-get install -y --no-install-recommends libnss3-tools
+      - run: scripts/integration-linux.sh
+      - name: npm packages end to end (linux-x64 on this runner)
+        run: scripts/npm-e2e.sh
+
+  integration-windows:
+    # The real thing on a throwaway Windows: scheduled task, NRPT rules, the LocalMachine Root
+    # store, DNS on 127.0.0.1:53. The runner is already elevated, so no UAC prompt appears. Run in
+    # PowerShell 7 and in Windows PowerShell 5.1, which a fresh Windows still uses by default.
+    # See scripts/integration-windows.ps1.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [pwsh, powershell]
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false # see test
+      - run: ./scripts/integration-windows.ps1
+      - name: npm packages end to end (win32-x64 on this runner)
+        if: matrix.shell == 'pwsh'
+        shell: bash
+        run: scripts/npm-e2e.sh
+
   release-snapshot:
     # GoReleaser's dry run on every pull request, so .goreleaser.yaml cannot rot between releases.
-    # Linux cross-compiles the macOS binaries (CGO_ENABLED=0) at a tenth of the macOS minutes.
+    # Linux cross-compiles the macOS and Windows binaries (CGO_ENABLED=0) at a tenth of the macOS minutes.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -132,7 +191,16 @@ jobs:
         working-directory: dist
         run: |
           sha256sum -c checksums.txt
-          for a in dotlane_*.tar.gz; do tar tzf "$a" | LC_ALL=C sort | tr '\n' ' ' | grep -q "LICENSE NOTICE README.md dotlane" || { echo "$a: unexpected contents"; exit 1; }; done
+          want="LICENSE NOTICE README.md dotlane"
+          for a in dotlane_*.tar.gz; do tar tzf "$a" | LC_ALL=C sort | tr '\n' ' ' | grep -q "^$want $" || { echo "$a: unexpected contents"; exit 1; }; done
+          # Windows archives are zips holding dotlane.exe; `unzip -Z1` lists just the names.
+          for a in dotlane_*.zip; do unzip -Z1 "$a" | LC_ALL=C sort | tr '\n' ' ' | grep -q "^LICENSE NOTICE README.md dotlane.exe $" || { echo "$a: unexpected contents"; exit 1; }; done
+          # Six archives (three OSes, two CPUs) and six Linux packages must exist, and each one is in checksums.txt.
+          (( $(printf '%s\n' dotlane_*.tar.gz dotlane_*.zip | wc -l) == 6 )) || { echo "want 6 archives"; ls; exit 1; }
+          for ext in deb rpm pkg.tar.zst; do
+            (( $(printf '%s\n' dotlane_*.$ext | wc -l) == 2 )) || { echo "want 2 .$ext packages"; ls; exit 1; }
+          done
+          for f in dotlane_*.tar.gz dotlane_*.zip dotlane_*.deb dotlane_*.rpm dotlane_*.pkg.tar.zst; do grep -qF "  $f" checksums.txt || { echo "$f: not in checksums.txt"; exit 1; }; done
       - name: npm packages from the snapshot binaries
         run: |
           version=$(jq -r .version dist/metadata.json)
@@ -140,6 +208,10 @@ jobs:
           node scripts/npm-build.mjs --version "$version" \
             --darwin-arm64 dist/dotlane_darwin_arm64_v8.0/dotlane \
             --darwin-x64 dist/dotlane_darwin_amd64_v1/dotlane \
+            --linux-arm64 dist/dotlane-linux-windows_linux_arm64_v8.0/dotlane \
+            --linux-x64 dist/dotlane-linux-windows_linux_amd64_v1/dotlane \
+            --win32-arm64 dist/dotlane-linux-windows_windows_arm64_v8.0/dotlane.exe \
+            --win32-x64 dist/dotlane-linux-windows_windows_amd64_v1/dotlane.exe \
             --out dist/npm
       - name: npm publish, dry run
         # The release workflow's publish step, minus the upload, so it cannot rot between releases.
@@ -149,6 +221,10 @@ jobs:
           name: snapshot
           path: |
             dist/*.tar.gz
+            dist/*.zip
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pkg.tar.zst
             dist/*.sbom.json
             dist/checksums.txt
             dist/npm/*.tgz

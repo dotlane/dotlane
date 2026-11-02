@@ -1,7 +1,7 @@
 name: Release
 
-# A v* tag builds the macOS archives, checksums and SBOMs with GoReleaser and creates a draft
-# GitHub release, after the full test suite (ci.yml) passes. A maintainer reviews the draft and
+# A v* tag builds the macOS, Linux and Windows archives, the deb, rpm and Arch Linux packages,
+# checksums and SBOMs with GoReleaser and creates a draft GitHub release, after the full test suite (ci.yml) passes. A maintainer reviews the draft and
 # publishes it. docs/history/phase-2.md, P2-M1.
 on:
   push:
@@ -59,12 +59,16 @@ jobs:
           node scripts/npm-build.mjs --version "$GITHUB_REF_NAME" \
             --darwin-arm64 dist/dotlane_darwin_arm64_v8.0/dotlane \
             --darwin-x64 dist/dotlane_darwin_amd64_v1/dotlane \
+            --linux-arm64 dist/dotlane-linux-windows_linux_arm64_v8.0/dotlane \
+            --linux-x64 dist/dotlane-linux-windows_linux_amd64_v1/dotlane \
+            --win32-arm64 dist/dotlane-linux-windows_windows_arm64_v8.0/dotlane.exe \
+            --win32-x64 dist/dotlane-linux-windows_windows_amd64_v1/dotlane.exe \
             --out dist/npm
           gh release upload "$GITHUB_REF_NAME" dist/npm/*.tgz
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to npm
-        # Off until the repository is public (provenance needs it) and the three packages have
+        # Off until the repository is public (provenance needs it) and the seven packages have
         # this workflow as their trusted publisher: see docs/releasing.md, npm.
         if: vars.NPM_PUBLISH == 'true'
         run: scripts/npm-publish.sh dist/npm --provenance

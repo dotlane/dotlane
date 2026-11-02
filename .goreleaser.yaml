@@ -14,13 +14,19 @@ before:
     - go mod tidy -diff
 
 builds:
-  - id: dotlane
+  - &build
+    id: dotlane
     main: ./cmd/dotlane
     binary: dotlane
     env:
       - CGO_ENABLED=0
-    # macOS only until Phase 4 makes install work elsewhere; linux and windows already build
-    # (docs/history/phase-2.md).
+    # macOS, Linux and Windows, on both architectures; linux and windows first built in Phase 2
+    # (docs/history/phase-2.md) and are released now that install works there (Phase 4). The
+    # Windows binary is dotlane.exe: GoReleaser adds the suffix itself.
+    #
+    # Two builds of the same code, only to keep the Homebrew cask to macOS: a cask takes every
+    # archive of the ids it is given, whatever their OS, so the macOS archives need an id of
+    # their own (the cask below, and docs/distribution.md).
     goos: [darwin]
     goarch: [arm64, amd64]
     flags:
@@ -32,23 +38,53 @@ builds:
       - -X main.date={{ .CommitDate }}
     # Reproducible: the binary's timestamp is the commit's, not the build machine's clock.
     mod_timestamp: "{{ .CommitTimestamp }}"
+  - <<: *build
+    id: dotlane-linux-windows
+    goos: [linux, windows]
 
 archives:
-  - id: dotlane
+  - &archive
+    id: dotlane
+    ids: [dotlane]
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - NOTICE
       - README.md
+  - <<: *archive
+    id: dotlane-linux-windows
+    ids: [dotlane-linux-windows]
+    # Windows users expect a zip, which Explorer opens without extra tools.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
 
 checksum:
   name_template: checksums.txt
   algorithm: sha256
 
-# One SPDX SBOM per archive, made by Syft.
+# One SPDX SBOM per archive (tar.gz and zip), made by Syft.
 sboms:
   - artifacts: archive
+
+# deb, rpm and Arch Linux packages for Linux, with the binary at /usr/bin/dotlane. They have no
+# install scripts on purpose: `dotlane install` is a separate step, run by each user, that asks
+# for their password, so a package manager must not run it as root (and `apt remove` cannot undo
+# it, as with the Homebrew cask below: run `dotlane uninstall` first). The description and
+# homepage are the cask's.
+nfpms:
+  - id: dotlane
+    package_name: dotlane
+    ids: [dotlane-linux-windows]
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    homepage: https://github.com/dotlane/dotlane
+    description: Real, trusted HTTPS addresses for local dev servers
+    maintainer: Dotlane <https://github.com/dotlane/dotlane/issues>
+    vendor: Dotlane
+    license: Apache-2.0
+    formats: [deb, rpm, archlinux]
+    bindir: /usr/bin
 
 # Release notes come from the version's section of CHANGELOG.md: release.yml passes it with
 # --release-notes, which replaces the commit-subject changelog. The changelog step must stay
@@ -72,6 +108,8 @@ release:
 # its URLs point at the release's files, which cannot be downloaded while it is a draft.
 homebrew_casks:
   - name: dotlane
+    # Only the macOS archives (see builds): the release also holds Linux and Windows ones.
+    ids: [dotlane]
     binaries: [dotlane]
     homepage: https://github.com/dotlane/dotlane
     description: Real, trusted HTTPS addresses for local dev servers

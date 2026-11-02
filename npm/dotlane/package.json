@@ -31,6 +31,10 @@
   },
   "optionalDependencies": {
     "@dotlane/darwin-arm64": "0.0.0-dev",
-    "@dotlane/darwin-x64": "0.0.0-dev"
+    "@dotlane/darwin-x64": "0.0.0-dev",
+    "@dotlane/linux-arm64": "0.0.0-dev",
+    "@dotlane/linux-x64": "0.0.0-dev",
+    "@dotlane/win32-arm64": "0.0.0-dev",
+    "@dotlane/win32-x64": "0.0.0-dev"
   }
 }
