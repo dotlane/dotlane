@@ -1,7 +1,7 @@
 {
   "name": "dotlane",
   "version": "0.0.0-dev",
-  "description": "Real, trusted HTTPS addresses for local dev servers: https://myapp.traix instead of http://localhost:5173",
+  "description": "Real, trusted HTTPS addresses for local dev servers: https://myapp.dotlane instead of http://localhost:5173",
   "license": "Apache-2.0",
   "homepage": "https://github.com/dotlane/dotlane",
   "repository": {

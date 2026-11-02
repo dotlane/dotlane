@@ -56,7 +56,7 @@ handles colour, alignment and `NO_COLOR`. Messages say what happened and what to
 error names the thing in the way and the command that fixes it.
 
 Docs are plain English with short sentences, written for someone setting Dotlane up for the
-first time. Examples use `myapp` and the `.traix` ending.
+first time. Examples use `myapp` and the `.dotlane` ending.
 
 ## Licence
 

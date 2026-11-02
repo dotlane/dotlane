@@ -57,6 +57,20 @@ No long-running process runs as root, and nothing is installed into `/etc/sudoer
 
 ## Domain ending choice
 
-`.traix` is not a public top-level domain today (checked against IANA's list, 2026-10-29). If one
-with that name were ever delegated, this machine would shadow it. `.test` is reserved for this use
-by RFC 2606 and cannot collide; a branded ending trades that guarantee for identity.
+Routing an ending to 127.0.0.1 hides every name under it for the whole machine, so Dotlane checks
+an ending before it routes it (`internal/tld`, used by `dotlane tld add` and `install --tld`):
+
+| Tier | Endings | Why |
+| --- | --- | --- |
+| Refused | every delegated public top-level domain (`.com`, `.dev`, `.app` …), from an embedded copy of [IANA's list](https://data.iana.org/TLD/tlds-alpha-by-domain.txt) refreshed with `go generate ./internal/tld` | routing one would shadow real websites |
+| Refused | any two-letter ending | kept for country codes, which can be assigned at any time |
+| Refused | `.local`, `.localhost`, `.invalid`, `.onion`, `.alt`, `.arpa`, `xn--…` | multicast DNS, loopback, must-fail, Tor, non-DNS and reverse names (RFC 6761, 6762, 7686, 9476); internationalized endings |
+| Needs `--force` | `.lan`, `.home`, `.corp`, `.mail`, `.localdomain`, `.intranet`, `.private` | routers and company networks often answer them already; Dotlane would hide those names |
+| Suggested | `.dotlane` (the default), `.test`, `.internal` | not delegated; `.test` is reserved by RFC 2606 and `.internal` by ICANN for private use, so neither can ever collide |
+
+An ending set by hand in `config.toml` that these rules would refuse still works, with a warning
+on every command and in `dotlane doctor`, so an install made before them keeps working.
+
+A branded ending such as `.dotlane` (not delegated, checked against IANA's list on 2026-11-02)
+trades the guarantee of `.test` or `.internal` for identity: if it were ever delegated, this
+machine would shadow it, and the embedded list would start refusing it for new routes.
