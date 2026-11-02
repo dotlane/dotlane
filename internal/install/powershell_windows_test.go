@@ -59,25 +59,55 @@ func TestQueryArgsEncodeUTF16(t *testing.T) {
 	}
 }
 
-func TestLauncherScriptQuotesThePath(t *testing.T) {
-	got := launcherScript(`C:\Users\O'Brien\AppData\Local\dotlane\admin-1.ps1`)
+func TestLauncherScriptUsesTheAbsolutePath(t *testing.T) {
+	got := launcherScript(`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`, "QUJD")
 	for _, want := range []string{
-		"Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden",
-		`'-File','"C:\Users\O''Brien\AppData\Local\dotlane\admin-1.ps1"'`,
+		`Start-Process -FilePath 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Verb RunAs -Wait -PassThru`,
+		`'-EncodedCommand','QUJD'`, "exit $p.ExitCode",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("launcher lacks %s:\n%s", want, got)
 		}
 	}
+	if strings.Contains(got, "\n") || strings.Contains(got, `"`) {
+		t.Errorf("the launcher must be one line without double quotes:\n%s", got)
+	}
+	if strings.Contains(strings.ReplaceAll(got, `'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'`, ""), "powershell.exe") {
+		t.Errorf("a bare powershell.exe is left:\n%s", got)
+	}
 }
 
 func TestWrapScriptReportsErrors(t *testing.T) {
-	got := wrapScript("    $step = 'A'\n    Write-Output 1", `C:\x y\r.result`)
+	got := wrapScript("    $step = 'A'\n    Write-Output 1", `C:\x y\r.result`, "S-1-5-21-7")
 	for _, want := range []string{"$result = 'C:\\x y\\r.result'", "function Invoke-Native", "Write-Output 1",
 		"Set-Content -LiteralPath $result -Value 'ok'", "'error: ' + $step"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("script lacks %q:\n%s", want, got)
 		}
+	}
+}
+
+// The elevated script changes nothing when it runs as another account than the user's.
+func TestWrapScriptChecksTheAccount(t *testing.T) {
+	got := wrapScript("Remove-Item x", `C:\r`, "S-1-5-21-7")
+	check := strings.Index(got, "if ($me -ne 'S-1-5-21-7')")
+	if check < 0 || check > strings.Index(got, "Remove-Item x") || !strings.Contains(got, "exit 3") ||
+		!strings.Contains(got, "needs to be an administrator") {
+		t.Errorf("no account check before the body:\n%s", got)
+	}
+}
+
+// The script travels as the command, so the registration of a task with a long definition must fit.
+func TestEncodedScriptFits(t *testing.T) {
+	spec := testSpec()
+	xml, err := spec.xml()
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc := encodeCommand(wrapScript(stepBody([]adminStep{{Label: "Login service", Body: registerBody(spec.Service, xml, spec.SID, 4242)}}),
+		`C:\Users\Ana Silva\AppData\Local\dotlane\state\admin-0123456789ab.result`, spec.SID))
+	if len(enc) > maxEncodedCommand/2 {
+		t.Errorf("the registration script is %d characters encoded; the limit is %d", len(enc), maxEncodedCommand)
 	}
 }
 
@@ -203,7 +233,7 @@ func TestMarkerChangesWithTheSpec(t *testing.T) {
 // A here-string ends at a line that starts with '@, so the task XML must reach PowerShell
 // unindented.
 func TestStepBodyKeepsHereStringsAtColumnZero(t *testing.T) {
-	got := wrapScript(stepBody([]adminStep{{Label: "x", Body: registerBody("s", "<?xml version=\"1.0\"?>\n<Task/>\n", "S-1")}}), `C:\r`)
+	got := wrapScript(stepBody([]adminStep{{Label: "x", Body: registerBody("s", "<?xml version=\"1.0\"?>\n<Task/>\n", "S-1", 0)}}), `C:\r`, "S-1")
 	if !strings.Contains(got, "\n$xml = @'\n<?xml version=\"1.0\"?>\n<Task/>\n'@\n") {
 		t.Errorf("the here-string is not at column 0:\n%s", got)
 	}
@@ -224,7 +254,7 @@ func TestBodiesQuoteTheirNames(t *testing.T) {
 	if got := untrustBody("AB12"); got != "Invoke-Native certutil.exe -delstore Root 'AB12'\n" {
 		t.Errorf("untrustBody = %q", got)
 	}
-	reg := registerBody("dev.dotlane", "<Task/>\n", "S-1-5-21-1")
+	reg := registerBody("dev.dotlane", "<Task/>\n", "S-1-5-21-1", 0)
 	for _, want := range []string{"$xml = @'\n<Task/>\n'@", "Register-ScheduledTask -TaskName 'dev.dotlane' -TaskPath '\\Dotlane\\' -Xml $xml -Force",
 		"Start-ScheduledTask -TaskName 'dev.dotlane'", "(A;;FA;;;S-1-5-21-1)"} {
 		if !strings.Contains(reg, want) {
@@ -271,6 +301,11 @@ func TestRuleFor(t *testing.T) {
 		"wrong":   {[]nrptRule{{Name: "{1}", Namespace: ".dltest", NameServers: "10.0.0.1", Comment: "dotlane:dev.dotlane"}}, ruleWrong},
 		"several": {[]nrptRule{{Name: "{3}", Namespace: ".a,.dltest", NameServers: "10.0.0.1", Comment: "dotlane:dev.dotlane"}, mine}, ruleOK},
 		// Another service's rule is another tool's as far as this one is concerned.
+		// Dotlane's correct rule wins wherever it is in the list; a foreign one counts only without it.
+		"foreign first": {[]nrptRule{{Name: "{2}", Namespace: ".dltest", NameServers: "10.0.0.1", Comment: "vpn"}, mine}, ruleOK},
+		"foreign last":  {[]nrptRule{mine, {Name: "{2}", Namespace: ".dltest", NameServers: "10.0.0.1", Comment: "vpn"}}, ruleOK},
+		"foreign beats wrong": {[]nrptRule{{Name: "{1}", Namespace: ".dltest", NameServers: "10.0.0.1", Comment: "dotlane:dev.dotlane"},
+			{Name: "{2}", Namespace: ".dltest", NameServers: "10.0.0.1", Comment: "vpn"}}, ruleForeign},
 		"sibling": {[]nrptRule{{Name: "{4}", Namespace: ".dltest", NameServers: "127.0.0.1", Comment: "dotlane:dev.other"}}, ruleForeign},
 	} {
 		if got, _ := ruleFor(tc.rules, "dev.dotlane", "dltest"); got != tc.want {

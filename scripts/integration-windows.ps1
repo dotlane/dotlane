@@ -26,6 +26,8 @@ $LOG = Join-Path $env:LOCALAPPDATA "dotlane\logs\$SERVICE.log"
 $TASK_PATH = '\Dotlane\'
 $RULE_COMMENT = "dotlane:$SERVICE"
 $script:Upstream = $null
+$script:DaemonBefore = ''
+$script:DaemonAfter = ''
 
 function Step($message) { Write-Host "`n== $message" }
 function Fail($message) { throw $message }
@@ -102,9 +104,17 @@ function Show-Section($title, [scriptblock]$Body) {
     try { & $Body 2>&1 | Out-String -Width 200 | Write-Host } catch { Write-Host "($($_.Exception.Message))" }
 }
 function Show-Diagnostics {
+    Show-Section 'reinstall: daemon before and after' { "before: $script:DaemonBefore"; "after:  $script:DaemonAfter" }
+    Show-Section 'processes named dotlane or the service' {
+        # Win32_Process, not Get-Process: it has the command line and the parent.
+        Get-CimInstance Win32_Process | Where-Object { $_.Name -like '*dotlane*' -or $_.Name -like "$SERVICE*" } |
+            Select-Object ProcessId, ParentProcessId, Name, CreationDate, ExecutablePath, CommandLine | Format-List
+    }
+    Show-Section 'the service folder' { Get-ChildItem (Split-Path $SERVICE_EXE) | Format-Table Name, Length, LastWriteTime }
     Show-Section 'daemon log' { if (Test-Path $LOG) { Get-Content $LOG -Tail 80 } else { "no log at $LOG" } }
     Show-Section 'scheduled task' { Get-ScheduledTask -TaskPath $TASK_PATH | Format-List * }
     Show-Section 'scheduled task info' { Get-ScheduledTask -TaskPath $TASK_PATH | Get-ScheduledTaskInfo | Format-List * }
+    Show-Section 'scheduled task permissions' { (New-Object -ComObject Schedule.Service | ForEach-Object { $_.Connect(); $_.GetFolder('\Dotlane').GetTask($SERVICE).GetSecurityDescriptor(4) }) }
     Show-Section 'scheduled task xml' { & schtasks.exe /Query /TN "$TASK_PATH$SERVICE" /XML }
     Show-Section 'DNS rules (NRPT)' { Get-DnsClientNrptRule | Format-List Name, Namespace, NameServers, Comment }
     Show-Section 'Dotlane certificates, machine Root store' {
@@ -242,12 +252,14 @@ state_dir = '$STATE'
     # new build to the service's folder (the running copy is renamed aside, Windows will not
     # overwrite it), restart the daemon into it, and keep every site.
     $before = Get-DaemonLine
+    $script:DaemonBefore = $before
     Write-Host "before: $before"
     Build '1.0.0-ci.2'
     $r = DLTry install
     if ($r.ExitCode -ne 0) { Fail 'reinstall failed' }
     if ($r.Out -notmatch [regex]::Escape('restarted (to load the rebuilt binary)')) { Fail 'install did not restart the daemon' }
     $after = Get-DaemonLine
+    $script:DaemonAfter = $after
     Write-Host "after:  $after"
     if ($after -notlike '*1.0.0-ci.2*') { Fail 'the daemon does not run the new build' }
     $pidBefore = [regex]::Match($before, 'pid (\d+)').Groups[1].Value

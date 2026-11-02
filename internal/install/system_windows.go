@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"unsafe"
 
 	"github.com/dotlane/dotlane/internal/api"
 	"github.com/dotlane/dotlane/internal/config"
@@ -48,9 +49,11 @@ func NewWindows(cfg *config.Config, configPath string, daemon func(context.Conte
 		UserSID:    me.Uid, // on Windows, the account's SID
 		UI:         ui.New(os.Stdout),
 		Runner: ExecWinRunner{
-			Dir:     cfg.StateDir,
-			Admin:   windows.GetCurrentProcessToken().IsElevated(),
-			Private: fsperm.PrivateDir,
+			Dir:           cfg.StateDir,
+			SID:           me.Uid,
+			Admin:         windows.GetCurrentProcessToken().IsElevated(),
+			NoAdminRights: noAdminRights(),
+			Private:       fsperm.PrivateDir,
 		},
 		Daemon:     daemon,
 		Bindable:   bindable,
@@ -59,6 +62,23 @@ func NewWindows(cfg *config.Config, configPath string, daemon func(context.Conte
 		Owner:      fsperm.Owner,
 		Firefox:    firefoxInstalled,
 	}, nil
+}
+
+// noAdminRights reports whether this account is a standard user: its token is neither elevated nor
+// the limited half of an administrator's split token (whose elevation type is "limited"). A prompt
+// for such an account asks for another account's credentials. If Windows does not say, it is assumed
+// that the prompt can work.
+func noAdminRights() bool {
+	token := windows.GetCurrentProcessToken()
+	if token.IsElevated() {
+		return false
+	}
+	var kind, n uint32
+	if err := windows.GetTokenInformation(token, windows.TokenElevationType, (*byte)(unsafe.Pointer(&kind)), uint32(unsafe.Sizeof(kind)), &n); err != nil {
+		return false
+	}
+	const limited = 3 // TokenElevationTypeLimited
+	return kind != limited
 }
 
 // firefoxInstalled looks for Firefox where its installer puts it.

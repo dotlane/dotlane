@@ -38,16 +38,22 @@ type WinRunner interface {
 	Elevated(ctx context.Context, script string) error
 	// IsElevated reports whether this process already has administrator rights.
 	IsElevated() bool
+	// CanElevate reports whether a permission prompt could give this account administrator rights:
+	// false for a standard user, whose prompt asks for another account's password.
+	CanElevate() bool
 }
 
-// ExecWinRunner runs real commands. Elevated writes the script into Dir (a folder only the
-// current user and SYSTEM can write, or another account could swap the script before it runs
-// elevated) and starts it with UAC's "runas". The elevated process shows nothing in this
-// terminal, so the script reports through a result file that is read back.
+// ExecWinRunner runs real commands. Elevated hands the script to PowerShell as -EncodedCommand, never
+// as a file: a file would sit on disk while the permission prompt is open, and another process of
+// the same user could rewrite it before it runs as administrator. The elevated process shows
+// nothing in this terminal, so the script reports through a result file in Dir (private to the
+// user) that is read back.
 type ExecWinRunner struct {
-	Dir     string
-	Admin   bool                   // this process is elevated: run the script directly
-	Private func(dir string) error // makes Dir private (fsperm.PrivateDir)
+	Dir           string
+	SID           string                 // the account that must run the script (the user's own)
+	Admin         bool                   // this process is elevated: run the script directly
+	NoAdminRights bool                   // this account is not an administrator: a prompt cannot help
+	Private       func(dir string) error // makes Dir private (fsperm.PrivateDir)
 }
 
 // Run implements WinRunner.
@@ -58,6 +64,17 @@ func (ExecWinRunner) Run(ctx context.Context, name string, args ...string) ([]by
 // IsElevated implements WinRunner.
 func (r ExecWinRunner) IsElevated() bool { return r.Admin }
 
+// CanElevate implements WinRunner.
+func (r ExecWinRunner) CanElevate() bool { return r.Admin || !r.NoAdminRights }
+
+// exitWrongAccount is the exit code of an elevated script that found itself running as someone
+// other than the user (see wrapScript).
+const exitWrongAccount = 3
+
+// maxEncodedCommand is how long the Base64 script may be: CreateProcess takes 32767 characters for
+// the whole command line, and the launcher's own text and the PowerShell path come on top.
+const maxEncodedCommand = 30000
+
 // Elevated implements WinRunner.
 func (r ExecWinRunner) Elevated(ctx context.Context, body string) error {
 	if err := r.Private(r.Dir); err != nil {
@@ -67,14 +84,11 @@ func (r ExecWinRunner) Elevated(ctx context.Context, body string) error {
 	if _, err := rand.Read(id[:]); err != nil {
 		return err
 	}
-	base := filepath.Join(r.Dir, "admin-"+hex.EncodeToString(id[:]))
-	script, result := base+".ps1", base+".result"
-	defer os.Remove(script)
+	result := filepath.Join(r.Dir, "admin-"+hex.EncodeToString(id[:])+".result")
 	defer os.Remove(result)
-	// A byte order mark makes Windows PowerShell 5.1 read the file as UTF-8, not as the ANSI
-	// code page, so paths with accents survive.
-	if err := os.WriteFile(script, []byte("\uFEFF"+wrapScript(body, result)), 0o600); err != nil {
-		return err
+	encoded := encodeCommand(wrapScript(body, result, r.SID))
+	if len(encoded) > maxEncodedCommand {
+		return fmt.Errorf("the administrator script is too long for a command line (%d characters; the limit is %d)", len(encoded), maxEncodedCommand)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
@@ -82,12 +96,19 @@ func (r ExecWinRunner) Elevated(ctx context.Context, body string) error {
 	var out []byte
 	var runErr error
 	if r.Admin {
-		out, runErr = r.Run(ctx, powershellExe(), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script)
+		out, runErr = r.Run(ctx, powershellExe(), encodedArgs(encoded)...)
 	} else {
-		out, runErr = r.Run(ctx, powershellExe(), queryArgs(launcherScript(script))...)
+		// -Command, not -EncodedCommand: the launcher carries the script's Base64, which another
+		// layer of Base64 would stretch past the command-line limit.
+		out, runErr = r.Run(ctx, powershellExe(), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+			"-Command", launcherScript(powershellExe(), encoded))
 	}
 	data, err := os.ReadFile(result)
 	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(runErr, &exit) && exit.ExitCode() == exitWrongAccount {
+			return errors.New(wrongAccountMessage)
+		}
 		msg := strings.TrimSpace(string(out))
 		if msg == "" && runErr != nil {
 			msg = runErr.Error()
@@ -96,6 +117,12 @@ func (r ExecWinRunner) Elevated(ctx context.Context, body string) error {
 	}
 	return parseResult(data)
 }
+
+// wrongAccountMessage is what the user reads when Windows ran the elevated script as another
+// account (a standard user asked for an administrator's name and password).
+const wrongAccountMessage = "the administrator prompt ran as a different account than yours, so nothing was changed. " +
+	"Dotlane installs per user: the login service and its files belong to your own account, so your own account " +
+	"needs to be an administrator (ask an administrator to add it to the Administrators group), then run this again"
 
 // system32 is the path of a program in Windows' System32 folder, so a PATH entry cannot stand in
 // for it.
@@ -136,17 +163,24 @@ func winQuote(s string) string {
 	return s
 }
 
-// queryArgs are the arguments that run script in Windows PowerShell. The script travels as
-// -EncodedCommand (UTF-16 in Base64), which has no quoting rules to get wrong.
-func queryArgs(script string) []string {
+// encodeCommand is script as -EncodedCommand wants it: UTF-16 in Base64, which has no quoting rules
+// to get wrong.
+func encodeCommand(script string) string {
 	u := utf16.Encode([]rune(script))
 	raw := make([]byte, 0, 2*len(u))
 	for _, c := range u {
 		raw = append(raw, byte(c), byte(c>>8))
 	}
-	return []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand",
-		base64.StdEncoding.EncodeToString(raw)}
+	return base64.StdEncoding.EncodeToString(raw)
 }
+
+// encodedArgs are the arguments that run an encoded command in Windows PowerShell.
+func encodedArgs(encoded string) []string {
+	return []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded}
+}
+
+// queryArgs are the arguments that run script in Windows PowerShell.
+func queryArgs(script string) []string { return encodedArgs(encodeCommand(script)) }
 
 // queryPreamble starts every read-only script: UTF-8 output, no progress bars (redirected, they
 // turn into CLIXML on stderr), errors printed as a line the Go side can read.
@@ -196,13 +230,21 @@ const nativeHelper = `function Invoke-Native {
 }
 `
 
-// wrapScript is the script that runs body as administrator. It writes "ok", or "error: <step>:
-// <message>" (body sets $step as it goes), to the result file, because an elevated window's output
-// does not reach the terminal that started it.
-func wrapScript(body, result string) string {
+// wrapScript is the script that runs body as administrator. It first checks that it runs as the
+// account that asked (sid): a standard user who gives an administrator's credentials to the prompt
+// gets a process that cannot read the user's private folder and would register the task for the
+// wrong account, so it changes nothing and exits with exitWrongAccount. Otherwise it writes "ok", or
+// "error: <step>: <message>" (body sets $step as it goes), to the result file, because an elevated
+// window's output does not reach the terminal that started it.
+func wrapScript(body, result, sid string) string {
 	return `$ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $result = ` + psQuote(result) + `
+$me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+if ($me -ne ` + psQuote(sid) + `) {
+    try { Set-Content -LiteralPath $result -Value ('error: ' + ` + psQuote(wrongAccountMessage) + `) -Encoding UTF8 } catch { }
+    exit ` + fmt.Sprint(exitWrongAccount) + `
+}
 $step = 'Dotlane'
 ` + nativeHelper + `try {
 ` + body + `
@@ -214,13 +256,14 @@ $step = 'Dotlane'
 `
 }
 
-// launcherScript starts script in an elevated PowerShell (a UAC prompt) and waits for it. Each
-// argument is quoted for PowerShell, and the script path once more for the new process, because
-// Start-Process joins its arguments with spaces and does not quote them.
-func launcherScript(script string) string {
-	return `$ErrorActionPreference = 'Stop'
-Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',` +
-		psQuote(`"`+script+`"`) + "\n"
+// launcherScript is a one-line script that starts the encoded command in an elevated PowerShell (a
+// UAC prompt), waits for it and exits with its exit code. psExe is absolute: ShellExecute would
+// search the current folder and the PATH for a bare name, and elevate whatever it found there. It
+// uses single quotes only, as it travels as a -Command argument.
+func launcherScript(psExe, encoded string) string {
+	return `$ErrorActionPreference = 'Stop'; $p = Start-Process -FilePath ` + psQuote(psExe) +
+		` -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand',` +
+		psQuote(encoded) + `; exit $p.ExitCode`
 }
 
 // parseResult turns the result file into an error: nil for "ok".
@@ -357,17 +400,37 @@ func taskArgs(service string) string {
 	return "-TaskName " + psQuote(service) + " -TaskPath " + psQuote(taskFolder)
 }
 
-// stopWait stops the task and waits until its process is gone, so starting it again is not
-// ignored (the task runs one instance at a time).
-func stopWait(service string) string {
-	return `Stop-ScheduledTask ` + taskArgs(service) + ` -ErrorAction SilentlyContinue
-for ($i = 0; $i -lt 50 -and (Get-ScheduledTask ` + taskArgs(service) + `).State -eq 'Running'; $i++) { Start-Sleep -Milliseconds 200 }
+// killOld ends the running daemon with this PID, if the process still has the service's name (a
+// PID can be reused while a permission prompt is open). Stopping the task ends only the cmd.exe that
+// started the daemon, not the daemon, which keeps its ports and socket and would make the new one
+// fail to bind.
+func killOld(service string, pid int) string {
+	if pid == 0 {
+		return ""
+	}
+	id := fmt.Sprint(pid)
+	return `$old = Get-Process -Id ` + id + ` -ErrorAction SilentlyContinue
+if ($old -and $old.ProcessName -eq ` + psQuote(service) + `) { Stop-Process -Id ` + id + ` -Force -ErrorAction SilentlyContinue; $old.WaitForExit(10000) | Out-Null }
 `
 }
 
+// stopWait stops the task and the daemon with pid (0: none known), and waits until the task has
+// ended, so starting it again is not ignored (the task runs one instance at a time).
+func stopWait(service string, pid int) string {
+	return `Stop-ScheduledTask ` + taskArgs(service) + ` -ErrorAction SilentlyContinue
+` + killOld(service, pid) + `for ($i = 0; $i -lt 50 -and (Get-ScheduledTask ` + taskArgs(service) + `).State -eq 'Running'; $i++) { Start-Sleep -Milliseconds 200 }
+`
+}
+
+// taskSDDL lets administrators, SYSTEM and the user start, stop and change the task. Without it only
+// administrators can, and every refresh after an upgrade would ask for a permission prompt. The task
+// runs as the user without elevation, so changing it gives the user nothing they lack.
+func taskSDDL(sid string) string { return "D:(A;;FA;;;BA)(A;;FA;;;SY)(A;;FA;;;" + sid + ")" }
+
 // registerBody replaces the task with the definition in xml, lets its owner start and stop it (so
-// refresh and upgrade need no elevation; best effort), and starts it.
-func registerBody(service, xml, sid string) string {
+// refresh and upgrade need no elevation; best effort), ends the daemon of the old task (pid, or 0),
+// and starts the new one.
+func registerBody(service, xml, sid string, pid int) string {
 	return `$xml = @'
 ` + xml + `'@
 Register-ScheduledTask ` + taskArgs(service) + ` -Xml $xml -Force | Out-Null
@@ -375,20 +438,44 @@ try {
     $svc = New-Object -ComObject Schedule.Service
     $svc.Connect()
     $svc.GetFolder(` + psQuote(strings.TrimSuffix(taskFolder, `\`)) + `).GetTask(` + psQuote(service) + `).SetSecurityDescriptor(` +
-		psQuote("D:(A;;FA;;;BA)(A;;FA;;;SY)(A;;FA;;;"+sid+")") + `, 0)
+		psQuote(taskSDDL(sid)) + `, 0)
 } catch { }
-` + stopWait(service) + `Start-ScheduledTask ` + taskArgs(service) + "\n"
+` + stopWait(service, pid) + `Start-ScheduledTask ` + taskArgs(service) + "\n"
 }
 
-// restartBody stops the task and starts it again.
-func restartBody(service string) string {
-	return stopWait(service) + `Start-ScheduledTask ` + taskArgs(service) + "\n"
+// registerShown is registerBody as the user reads it.
+func registerShown(service, sid string, pid int) []string {
+	shown := []string{
+		"Register-ScheduledTask -TaskName " + winQuote(service) + " -TaskPath " + winQuote(taskFolder) + " -Xml <the task definition> -Force",
+		"<Schedule.Service COM>.GetFolder(" + winQuote(strings.TrimSuffix(taskFolder, `\`)) + ").GetTask(" + winQuote(service) +
+			").SetSecurityDescriptor(\"" + taskSDDL(sid) + "\", 0)    # your account may start and stop the task",
+	}
+	return append(append(shown, stopShown(service, pid)...), startShown(service))
 }
 
-// unregisterBody stops and removes the task, and its folder when it was the last one in it.
-func unregisterBody(service string) string {
+// stopShown is stopWait as the user reads it.
+func stopShown(service string, pid int) []string {
+	shown := []string{"Stop-ScheduledTask -TaskName " + winQuote(service) + " -TaskPath " + winQuote(taskFolder)}
+	if pid != 0 {
+		shown = append(shown, fmt.Sprintf("Stop-Process -Id %d -Force    # the running Dotlane service (%s)", pid, service))
+	}
+	return shown
+}
+
+func startShown(service string) string {
+	return "Start-ScheduledTask -TaskName " + winQuote(service) + " -TaskPath " + winQuote(taskFolder)
+}
+
+// restartBody stops the task and the daemon (pid, or 0) and starts the task again.
+func restartBody(service string, pid int) string {
+	return stopWait(service, pid) + `Start-ScheduledTask ` + taskArgs(service) + "\n"
+}
+
+// unregisterBody stops the task and the daemon (pid, or 0), removes the task, and its folder when
+// it was the last one in it.
+func unregisterBody(service string, pid int) string {
 	return `Stop-ScheduledTask ` + taskArgs(service) + ` -ErrorAction SilentlyContinue
-Unregister-ScheduledTask ` + taskArgs(service) + ` -Confirm:$false
+` + killOld(service, pid) + `Unregister-ScheduledTask ` + taskArgs(service) + ` -Confirm:$false
 try {
     if (-not (Get-ScheduledTask -TaskPath ` + psQuote(taskFolder) + ` -ErrorAction SilentlyContinue)) {
         $svc = New-Object -ComObject Schedule.Service
@@ -399,8 +486,26 @@ try {
 `
 }
 
+// unregisterShown is unregisterBody as the user reads it.
+func unregisterShown(service string, pid int) []string {
+	shown := stopShown(service, pid)
+	return append(shown,
+		"Unregister-ScheduledTask -TaskName "+winQuote(service)+" -TaskPath "+winQuote(taskFolder)+" -Confirm:$false",
+		"<Schedule.Service COM>.GetFolder('\\').DeleteFolder("+winQuote(strings.Trim(taskFolder, `\`))+", 0)    # only if no other task is in it")
+}
+
 // nrptComment marks the DNS rules of one service.
 func nrptComment(service string) string { return "dotlane:" + service }
+
+// addRuleShown is addRuleBody as the user reads it.
+func addRuleShown(service, tld string) []string {
+	comment := nrptComment(service)
+	return []string{
+		fmt.Sprintf(`Get-DnsClientNrptRule | Where-Object { $_.Comment -eq "%s" -and $_.Namespace -contains ".%s" } | Remove-DnsClientNrptRule -Force    # Dotlane's earlier rule for it, if any`, comment, tld),
+		fmt.Sprintf(`Add-DnsClientNrptRule -Namespace ".%s" -NameServers "127.0.0.1" -Comment "%s"`, tld, comment),
+		"Clear-DnsClientCache",
+	}
+}
 
 // addRuleBody replaces Dotlane's rule for tld with one that sends it to 127.0.0.1, then clears the
 // DNS cache so earlier answers (a failed lookup) are forgotten.
@@ -485,8 +590,9 @@ func (r nrptRule) covers(tld string) bool {
 	return false
 }
 
-// ruleFor judges the rules for tld. The rule it blames, for ruleWrong and ruleForeign, comes back
-// too.
+// ruleFor judges the rules for tld. Dotlane's own correct rule wins wherever it is in the list;
+// otherwise another tool's rule for the ending counts, then Dotlane's wrong one. The rule it blames,
+// for ruleWrong and ruleForeign, comes back too.
 func ruleFor(rules []nrptRule, service, tld string) (ruleState, nrptRule) {
 	state, found := ruleMissing, nrptRule{}
 	for _, r := range rules {
@@ -495,10 +601,12 @@ func ruleFor(rules []nrptRule, service, tld string) (ruleState, nrptRule) {
 		}
 		switch {
 		case r.Comment != nrptComment(service):
-			return ruleForeign, r
+			if state != ruleOK {
+				state, found = ruleForeign, r
+			}
 		case strings.TrimSpace(r.NameServers) == "127.0.0.1":
-			state, found = ruleOK, r
-		case state != ruleOK:
+			return ruleOK, r
+		case state == ruleMissing:
 			state, found = ruleWrong, r
 		}
 	}

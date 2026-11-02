@@ -62,7 +62,12 @@ type fakeWin struct {
 	elevated bool
 	// denyTaskControl: this account may not stop or start the task (schtasks /End and /Run fail).
 	denyTaskControl bool
-	elevatedErr     error // what Elevated returns instead of running the script (a declined prompt)
+	// endKeepsDaemon: schtasks /End and Stop-ScheduledTask end the task's cmd.exe only; the
+	// daemon it started keeps running (and answering) until it is killed by its PID.
+	endKeepsDaemon bool
+	noAdmin        bool  // this account is a standard user: a prompt cannot help
+	killed         []int // PIDs ended with Kill
+	elevatedErr    error // what Elevated returns instead of running the script (a declined prompt)
 
 	registered bool
 	taskXML    string
@@ -101,6 +106,15 @@ func decodeCommand(t *testing.T, args []string) string {
 }
 
 func (f *fakeWin) IsElevated() bool { return f.elevated }
+func (f *fakeWin) CanElevate() bool { return f.elevated || !f.noAdmin }
+
+func (f *fakeWin) kill(pid int) error {
+	f.killed = append(f.killed, pid)
+	if f.running && f.pid == pid {
+		f.running = false
+	}
+	return nil
+}
 
 func (f *fakeWin) startDaemon() {
 	f.running = true
@@ -128,7 +142,7 @@ func (f *fakeWin) Run(_ context.Context, name string, args ...string) ([]byte, e
 			if !f.running {
 				return nil, errors.New("exit status 1")
 			}
-			f.running = false
+			f.running = f.endKeepsDaemon
 		case "/Run":
 			if f.denyTaskControl {
 				return []byte("ERROR: Access is denied."), errors.New("exit status 1")
@@ -192,7 +206,12 @@ func (f *fakeWin) Elevated(_ context.Context, body string) error {
 	case strings.Contains(body, "Unregister-ScheduledTask"):
 		f.registered, f.running = false, false
 	case strings.Contains(body, "Start-ScheduledTask"):
-		f.startDaemon()
+		if strings.Contains(body, "Stop-Process -Id "+fmt.Sprint(f.pid)) {
+			f.running = false
+		}
+		if !f.running {
+			f.startDaemon()
+		}
 	}
 	if strings.Contains(body, "-addstore -f Root") {
 		f.trusted = true
@@ -279,6 +298,7 @@ func newTestWindows(t *testing.T) (*Windows, *fakeWin, *bytes.Buffer) {
 		PrivateDir: func(d string) error { return os.MkdirAll(d, 0o700) },
 		Owner:      func(string) (bool, error) { return true, nil },
 		Firefox:    func() bool { return false },
+		Kill:       fake.kill,
 		Pause:      func(time.Duration) {},
 		Timeout:    20 * time.Millisecond,
 	}
@@ -856,5 +876,118 @@ func TestThumbprintIsTheCertificatesSHA1(t *testing.T) {
 	}
 	if _, _, err := thumbprint(filepath.Join(t.TempDir(), "none.crt")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("missing file: %v", err)
+	}
+}
+
+// Stopping the task ends only cmd.exe: the old daemon keeps answering until it is killed by its PID.
+// The restart must end it, or the new daemon cannot bind and the old build keeps running.
+func TestRestartKillsTheOldDaemon(t *testing.T) {
+	w, fake, out := newTestWindows(t)
+	if err := w.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	fake.started = time.Now().Add(-time.Hour)
+	fake.endKeepsDaemon = true
+	pid := fake.pid
+	os.WriteFile(w.Exe, []byte("dotlane build 2"), 0o755)
+	out.Reset()
+	if err := w.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if len(fake.killed) != 1 || fake.killed[0] != pid || fake.pid == pid {
+		t.Errorf("killed %v, pid %d → %d", fake.killed, pid, fake.pid)
+	}
+	if fake.elevatedCalls() != 1 {
+		t.Errorf("a plain restart asked for administrator rights:\n%s", out)
+	}
+}
+
+// The elevated restart ends the old daemon too, and says so.
+func TestElevatedRestartKillsAndShowsIt(t *testing.T) {
+	w, fake, out := newTestWindows(t)
+	if err := w.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	fake.started = time.Now().Add(-time.Hour)
+	fake.denyTaskControl, fake.endKeepsDaemon = true, true
+	w.Kill = func(int) error { return errors.New("Access is denied.") } // the unprivileged kill fails too
+	pid := fake.pid
+	os.WriteFile(w.Exe, []byte("dotlane build 2"), 0o755)
+	out.Reset()
+	if err := w.Refresh(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if fake.pid == pid {
+		t.Error("the daemon was not replaced")
+	}
+	want := fmt.Sprintf("Stop-Process -Id %d -Force", pid)
+	if !strings.Contains(fake.scripts[1], want) || !strings.Contains(out.String(), "$ "+want) {
+		t.Errorf("the stop of pid %d is not in the script and the shown commands:\n%s\n%s", pid, fake.scripts[1], out)
+	}
+}
+
+// If the old daemon survives the elevated restart, install says so instead of "restarted".
+func TestRestartFailsWhileTheOldDaemonAnswers(t *testing.T) {
+	w, fake, out := newTestWindows(t)
+	if err := w.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	fake.started = time.Now().Add(-time.Hour)
+	pid := fake.pid
+	w.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: pid, Version: "old", Started: fake.started}, nil
+	}
+	w.Kill = func(int) error { return errors.New("Access is denied.") }
+	fake.denyTaskControl = true
+	os.WriteFile(w.Exe, []byte("dotlane build 2"), 0o755)
+	err := w.Refresh(context.Background())
+	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("old daemon (pid %d) is still running", pid)) {
+		t.Errorf("err = %v\n%s", err, out)
+	}
+}
+
+// A standard user is told before any prompt, and nothing runs.
+func TestStandardUserIsToldUpFront(t *testing.T) {
+	w, fake, out := newTestWindows(t)
+	fake.noAdmin = true
+	err := w.Install(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "your account is not an administrator") {
+		t.Fatalf("err = %v\n%s", err, out)
+	}
+	if fake.elevatedCalls() != 0 || strings.Contains(out.String(), "administrator as") {
+		t.Errorf("a prompt was shown to a standard user:\n%s", out)
+	}
+}
+
+// Every action the elevated scripts take is in the commands shown for the step.
+func TestShownCoversTheScripts(t *testing.T) {
+	for name, tc := range map[string]struct {
+		body  string
+		shown []string
+		must  map[string]string // a phrase in the script -> a phrase in what is shown
+	}{
+		"register": {registerBody("s", "<Task/>\n", "S-1", 42), registerShown("s", "S-1", 42), map[string]string{
+			"Register-ScheduledTask": "Register-ScheduledTask", "SetSecurityDescriptor": "SetSecurityDescriptor",
+			"Stop-ScheduledTask": "Stop-ScheduledTask", "Stop-Process -Id 42": "Stop-Process -Id 42", "Start-ScheduledTask": "Start-ScheduledTask"}},
+		"restart": {restartBody("s", 42), append(stopShown("s", 42), startShown("s")), map[string]string{
+			"Stop-ScheduledTask": "Stop-ScheduledTask", "Stop-Process -Id 42": "Stop-Process -Id 42", "Start-ScheduledTask": "Start-ScheduledTask"}},
+		"unregister": {unregisterBody("s", 42), unregisterShown("s", 42), map[string]string{
+			"Stop-ScheduledTask": "Stop-ScheduledTask", "Stop-Process -Id 42": "Stop-Process -Id 42",
+			"Unregister-ScheduledTask": "Unregister-ScheduledTask", "DeleteFolder": "DeleteFolder"}},
+		"add rule": {addRuleBody("s", "dltest"), addRuleShown("s", "dltest"), map[string]string{
+			"Remove-DnsClientNrptRule": "Remove-DnsClientNrptRule", "Add-DnsClientNrptRule": "Add-DnsClientNrptRule", "Clear-DnsClientCache": "Clear-DnsClientCache"}},
+	} {
+		shown := strings.Join(tc.shown, "\n")
+		for inScript, inShown := range tc.must {
+			if !strings.Contains(tc.body, inScript) {
+				t.Errorf("%s: the script lacks %q", name, inScript)
+			}
+			if !strings.Contains(shown, inShown) {
+				t.Errorf("%s: %q is not shown:\n%s", name, inShown, shown)
+			}
+		}
+	}
+	if strings.Contains(restartBody("s", 0), "Stop-Process") {
+		t.Error("a restart without a known daemon stops a process")
 	}
 }

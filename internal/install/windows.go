@@ -52,6 +52,8 @@ type Windows struct {
 	Owner      func(dir string) (bool, error)
 	// Firefox reports whether Firefox is installed.
 	Firefox func() bool
+	// Kill ends a process by PID (the old daemon); nil means the real thing. Tests replace it.
+	Kill func(pid int) error
 	// Pause waits between polls; tests replace it.
 	Pause func(time.Duration)
 	// Timeout is how long to wait for the daemon to answer after a start.
@@ -110,6 +112,36 @@ func (w *Windows) copyBinary() (bool, error) {
 		os.Rename(w.oldExe(), w.serviceExe())
 	}
 	return changed, err
+}
+
+// kill ends the process pid, which a moment ago answered as the daemon.
+func (w *Windows) kill(pid int) error {
+	if w.Kill != nil {
+		return w.Kill(pid)
+	}
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	defer p.Release()
+	return p.Kill()
+}
+
+// waitReplaced waits until a daemon other than oldPID answers (0: no old daemon, nothing to wait
+// for). The old one answering means the restart did not replace it, and a new one could not bind its
+// ports.
+func (w *Windows) waitReplaced(ctx context.Context, oldPID int) error {
+	if oldPID == 0 {
+		return nil
+	}
+	for i := 0; i < 75; i++ {
+		if st, err := w.Daemon(ctx); err == nil && st.PID != oldPID {
+			return nil
+		}
+		w.pause(200 * time.Millisecond)
+	}
+	return fmt.Errorf("the old daemon (pid %d) is still running, so the new build is not: end it (Task Manager, or Stop-Process -Id %d -Force), then run dotlane install again\nsee its log: %s",
+		oldPID, oldPID, w.UI.Path(w.logPath()))
 }
 
 // removeOld deletes the previous copy of the binary, if the program that ran it has exited.
@@ -258,6 +290,16 @@ func (w *Windows) runSteps(ctx context.Context, steps []adminStep) error {
 	if len(steps) == 0 {
 		return nil
 	}
+	if !w.Runner.IsElevated() && !w.Runner.CanElevate() {
+		var labels []string
+		for _, s := range steps {
+			labels = append(labels, strings.ToLower(s.Label))
+		}
+		return fmt.Errorf("this needs administrator rights (%s), and your account is not an administrator. "+
+			"Dotlane installs per user, so your own account has to be one: Windows would ask for another account's "+
+			"password, and the service and its files would end up with that account, not yours.\n"+
+			"Ask an administrator to add you to the Administrators group, then run this again; nothing was changed", strings.Join(labels, ", "))
+	}
 	for _, s := range steps {
 		if w.Runner.IsElevated() {
 			w.UI.Line("\n  › %s", s.Label)
@@ -307,15 +349,20 @@ func (w *Windows) serviceStep(ctx context.Context) (*adminStep, error) {
 	if !registered || !current {
 		why := "Starts Dotlane when you sign in, restarts it if it stops, and starts it now. It runs as you, with\n" +
 			"    no console window, and without storing your password. Windows lets only an administrator add a task\n" +
-			"    like that; dotlane uninstall removes it."
+			"    like that; dotlane uninstall removes it. Your account may then start and stop the task, so updates need\n" +
+			"    no permission prompt; a service still running from an earlier task is ended, to be replaced."
+		pid := 0
+		if st, err := w.Daemon(ctx); err == nil {
+			pid = st.PID
+		}
 		return &adminStep{
 			Label: "Login service", Why: why,
-			Shown: []string{
-				"Register-ScheduledTask -TaskName " + winQuote(name) + " -TaskPath " + winQuote(taskFolder) + " -Xml <the task definition> -Force",
-				"Start-ScheduledTask -TaskName " + winQuote(name) + " -TaskPath " + winQuote(taskFolder),
-			},
-			Body: registerBody(name, xml, w.UserSID),
-			Done: func(context.Context) error {
+			Shown: registerShown(name, w.UserSID, pid),
+			Body:  registerBody(name, xml, w.UserSID, pid),
+			Done: func(ctx context.Context) error {
+				if err := w.waitReplaced(ctx, pid); err != nil {
+					return err
+				}
 				w.UI.OK("Login service", "installed · task "+w.taskName())
 				return nil
 			},
@@ -339,12 +386,12 @@ func (w *Windows) serviceStep(ctx context.Context) (*adminStep, error) {
 			Label: "Login service",
 			Why: "Restarts the Dotlane service (" + why + "). This account may not stop and start its own task; Windows\n" +
 				"    asks for administrator rights for that.",
-			Shown: []string{
-				"Stop-ScheduledTask -TaskName " + winQuote(name) + " -TaskPath " + winQuote(taskFolder),
-				"Start-ScheduledTask -TaskName " + winQuote(name) + " -TaskPath " + winQuote(taskFolder),
-			},
-			Body: restartBody(name),
-			Done: func(context.Context) error {
+			Shown: append(stopShown(name, pid), startShown(name)),
+			Body:  restartBody(name, pid),
+			Done: func(ctx context.Context) error {
+				if err := w.waitReplaced(ctx, pid); err != nil {
+					return err
+				}
 				w.UI.OK("Login service", "restarted ("+why+")")
 				return nil
 			},
@@ -363,6 +410,9 @@ func (w *Windows) restartTask(ctx context.Context, oldPID int) error {
 	schtasks := system32("schtasks.exe")
 	w.Runner.Run(ctx, schtasks, "/End", "/TN", w.taskName()) // fails when the task is not running
 	if oldPID != 0 {
+		// /End ends the task's cmd.exe, not the daemon it started: that keeps its ports and socket,
+		// and a new daemon could not bind them. End it by PID.
+		killErr := w.kill(oldPID)
 		stopped := false
 		for i := 0; i < 50 && !stopped; i++ {
 			st, err := w.Daemon(ctx)
@@ -371,7 +421,7 @@ func (w *Windows) restartTask(ctx context.Context, oldPID int) error {
 			}
 		}
 		if !stopped {
-			return fmt.Errorf("%w: the old daemon (pid %d) kept running", errNeedsAdmin, oldPID)
+			return fmt.Errorf("%w: the old daemon (pid %d) kept running (ending it: %v)", errNeedsAdmin, oldPID, killErr)
 		}
 	}
 	timeout := w.Timeout
@@ -467,15 +517,11 @@ func (w *Windows) dnsSteps(ctx context.Context) ([]adminStep, error) {
 			w.UI.OK(label, "already routed · 127.0.0.1")
 			continue
 		}
-		comment := nrptComment(w.Cfg.ServiceName)
 		steps = append(steps, adminStep{
 			Label: label,
 			Why:   fmt.Sprintf("Sends lookups for *.%s, and only those, to Dotlane's DNS on 127.0.0.1.", tld),
-			Shown: []string{
-				fmt.Sprintf(`Add-DnsClientNrptRule -Namespace ".%s" -NameServers "127.0.0.1" -Comment "%s"`, tld, comment),
-				"Clear-DnsClientCache",
-			},
-			Body: addRuleBody(w.Cfg.ServiceName, tld),
+			Shown: addRuleShown(w.Cfg.ServiceName, tld),
+			Body:  addRuleBody(w.Cfg.ServiceName, tld),
 			Done: func(ctx context.Context) error {
 				rules, err := w.rules(ctx)
 				if err != nil {
@@ -534,15 +580,16 @@ func (w *Windows) Uninstall(ctx context.Context, purge bool) error {
 	var steps []adminStep
 	registered, _ := w.taskState(ctx)
 	if registered {
+		pid := 0
+		if st, err := w.Daemon(ctx); err == nil {
+			pid = st.PID
+		}
 		steps = append(steps, adminStep{
 			Label: "Login service",
-			Why:   "Stops the Dotlane service and removes its scheduled task.",
-			Shown: []string{
-				"Stop-ScheduledTask -TaskName " + winQuote(name) + " -TaskPath " + winQuote(taskFolder),
-				"Unregister-ScheduledTask -TaskName " + winQuote(name) + " -TaskPath " + winQuote(taskFolder) + " -Confirm:$false",
-			},
-			Body: unregisterBody(name),
-			Done: func(context.Context) error { return w.removeBinary("stopped and removed") },
+			Why:   "Stops the Dotlane service (and ends the daemon it started) and removes its scheduled task, and Dotlane's\n    folder in Task Scheduler when no other task is in it.",
+			Shown: unregisterShown(name, pid),
+			Body:  unregisterBody(name, pid),
+			Done:  func(context.Context) error { return w.removeBinary("stopped and removed") },
 		})
 	} else if err := w.removeBinary("removed (its task was gone)"); err != nil {
 		return err
