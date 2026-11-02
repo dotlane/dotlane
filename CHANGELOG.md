@@ -92,6 +92,6 @@ source; Homebrew is coming soon. Phases 1 and 2 of the [roadmap](docs/roadmap.md
 - Binaries are not yet signed or notarized by Apple. npm downloads are not quarantined, so macOS
   runs them as they are; the Homebrew cask will remove the quarantine attribute.
 
-[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.2.0-rc.1...HEAD
+[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/dotlane/dotlane/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0
