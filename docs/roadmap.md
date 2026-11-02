@@ -54,16 +54,16 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Done
 
-**Linux and Windows** (in the next release; [`compatibility.md`](compatibility.md) tracks each
-item):
+**`v0.2.0`** (2026-11-02), Linux and Windows, each on x64 and arm64.
+[`compatibility.md`](compatibility.md) tracks each item:
 
 - Linux: a systemd user unit, DNS through systemd-resolved on a link that carries only the
   domain endings, the CA in the system store and NSS (Firefox, Chromium), ports 80/443 through
   `ip_unprivileged_port_start`. Tested end to end on Ubuntu, Fedora and Arch.
 - Windows: a Task Scheduler task, NRPT rules with DNS on `127.0.0.1:53`, the CA in the machine's
   Root store, every admin step in one UAC prompt.
-- Releases for both (archives, zip, deb, rpm, Arch packages, npm), and CI end to end on Ubuntu
-  and Windows. WSL2 setups documented in [`wsl.md`](wsl.md).
+- Releases for both (archives, zip, deb, rpm, Arch packages, npm), and CI end to end on Ubuntu,
+  Fedora, Arch and Windows. WSL2 setups documented in [`wsl.md`](wsl.md).
 
 **`v0.1.0`** 
 (2026-11-01), macOS on Apple Silicon and Intel. The full list is in the

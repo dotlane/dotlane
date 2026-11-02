@@ -4,7 +4,7 @@ Where the `dotlane` binary stands on each operating system, item by item, so the
 on Linux and Windows can be tracked. The plan behind it is in the [core roadmap](roadmap.md#later);
 this page is the checklist. Update a row in the same pull request that changes it.
 
-Last checked: 2026-11-02, with CI green on branch `feat/cross-platform`
+Last checked: 2026-11-02, at `v0.2.0`, the first release with Linux and Windows
 ([dotlane/dotlane#17](https://github.com/dotlane/dotlane/pull/17)).
 
 ## Summary
@@ -12,8 +12,8 @@ Last checked: 2026-11-02, with CI green on branch `feat/cross-platform`
 | OS | Where it stands |
 | --- | --- |
 | **macOS** (arm64, x64) | Shipped in `v0.1.0`. Signing and notarization are the open item. |
-| **Linux** (amd64, arm64) | Installer, doctor, upgrade and uninstall done. End to end on CI on Ubuntu, Fedora and Arch (x64), and by hand on arm64 VMs of all three. Released as archives, deb, rpm, Arch packages and npm, from the next release. |
-| **Windows** (amd64, arm64) | Installer, doctor, upgrade and uninstall done, end to end on CI's `windows-latest` in PowerShell 7 and 5.1, as an administrator. Not yet run on a desktop with a real UAC prompt, nor as a user without admin rights (I7, I10). Released as zip and npm, from the next release. |
+| **Linux** (amd64, arm64) | Installer, doctor, upgrade and uninstall done. End to end on CI on Ubuntu, Fedora and Arch (x64), and by hand on arm64 VMs of all three. Shipped in `v0.2.0`: archives, deb, rpm, Arch packages and npm. |
+| **Windows** (amd64, arm64) | Installer, doctor, upgrade and uninstall done, end to end on CI's `windows-latest` in PowerShell 7 and 5.1, as an administrator. Not yet run on a desktop with a real UAC prompt, nor as a user without admin rights (I7, I10). Shipped in `v0.2.0`: zip and npm. |
 | **WSL2** | Documented in [`wsl.md`](wsl.md): Dotlane on Windows with the dev server in WSL is the supported setup. |
 
 Setup per OS: [macOS](setup.md), [Linux](setup-linux.md), [Windows](setup-windows.md).
@@ -35,7 +35,7 @@ Setup per OS: [macOS](setup.md), [Linux](setup-linux.md), [Windows](setup-window
 | B2 | `go vet` and `govulncheck` on CI | done | done | done | `scripts/check.sh` runs both for all three OSes. |
 | B3 | Unit tests run on CI | done | done | done | Linux in `test` (`go test -race ./...`), Windows in `test-windows` (without `-race`, which needs cgo). |
 | B4 | GoReleaser archives | done | done | done | tar.gz on macOS and Linux, zip with `dotlane.exe` on Windows. Linux and Windows come from a second build (`dotlane-linux-windows`), so the Homebrew cask, which filters by build, stays macOS-only. |
-| B5 | npm platform packages | done | done | done | `@dotlane/{linux,win32}-{x64,arm64}`; `npm-build.mjs` checks ELF and PE headers and requires all six binaries. Published from the next release; trusted publishing must be set up on the four new packages first. |
+| B5 | npm platform packages | done | done | done | `@dotlane/{linux,win32}-{x64,arm64}`; `npm-build.mjs` checks ELF and PE headers and requires all six binaries. Published since `v0.2.0`, through trusted publishing like the macOS packages. |
 | B6 | Other package managers | partial | done | todo | macOS: Homebrew cask built, on hold. Linux: every pull request installs the snapshot's .deb on Ubuntu, .rpm on Fedora and Arch package on Arch with the distribution's package manager, runs the end-to-end test from `/usr/bin/dotlane`, and checks that removing the package leaves nothing (`linux-packages`). Windows: Scoop and winget need their own repositories. |
 | B7 | Signed binaries | todo | — | todo | macOS: Developer ID and notarization (roadmap Now). Windows: Authenticode, or SmartScreen warns. |
 
