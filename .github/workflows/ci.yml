@@ -33,11 +33,12 @@ jobs:
     #   always; for a pull request into main (a release or a hotfix), when it changes more than
     #   docs; for a pull request into dev, never: the release pull request runs them once for the
     #   whole batch.
-    # A skipped job counts as passed for the rulesets' required checks.
+    # The rulesets require only gate, which checks the outcome against this tier.
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.decide.outputs.run }}
       full: ${{ steps.decide.outputs.full }}
+      draft: ${{ steps.decide.outputs.draft }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -47,12 +48,12 @@ jobs:
           BASE: ${{ github.base_ref }}
           DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          run=true
+          run=true draft=false
           if [[ $GITHUB_REF == refs/tags/* || $GITHUB_EVENT_NAME == workflow_dispatch ]]; then
             full=true
           elif [[ $GITHUB_EVENT_NAME == pull_request ]]; then
             if [[ $DRAFT == true ]]; then
-              run=false full=false
+              run=false full=false draft=true
             else
               # The merge commit's first parent is the base branch, so this diff is the pull request.
               code=$(git diff --name-only HEAD^1 HEAD | grep -vE '\.md$|^docs/|^assets/demo/|^\.github/ISSUE_TEMPLATE/' || true)
@@ -72,6 +73,7 @@ jobs:
           echo "Quick tier: $run; full tier: $full"
           echo "run=$run" >> "$GITHUB_OUTPUT"
           echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
 
   test:
     # Linux: starts in seconds and costs a tenth of macOS minutes. Everything but the installer
@@ -80,8 +82,7 @@ jobs:
     if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
-      # Here rather than in changes: a failed changes job would skip the required checks, and a
-      # skipped check counts as passed.
+      # Here rather than in changes, so a wrong base fails a job named for it; gate fails too.
       - name: Only release, hotfix and Dependabot branches go into main
         if: github.base_ref == 'main'
         env:
@@ -383,3 +384,53 @@ jobs:
           name: snapshot
           path: dist
       - run: scripts/brew-e2e.sh dist
+
+  gate:
+    # The one check the rulesets require (docs/branching.md, Guards). A ruleset counts a skipped
+    # check as passed, and it reads the newest check of that name on the head commit, even one from
+    # an older run. So a draft fails here instead of skipping its jobs: when it is marked ready, this
+    # failure stays the newest gate until the new run's gate has seen the tier pass, and auto-merge
+    # waits for it. Skipped, which passes, only for a docs-only pull request into dev. always():
+    # it also runs, and fails, when a job it needs failed or the run was cancelled.
+    needs:
+      - changes
+      - test
+      - install-tests
+      - integration
+      - test-windows
+      - integration-linux
+      - integration-linux-distros
+      - integration-windows
+      - release-snapshot
+      - linux-packages
+      - homebrew
+    if: always() && !(needs.changes.outputs.run == 'false' && needs.changes.outputs.draft == 'false')
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+          RUN: ${{ needs.changes.outputs.run }}
+          FULL: ${{ needs.changes.outputs.full }}
+          DRAFT: ${{ needs.changes.outputs.draft }}
+        run: |
+          if [[ $DRAFT == true ]]; then
+            echo "::error::A draft runs no tests. Mark it ready (gh pr ready) and this check reruns."
+            exit 1
+          fi
+          want=(changes)
+          if [[ $RUN == true ]]; then want+=(test integration-linux); fi
+          if [[ $FULL == true ]]; then
+            want+=(install-tests integration test-windows integration-linux-distros integration-windows)
+            # release.yml calls this file on a tag push, where the snapshot jobs do not run.
+            if [[ $GITHUB_EVENT_NAME != push ]]; then want+=(release-snapshot linux-packages homebrew); fi
+          fi
+          ok=true
+          for job in "${want[@]}"; do
+            result=$(jq -r --arg job "$job" '.[$job].result' <<<"$NEEDS")
+            echo "$job: $result"
+            if [[ $result != success ]]; then echo "::error::$job: $result"; ok=false; fi
+          done
+          # Anything else may be skipped, but nothing may fail.
+          failed=$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "::error::\(.key): \(.value.result)"' <<<"$NEEDS")
+          if [[ -n $failed ]]; then echo "$failed"; ok=false; fi
+          $ok
