@@ -91,10 +91,17 @@ function CurlExe {
     & curl.exe --ssl-revoke-best-effort -sS @args
 }
 
+# Checks is the list `dotlane doctor --json` prints, one object per check. PowerShell 5.1's
+# ConvertFrom-Json writes a JSON array as one object, the whole array, so Where-Object would see
+# every check at once; ForEach-Object unrolls it, and does nothing to PowerShell 7's output.
+function ConvertFrom-Checks($out) {
+    @(($out -join "`n") | ConvertFrom-Json | ForEach-Object { $_ })
+}
+
 function Get-DaemonLine {
     $r = DLTry doctor --json
-    $checks = @($r.Out | ConvertFrom-Json)
-    ($checks | Where-Object { $_.name -eq 'Daemon' }).detail
+    $checks = ConvertFrom-Checks $r.Out
+    [string](@($checks | Where-Object { $_.name -eq 'Daemon' })[0].detail)
 }
 
 # Show what the system looks like, for a failed run.
@@ -304,7 +311,7 @@ state_dir = '$STATE'
 
     Step 'doctor'
     $r = DLTry doctor --json
-    $checks = @($r.Out | ConvertFrom-Json)
+    $checks = ConvertFrom-Checks $r.Out
     $bad = @($checks | Where-Object { $_.status -eq 'fail' })
     if ($bad.Count -gt 0) { Fail ('doctor reports: ' + (($bad | ForEach-Object { "$($_.name): $($_.detail)" }) -join '; ')) }
     # Firefox, when installed (runners have it), gets a warning-level hint; nothing else may warn.

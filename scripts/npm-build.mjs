@@ -116,6 +116,15 @@ function copyShared(dir) {
   for (const f of ['LICENSE', 'NOTICE']) fs.copyFileSync(path.join(root, f), path.join(dir, f));
 }
 
+// npm runs `npm` with args in cwd and returns its output. On Windows npm is npm.cmd, which Node
+// runs only through a shell (since its 2024 fix for batch-file arguments); the shell takes one
+// command line, so each argument is quoted. Paths on Windows cannot contain a double quote.
+function npm(args, cwd) {
+  if (process.platform !== 'win32') return execFileSync('npm', args, { cwd, encoding: 'utf8' });
+  const line = ['npm.cmd', ...args].map((a) => (/[\s&|<>^]/.test(a) ? `"${a}"` : a)).join(' ');
+  return execFileSync(line, { cwd, encoding: 'utf8', shell: true });
+}
+
 export function build({ version, binaries, out }) {
   if (!SEMVER.test(version)) fail(`not a version: ${version}`);
   fs.rmSync(out, { recursive: true, force: true });
@@ -164,7 +173,7 @@ export function build({ version, binaries, out }) {
 
   const tarballs = [];
   for (const name of [...Object.keys(PLATFORMS), 'dotlane']) {
-    const file = execFileSync('npm', ['pack', '--silent', '--pack-destination', path.resolve(out)], { cwd: path.join(out, name), encoding: 'utf8' }).trim().split('\n').pop();
+    const file = npm(['pack', '--silent', '--pack-destination', path.resolve(out)], path.join(out, name)).trim().split('\n').pop();
     tarballs.push(path.join(out, file));
   }
   const tag = version.includes('-') ? 'next' : 'latest';

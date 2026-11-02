@@ -118,7 +118,7 @@ jobs:
           go-version-file: go.mod
           cache: false # see test
       - run: go test ./...
-      - run: node --test npm/test/
+      - run: node --test 'npm/test/*.test.*' # a glob, as in check.sh: Node runs a bare directory as a module
 
   integration-linux:
     # The real thing on a throwaway Ubuntu: systemd user unit, systemd-resolved, the system CA

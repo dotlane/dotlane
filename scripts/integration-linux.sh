@@ -111,7 +111,9 @@ step "other lookups are left alone"
 # The DNS setting must route *.$TLD only: it sits on a link of its own that is not a default route.
 link=$(resolvectl domain | sed -n "s/^Link [0-9]* (\(.*\)): .*~$TLD.*/\1/p")
 [[ -n "$link" ]] || { resolvectl domain; fail "no link routes ~$TLD"; }
-resolvectl status "$link" | grep -q 'Default Route: no' || fail "the $link link is a default route"
+# `resolvectl default-route` prints the setting the same way on every systemd version; `status`
+# does not (255 shows it as "-DefaultRoute" among the protocols, 259 as "Default Route: no").
+[[ "$(resolvectl default-route "$link")" == *": no" ]] || fail "the $link link is a default route"
 resolvectl domain | grep -v "(${link}):" | grep -q "~$TLD" && fail "~$TLD is routed on another link too"
 resolvectl query example.com >/dev/null || fail "resolvectl query example.com stopped working"
 getent hosts example.com >/dev/null || fail "getent hosts example.com stopped working"
