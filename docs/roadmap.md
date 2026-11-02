@@ -48,7 +48,9 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
   (embedding needs CGO, which breaks cross-compilation).
 - **Phones and other devices.** `bind = "lan"`, a LAN DNS answer or mDNS, or a tunnel, and a way
   to trust the CA on a phone.
-- **A name-constrained CA**, limited to the configured endings ([`security.md`](security.md)).
+- **A name-constrained CA**, limited to the configured endings ([`security.md`](security.md)),
+  so a stolen CA key cannot impersonate other websites. Each change of endings then brings a
+  new CA and one trust prompt. The plan and tasks are in [`ca-name-constraints.md`](ca-name-constraints.md).
 - **Teams.** An organization's domain ending and shared site lists, set up in one command.
 - **AI agents.** Stable URLs, `ls --json`, and an MCP-style endpoint that lists sites.
 
