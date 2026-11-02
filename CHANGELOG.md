@@ -11,6 +11,31 @@ the release notes, and refuses a tag that has none.
 
 ## [Unreleased]
 
+### Added
+
+- **Linux** (x64 and arm64): `install`, `uninstall`, `doctor`, `install --refresh` and the
+  automatic upgrade. A systemd user unit runs the service; a system unit gives systemd-resolved
+  a link that sends only the domain endings to Dotlane; the CA is trusted in the system store and,
+  with `certutil`, in NSS for Firefox and Chromium; `/etc/sysctl.d/50-dotlane.conf` lets the
+  service listen on ports 80 and 443. Needs systemd-resolved. Tested on Ubuntu, Fedora and Arch.
+- **Windows** (x64 and arm64): the same commands. A Task Scheduler task runs the service; NRPT
+  rules send the domain endings to Dotlane's DNS on `127.0.0.1:53`; the CA is trusted in the
+  machine's Root store. Every step that needs administrator rights runs in one elevated
+  PowerShell, so one UAC prompt.
+- Release archives for Linux (tar.gz, deb, rpm, Arch) and Windows (zip), and the npm packages
+  `@dotlane/linux-x64`, `@dotlane/linux-arm64`, `@dotlane/win32-x64` and `@dotlane/win32-arm64`.
+- [`docs/compatibility.md`](docs/compatibility.md), where each OS stands item by item, and setup
+  pages for [Linux](docs/setup-linux.md), [Windows](docs/setup-windows.md) and
+  [WSL2](docs/wsl.md).
+
+### Changed
+
+- On Linux, state lives in `$XDG_STATE_HOME/dotlane` (`~/.local/state/dotlane`), apart from the
+  config; on Windows, in `%LocalAppData%\dotlane`, with the config in `%AppData%\dotlane`. macOS
+  is unchanged.
+- Ports 80 and 443 are bound on every interface only on macOS, which requires it; Linux and
+  Windows bind them on loopback.
+
 ## [0.1.0] - 2026-11-01
 
 The first public release: macOS only (Apple Silicon and Intel), installed with npm or built from

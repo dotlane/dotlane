@@ -14,18 +14,19 @@ later, sit on top of it. How to cut a release is in [`releasing.md`](releasing.m
                     Release workflow (CI, GoReleaser)
                                    │
           builds ONE binary per OS and CPU, from the same commit
-       today: macOS arm64 and Intel   ·   later: also Linux and Windows
+         macOS, Linux and Windows, each on arm64 and x64
                                    │
                                    ▼
           ┌────────────────────────────────────────────────┐
           │  GitHub Release (a draft, then published)      │
           │  the source of truth for every channel         │
           │                                                │
-          │  dotlane_<version>_darwin_arm64.tar.gz         │
-          │  dotlane_<version>_darwin_amd64.tar.gz         │
+          │  dotlane_<version>_{darwin,linux}_*.tar.gz     │
+          │  dotlane_<version>_windows_*.zip               │
+          │  .deb, .rpm, .pkg.tar.zst   Linux packages     │
           │  checksums.txt, one SBOM per archive           │
           │  dotlane.rb               the Homebrew cask    │
-          │  dotlane-*.tgz (three)    the npm packages     │
+          │  dotlane-*.tgz (seven)    the npm packages     │
           └───────┬────────────────────────────┬───────────┘
                   │                            │
     publishing the draft runs               npm publish (by hand until the
@@ -35,17 +36,19 @@ later, sit on top of it. How to cut a release is in [`releasing.md`](releasing.m
                   ▼                            ▼
        dotlane/homebrew-tap               npmjs.com
        Casks/dotlane.rb, pointing         dotlane                 a small Node launcher
-       at the release's archives          @dotlane/darwin-arm64   the binary
-                  │                       @dotlane/darwin-x64     the binary
+       at the macOS archives              @dotlane/<os>-<cpu>     the binary,
+                  │                       six of them             one per OS and CPU
                   ▼                            ▼
    brew install dotlane/tap/dotlane     npm install -g dotlane, or npx dotlane
                   │                            │
                   └─────────────┬──────────────┘
                                 ▼
-                the same `dotlane` binary on the user's Mac
+              the same `dotlane` binary on the user's machine
             `dotlane install` then runs it as a background service
 ```
 
+- **Linux packages and Windows zips** are attached to the release for direct download; they
+  have no install scripts, so `dotlane install` and `dotlane uninstall` stay explicit steps.
 - **One build, many wrappers.** The archives, the cask and the npm packages all carry the binary
   GoReleaser built for that tag; nothing is rebuilt per channel.
 - **The GitHub Release is the source of truth.** The cask downloads the release's archives and

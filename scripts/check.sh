@@ -3,8 +3,8 @@
 #
 #   scripts/check.sh
 #
-# gofmt, build, go vet for Linux and macOS, go test -race, govulncheck for both, the Bash
-# scripts' syntax, the npm tests, the GoReleaser config and whether NOTICE lists every embedded
+# gofmt, build, go vet for Linux, macOS and Windows, go test -race, govulncheck for all three,
+# the Bash scripts' syntax, the npm tests, the GoReleaser config and whether NOTICE lists every embedded
 # module (scripts/notice.sh). CI's `test` job runs this script, so the two cannot drift apart.
 # It changes nothing on the system: govulncheck and GoReleaser (the same checksum-pinned release
 # CI uses, scripts/install-release-tools.sh) and go-licenses go to a cache folder, and nothing is
@@ -37,9 +37,11 @@ step "gofmt" gofmt_clean
 step "go build" go build ./...
 step "go vet (Linux)" vet linux
 step "go vet (macOS)" vet darwin
+step "go vet (Windows)" vet windows
 step "go test -race" go test -race ./...
 step "govulncheck (Linux)" vulncheck linux
 step "govulncheck (macOS)" vulncheck darwin
+step "govulncheck (Windows)" vulncheck windows
 step "Bash scripts" scripts_parse
 step "npm tests" node --test 'npm/test/*.test.*'
 step "goreleaser check" "$tools/goreleaser" check

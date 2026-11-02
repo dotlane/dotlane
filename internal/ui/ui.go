@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -86,7 +88,7 @@ func (p *Printer) printf(format string, args ...any) { fmt.Fprintf(p.w, format, 
 
 // Path shortens a path under the home directory to ~/…, for display.
 func (p *Printer) Path(path string) string {
-	if p.home != "" && strings.HasPrefix(path, p.home+"/") {
+	if p.home != "" && strings.HasPrefix(path, p.home+string(filepath.Separator)) {
 		return "~" + path[len(p.home):]
 	}
 	return path
@@ -133,9 +135,17 @@ func (p *Printer) Hint(fix string) {
 
 // Ask announces a step that needs the administrator password, and why.
 func (p *Printer) Ask(label, why string) {
-	p.printf("\n  %s %s %s\n", p.s.ask.Render("›"), p.s.bold.Render(label), p.s.ask.Render("needs your password"))
+	p.printf("\n  %s %s %s\n", p.s.ask.Render("›"), p.s.bold.Render(label), p.s.ask.Render(askWhy))
 	p.printf("    %s\n", why)
 }
+
+// askWhy is what an Ask step needs: sudo's password, or on Windows the approval of a UAC prompt.
+var askWhy = func() string {
+	if runtime.GOOS == "windows" {
+		return "needs administrator approval"
+	}
+	return "needs your password"
+}()
 
 // Command shows a command exactly as it is about to run.
 func (p *Printer) Command(cmd string) { p.printf("    %s\n", p.s.dim.Render("$ "+cmd)) }

@@ -37,13 +37,9 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Later
 
-- **Linux.** systemd-resolved routing (with a fallback where it is missing), the CA trusted in
-  the system store and NSS (Firefox, Chromium), ports 80/443 through `CAP_NET_BIND_SERVICE`, a
-  systemd user unit. Tested on Ubuntu, Fedora and Arch. npm and other packages follow
-  ([`npm/ROADMAP.md`](../npm/ROADMAP.md)).
-- **Windows.** An NRPT rule (which needs the DNS responder on `127.0.0.1:53`), the Windows
-  certificate store, a service, and checks for `http.sys` reservations. **WSL2:** documented
-  paths for a browser on Windows and an app in WSL.
+- **More Linux and Windows channels.** Scoop and winget manifests, a
+  NetworkManager-dnsmasq fallback where systemd-resolved is missing, and signed Windows binaries.
+  What is left per OS is in [`compatibility.md`](compatibility.md#still-open).
 - **FrankenPHP** as an optional PHP runtime, downloaded and supervised rather than embedded
   (embedding needs CGO, which breaks cross-compilation).
 - **Phones and other devices.** `bind = "lan"`, a LAN DNS answer or mDNS, or a tunnel, and a way
@@ -54,7 +50,19 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Done
 
-`v0.1.0` (2026-11-01), macOS on Apple Silicon and Intel. The full list is in the
+**Linux and Windows** (in the next release; [`compatibility.md`](compatibility.md) tracks each
+item):
+
+- Linux: a systemd user unit, DNS through systemd-resolved on a link that carries only the
+  domain endings, the CA in the system store and NSS (Firefox, Chromium), ports 80/443 through
+  `ip_unprivileged_port_start`. Tested end to end on Ubuntu, Fedora and Arch.
+- Windows: a Task Scheduler task, NRPT rules with DNS on `127.0.0.1:53`, the CA in the machine's
+  Root store, every admin step in one UAC prompt.
+- Releases for both (archives, zip, deb, rpm, Arch packages, npm), and CI end to end on Ubuntu
+  and Windows. WSL2 setups documented in [`wsl.md`](wsl.md).
+
+**`v0.1.0`** 
+(2026-11-01), macOS on Apple Silicon and Intel. The full list is in the
 [changelog](../CHANGELOG.md):
 
 - One Go binary: a DNS responder, Caddy embedded with its own CA, and a control API on a Unix
@@ -70,7 +78,6 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 - **Who first:** individual developers (free, open source), or teams, with paid features later?
 - **PHP:** PHP-FPM only at first, or FrankenPHP from the start?
-- **Windows port 53:** require it, or keep a hosts-file fallback for locked-down machines?
 
 ## Risks
 

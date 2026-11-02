@@ -7,9 +7,12 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"net"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/modules/caddytls"
@@ -111,19 +114,39 @@ func CADir(cfg *config.Config) string {
 type obj = map[string]any
 
 // ListenAddrs are the addresses Dotlane listens on for port. macOS lets a normal user listen on
-// ports below 1024 only on every interface, not on 127.0.0.1 alone, so 80 and 443 are bound
-// wide and guarded (see thisMacOnly); other ports stay on loopback.
+// ports below 1024 only on every interface, not on 127.0.0.1 alone, so there 80 and 443 are
+// bound wide and guarded (see thisMachineOnly). Everything else stays on loopback: Linux allows
+// low ports once install has lowered net.ipv4.ip_unprivileged_port_start, and Windows always
+// does. ::1 is left out where IPv6 is turned off (ipv6.disable=1, some containers and WSL
+// setups): binding it would fail and stop Caddy.
 func ListenAddrs(port int) []string {
-	if port < 1024 {
+	if port < 1024 && wideLowPorts {
 		return []string{fmt.Sprintf(":%d", port)}
 	}
-	return []string{fmt.Sprintf("127.0.0.1:%d", port), fmt.Sprintf("[::1]:%d", port)}
+	addrs := []string{fmt.Sprintf("127.0.0.1:%d", port)}
+	if ipv6Loopback() {
+		addrs = append(addrs, fmt.Sprintf("[::1]:%d", port))
+	}
+	return addrs
 }
 
-// thisMacOnly is every server's first route: a request from another machine is dropped without
+// ipv6Loopback reports whether this machine can listen on ::1, checked once.
+var ipv6Loopback = sync.OnceValue(func() bool {
+	ln, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+})
+
+// wideLowPorts is whether ports below 1024 must be bound on every interface (macOS).
+var wideLowPorts = runtime.GOOS == "darwin"
+
+// thisMachineOnly is every server's first route: a request from another machine is dropped without
 // an answer. On a wide listener another device can still connect and, over HTTPS, complete a
 // handshake for a known name; it never reaches a site.
-var thisMacOnly = obj{
+var thisMachineOnly = obj{
 	"match": []obj{{"not": []obj{{"remote_ip": obj{
 		"ranges": []string{"127.0.0.0/8", "::1/128", "::ffff:127.0.0.0/104"},
 	}}}}},
@@ -133,7 +156,7 @@ var thisMacOnly = obj{
 
 // Config builds Caddy's JSON configuration for the given sites.
 func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
-	routes := []obj{thisMacOnly}
+	routes := []obj{thisMachineOnly}
 	var subjects []string
 	for _, s := range list {
 		hosts := Hosts(cfg, s)
@@ -184,7 +207,7 @@ func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
 				},
 				"dotlane-http": obj{
 					"listen": ListenAddrs(cfg.HTTPPort),
-					"routes": []obj{thisMacOnly, {
+					"routes": []obj{thisMachineOnly, {
 						"handle": []obj{{
 							"handler":     "static_response",
 							"status_code": 308,

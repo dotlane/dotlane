@@ -9,7 +9,10 @@ const os = require('node:os');
 const path = require('node:path');
 
 const shimPath = path.join(__dirname, '../dotlane/bin/dotlane.js');
-const { PACKAGES, binaryPath, ShimError } = require(shimPath);
+const { PACKAGES, binaryPath, run, ShimError } = require(shimPath);
+
+// The fake binaries below are shell scripts, which Windows cannot run by themselves.
+const SKIP_SH = process.platform === 'win32' && 'needs a POSIX shell';
 
 // fakeBinary writes an executable shell script standing in for the dotlane binary.
 function fakeBinary(t, body) {
@@ -30,7 +33,14 @@ function shim(args, env = {}, input) {
 }
 
 test('each supported platform maps to its package', () => {
-  assert.deepEqual(PACKAGES, { 'darwin-arm64': '@dotlane/darwin-arm64', 'darwin-x64': '@dotlane/darwin-x64' });
+  assert.deepEqual(PACKAGES, {
+    'darwin-arm64': '@dotlane/darwin-arm64',
+    'darwin-x64': '@dotlane/darwin-x64',
+    'linux-arm64': '@dotlane/linux-arm64',
+    'linux-x64': '@dotlane/linux-x64',
+    'win32-arm64': '@dotlane/win32-arm64',
+    'win32-x64': '@dotlane/win32-x64',
+  });
   for (const [key, pkg] of Object.entries(PACKAGES)) {
     const [platform, arch] = key.split('-');
     const asked = [];
@@ -38,15 +48,20 @@ test('each supported platform maps to its package', () => {
       asked.push(id);
       return `/nm/${id}`;
     };
-    assert.equal(binaryPath({ platform, arch, env: {}, resolve }), `/nm/${pkg}/bin/dotlane`);
-    assert.deepEqual(asked, [`${pkg}/bin/dotlane`]);
+    // Windows runs only files with an extension: its package holds dotlane.exe.
+    const file = platform === 'win32' ? 'dotlane.exe' : 'dotlane';
+    assert.equal(binaryPath({ platform, arch, env: {}, resolve }), `/nm/${pkg}/bin/${file}`);
+    assert.deepEqual(asked, [`${pkg}/bin/${file}`]);
   }
 });
 
 test('an unsupported platform names the supported ones', () => {
   assert.throws(
-    () => binaryPath({ platform: 'linux', arch: 'x64', env: {}, resolve: () => assert.fail('resolved') }),
-    (err) => err instanceof ShimError && /linux-x64/.test(err.message) && /darwin-arm64, darwin-x64/.test(err.message),
+    () => binaryPath({ platform: 'freebsd', arch: 'x64', env: {}, resolve: () => assert.fail('resolved') }),
+    (err) =>
+      err instanceof ShimError &&
+      /freebsd-x64/.test(err.message) &&
+      /darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-arm64, win32-x64/.test(err.message),
   );
 });
 
@@ -64,14 +79,14 @@ test('DOTLANE_BINARY_PATH overrides the platform package', () => {
   assert.equal(binaryPath({ platform: 'plan9', arch: 'mips', env: { DOTLANE_BINARY_PATH: '/x/dotlane' } }), '/x/dotlane');
 });
 
-test('arguments and the exit code pass through', (t) => {
+test('arguments and the exit code pass through', { skip: SKIP_SH }, (t) => {
   const bin = fakeBinary(t, 'printf "%s|" "$@"; exit 3');
   const r = shim(['add', 'my app', '5173', '--json'], { DOTLANE_BINARY_PATH: bin });
   assert.equal(r.stdout, 'add|my app|5173|--json|');
   assert.equal(r.status, 3);
 });
 
-test('stdin and stderr pass through', (t) => {
+test('stdin and stderr pass through', { skip: SKIP_SH }, (t) => {
   const bin = fakeBinary(t, 'cat; echo oops >&2');
   const r = shim([], { DOTLANE_BINARY_PATH: bin }, 'from stdin\n');
   assert.equal(r.stdout, 'from stdin\n');
@@ -79,11 +94,17 @@ test('stdin and stderr pass through', (t) => {
   assert.equal(r.status, 0);
 });
 
-test('a signal that ends the binary ends the launcher the same way', (t) => {
+test('a signal that ends the binary ends the launcher the same way', { skip: SKIP_SH }, (t) => {
   const bin = fakeBinary(t, 'kill -TERM $$');
   const r = shim([], { DOTLANE_BINARY_PATH: bin });
   assert.equal(r.signal, 'SIGTERM');
   assert.equal(r.status, null);
+});
+
+test('on Windows a signal ends the launcher with exit code 1, as there are no signals to re-raise', { skip: SKIP_SH }, (t) => {
+  const bin = fakeBinary(t, 'kill -TERM $$');
+  assert.deepEqual(run([], { platform: 'win32', env: { DOTLANE_BINARY_PATH: bin } }), { code: 1 });
+  assert.deepEqual(run([], { platform: 'linux', env: { DOTLANE_BINARY_PATH: bin } }), { signal: 'SIGTERM' });
 });
 
 test('a binary that cannot run is reported, exit 1', (t) => {
@@ -92,7 +113,7 @@ test('a binary that cannot run is reported, exit 1', (t) => {
   assert.match(r.stderr, /^dotlane: could not run .*no-such-dotlane-binary/);
 });
 
-test('an unsupported platform exits 1 with the message', { skip: process.platform === 'darwin' && 'only off macOS' }, () => {
+test('an unsupported platform exits 1 with the message', { skip: Object.hasOwn(PACKAGES, `${process.platform}-${process.arch}`) && 'this platform is supported' }, () => {
   const r = shim(['version'], { DOTLANE_BINARY_PATH: '' });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /^dotlane: dotlane does not support /);

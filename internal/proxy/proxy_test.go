@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,6 +12,8 @@ import (
 )
 
 func TestConfig(t *testing.T) {
+	defer func(wide bool) { wideLowPorts = wide }(wideLowPorts)
+	wideLowPorts = true
 	cfg := &config.Config{TLDs: []string{"traix", "test"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
 	data, err := Config(cfg, []sites.Site{{Name: "web", Port: 5173}})
 	if err != nil {
@@ -27,7 +30,7 @@ func TestConfig(t *testing.T) {
 		`"host":["web.traix","web.test"]`, // every ending
 		`"dial":"localhost:5173"`,
 		`"subjects":["web.traix","web.test"]`,
-		`"root":"/s/caddy"`,
+		`"root":` + jsonString(filepath.Join("/s", "caddy")),
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("config lacks %s\n%s", want, text)
@@ -51,9 +54,21 @@ func TestConfigWithoutSites(t *testing.T) {
 }
 
 func TestListenAddrs(t *testing.T) {
+	defer func(wide bool) { wideLowPorts = wide }(wideLowPorts)
+	wideLowPorts = true // macOS
 	if got := ListenAddrs(443); len(got) != 1 || got[0] != ":443" {
 		t.Errorf("443: %v", got)
 	}
+	wideLowPorts = false // Linux, Windows
+	if got := ListenAddrs(443); len(got) != 2 || got[0] != "127.0.0.1:443" || got[1] != "[::1]:443" {
+		t.Errorf("443 on loopback: %v", got)
+	}
+	ipv6Loopback = func() bool { return false } // IPv6 turned off
+	if got := ListenAddrs(443); len(got) != 1 || got[0] != "127.0.0.1:443" {
+		t.Errorf("443 without IPv6: %v", got)
+	}
+	defer func(v6 func() bool) { ipv6Loopback = v6 }(ipv6Loopback)
+	ipv6Loopback = func() bool { return true }
 	if got := ListenAddrs(9443); len(got) != 2 || got[0] != "127.0.0.1:9443" || got[1] != "[::1]:9443" {
 		t.Errorf("9443: %v", got)
 	}
@@ -76,4 +91,10 @@ func TestPermission(t *testing.T) {
 			t.Errorf("%s allowed", name)
 		}
 	}
+}
+
+// jsonString is s as a JSON string literal: Windows paths have backslashes, which JSON escapes.
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }

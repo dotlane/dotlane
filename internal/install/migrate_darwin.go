@@ -5,11 +5,9 @@ package install
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io/fs"
-	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -392,28 +390,6 @@ func (m *Mac) listLeftovers() {
 		m.UI.Command("rm -r " + p)
 	}
 	m.UI.Command("brew uninstall caddy dnsmasq   # if nothing else uses them")
-}
-
-// verifyTLS completes a TLS handshake with host on 127.0.0.1:port, checked against the system's
-// trusted roots: what a browser would accept.
-func verifyTLS(ctx context.Context, host string, port int) error {
-	dialer := &tls.Dialer{
-		NetDialer: &net.Dialer{Timeout: 2 * time.Second},
-		Config:    &tls.Config{ServerName: host},
-	}
-	var err error
-	for i := 0; i < 25; i++ { // a new site's certificate is issued in the background
-		var conn net.Conn
-		if conn, err = dialer.DialContext(ctx, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port))); err == nil {
-			return conn.Close()
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	var untrusted *tls.CertificateVerificationError
-	if errors.As(err, &untrusted) {
-		return errors.New("its certificate is not trusted; run dotlane doctor")
-	}
-	return err
 }
 
 // brewPrefix is Homebrew's prefix: /opt/homebrew on Apple Silicon, /usr/local on Intel.

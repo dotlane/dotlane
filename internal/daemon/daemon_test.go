@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -89,7 +90,8 @@ func TestDaemon(t *testing.T) {
 		t.Errorf("status = %+v", status)
 	}
 
-	if info, err := os.Stat(cfg.SocketPath()); err != nil || info.Mode().Perm() != 0o600 {
+	// Windows has no modes; the state folder's access control list covers the socket (fsperm).
+	if info, err := os.Stat(cfg.SocketPath()); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Errorf("socket mode: %v %v", info.Mode(), err)
 	}
 	if err := Run(ctx, cfg, "test"); err == nil || !strings.Contains(err.Error(), "already running") {

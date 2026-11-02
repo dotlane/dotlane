@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -290,24 +289,6 @@ func (m *Mac) freeDNSPort(ctx context.Context) int {
 		}
 	}
 	return 0
-}
-
-// bindable tries to listen where the daemon will (proxy.ListenAddrs for HTTP and HTTPS, loopback
-// for DNS), which catches ports held by other users' processes that lsof cannot see.
-func bindable(proto string, port int) error {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	if proto == "udp" {
-		pc, err := net.ListenPacket("udp", addr)
-		if err != nil {
-			return err
-		}
-		return pc.Close()
-	}
-	ln, err := net.Listen("tcp", proxy.ListenAddrs(port)[0])
-	if err != nil {
-		return err
-	}
-	return ln.Close()
 }
 
 // privateFiles are the state that must be this user's alone, with the widest mode each may have:

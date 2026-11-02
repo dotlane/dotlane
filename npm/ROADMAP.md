@@ -6,7 +6,7 @@ release's binaries:
 | Package | What it holds |
 | --- | --- |
 | `dotlane` | A small Node launcher ([`dotlane/bin/dotlane.js`](dotlane/bin/dotlane.js)) with the platform packages as `optionalDependencies` |
-| `@dotlane/darwin-arm64`, `@dotlane/darwin-x64` | One binary each, with `os` and `cpu` set so npm installs only the matching one |
+| `@dotlane/{darwin,linux}-{arm64,x64}`, `@dotlane/win32-{arm64,x64}` | One binary each, with `os` and `cpu` set so npm installs only the matching one |
 
 How they are built and published is in [`../docs/releasing.md`](../docs/releasing.md#npm).
 Grouped like the [core roadmap](../docs/roadmap.md): Now, Next, Later and Done.
@@ -31,12 +31,13 @@ Grouped like the [core roadmap](../docs/roadmap.md): Now, Next, Later and Done.
 - **Signed binaries**, once the core signs and notarizes releases
   ([core roadmap](../docs/roadmap.md#now)). npm downloads are not quarantined, so nothing
   changes for users, but the binary carries the developer's identity.
-- **Linux and Windows packages:** `@dotlane/linux-x64`, `@dotlane/linux-arm64`,
-  `@dotlane/win32-x64` and `@dotlane/win32-arm64`, added to the launcher's table and the release
-  workflow once the core runs on them ([core roadmap](../docs/roadmap.md#later)). Users run the
-  same `npm install -g dotlane`.
 
 ## Done
+
+- **Linux and Windows packages:** `@dotlane/linux-x64`, `@dotlane/linux-arm64`,
+  `@dotlane/win32-x64` and `@dotlane/win32-arm64`, built by every release and tested end to end on
+  Ubuntu and Windows (2026-11-02). Each needs a first publish by hand and a trusted publisher
+  before the release workflow can publish it ([`releasing.md`](../docs/releasing.md#npm)).
 
 - The launcher and the two macOS packages, with no install scripts, in lockstep versions;
   pre-releases go to `next`, releases to `latest` (2026-10-30).

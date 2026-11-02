@@ -60,7 +60,7 @@ service_name = "dev.dotlane"
 ```
 
 A relative `state_dir` is relative to the config file. Ports below 1024 are bound on all
-interfaces (macOS allows a normal user nothing else) and drop requests from other machines; other
+interfaces on macOS (which allows a normal user nothing else; Linux and Windows bind them on loopback) and drop requests from other machines; other
 ports stay on loopback.
 
 ## Pages from Dotlane

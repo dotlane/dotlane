@@ -229,7 +229,9 @@ Output is coloured on a terminal only. `NO_COLOR=1` turns colour off and always 
 
 ## Limits today
 
-- macOS only. Linux and Windows are on the [roadmap](roadmap.md#later).
+- This page describes macOS. Linux and Windows do the same with their own tools (systemd and
+  systemd-resolved; Task Scheduler and NRPT): see [`setup-linux.md`](setup-linux.md),
+  [`setup-windows.md`](setup-windows.md) and [`compatibility.md`](compatibility.md).
 - This Mac only: phones and other machines cannot resolve the ending, and are dropped if they
   connect.
 - No PHP without a server on a port (planned: [roadmap](roadmap.md#next)).

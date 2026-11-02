@@ -1,3 +1,5 @@
+//go:build darwin
+
 package install
 
 import (
@@ -10,19 +12,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-// Process is something holding a port.
-type Process struct {
-	PID   int
-	Path  string // executable, as ps reports it
-	Label string // launchd job label, when launchd started it
-}
-
-// Tool is what a Process turned out to be, and how to get it out of the way.
-type Tool struct {
-	Name string
-	Fix  string
-}
 
 // listeners returns the processes listening on port; proto is "tcp" or "udp". There can be
 // several: Caddy binds with SO_REUSEPORT, so two Caddys can share a port and split its traffic.

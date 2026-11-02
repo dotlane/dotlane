@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestPlainOutput(t *testing.T) {
 	for _, want := range []string{
 		"Installing Dotlane  dev.dotlane\n\n",
 		"  ✓ Login service          installed\n",
-		"  › DNS for .dldev needs your password\n    Send lookups to Dotlane.\n",
+		"  › DNS for .dldev " + askWhy + "\n    Send lookups to Dotlane.\n",
 		"    $ sudo /bin/rm /etc/resolver/dldev\n",
 		" ERROR \n  first\n  second\n",
 		"  ✓ https://a.dldev → localhost:5173\n",
@@ -85,11 +86,12 @@ func TestColourSettings(t *testing.T) {
 }
 
 func TestPath(t *testing.T) {
-	p := &Printer{home: "/Users/me"}
-	if got := p.Path("/Users/me/Library/x"); got != "~/Library/x" {
-		t.Errorf("Path = %q", got)
+	home := filepath.Join(string(filepath.Separator)+"Users", "me")
+	p := &Printer{home: home}
+	if got, want := p.Path(filepath.Join(home, "Library", "x")), filepath.Join("~", "Library", "x"); got != want {
+		t.Errorf("Path = %q, want %q", got, want)
 	}
-	if got := p.Path("/Users/meme/x"); got != "/Users/meme/x" {
+	if got := p.Path(home + "me/x"); got != home+"me/x" {
 		t.Errorf("Path = %q (must not match a prefix of another name)", got)
 	}
 }

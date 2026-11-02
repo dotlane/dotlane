@@ -46,16 +46,15 @@ var (
 	servicePattern = regexp.MustCompile(`^[a-z0-9]+(\.[a-z0-9-]+)+$`)
 )
 
-// Resolve picks the config file: flag (--config), else $DOTLANE_CONFIG, else
-// ~/.config/dotlane/config.toml. The default file is optional, also when named explicitly (the
+// Resolve picks the config file: flag (--config), else $DOTLANE_CONFIG, else DefaultPath. The
+// default file is optional, also when named explicitly (the
 // login service always names it). Any other file must exist: a typo there would otherwise mean
 // silently running with the defaults.
 func Resolve(flag string) (string, error) {
-	home, err := os.UserHomeDir()
+	def, err := DefaultPath()
 	if err != nil {
 		return "", err
 	}
-	def := filepath.Join(home, ".config", "dotlane", "config.toml")
 	path := flag
 	if path == "" {
 		path = os.Getenv("DOTLANE_CONFIG")
@@ -71,16 +70,16 @@ func Resolve(flag string) (string, error) {
 
 // Load reads path (a missing file means defaults) and validates the result.
 func Load(path string) (*Config, error) {
-	state, err := os.UserConfigDir() // macOS: ~/Library/Application Support
+	state, err := defaultStateDir()
 	if err != nil {
 		return nil, err
 	}
 	cfg := &Config{
 		TLDs:      []string{"traix"},
-		DNSPort:   10053,
+		DNSPort:   DefaultDNSPort,
 		HTTPPort:  80,
 		HTTPSPort: 443,
-		StateDir:  filepath.Join(state, "dotlane"),
+		StateDir:  state,
 
 		ServiceName: "dev.dotlane",
 	}
@@ -148,7 +147,7 @@ func (c *Config) validate() error {
 			return fmt.Errorf("domain ending must be lowercase letters, digits and dashes: %q", tld)
 		}
 		if tld == "local" {
-			return errors.New("domain ending cannot be local: macOS uses .local for Bonjour")
+			return errors.New("domain ending cannot be local: it belongs to multicast DNS (Bonjour, Avahi)")
 		}
 		if seen[tld] {
 			return fmt.Errorf("domain ending listed twice: %q", tld)

@@ -52,7 +52,7 @@ func CheckOwner(existing, s Site) error {
 }
 
 func tilde(path string) string {
-	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(path, home+"/") {
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(path, home+string(filepath.Separator)) {
 		return "~" + path[len(home):]
 	}
 	return path
