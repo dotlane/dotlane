@@ -9,11 +9,16 @@ together, in a diagram: [`distribution.md`](distribution.md).
 
 ## What a release contains
 
-For each Mac architecture (`arm64`, `amd64`):
+For macOS, Linux and Windows, each on `arm64` and `amd64`:
 
-- `dotlane_<version>_darwin_<arch>.tar.gz`: the binary, `LICENSE`, `NOTICE` and `README.md`;
-- `dotlane_<version>_darwin_<arch>.tar.gz.sbom.json`: an SPDX SBOM of everything compiled in
-  (Syft);
+- `dotlane_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows, with `dotlane.exe`): the binary,
+  `LICENSE`, `NOTICE` and `README.md`;
+- the same name plus `.sbom.json`: an SPDX SBOM of everything compiled in (Syft);
+- for Linux, `.deb`, `.rpm` and `.pkg.tar.zst` packages that put the binary in `/usr/bin`, with no
+  scripts (`dotlane install` stays a per-user step).
+
+macOS is one GoReleaser build and Linux with Windows another (`dotlane-linux-windows`), so the
+Homebrew cask, which picks archives by build, stays macOS-only.
 
 plus `checksums.txt` (SHA-256 of every file). The release notes are the version's section of
 [`CHANGELOG.md`](../CHANGELOG.md).
@@ -132,12 +137,13 @@ Every release also builds the npm packages from its own binaries
 | Package | Holds |
 | --- | --- |
 | `dotlane` | The launcher, [`npm/dotlane/bin/dotlane.js`](../npm/dotlane/bin/dotlane.js); depends on exactly the same version of each platform package, as optional dependencies |
-| `@dotlane/darwin-arm64`, `@dotlane/darwin-x64` | One binary each; `os` and `cpu` make npm install only the one for the machine |
+| `@dotlane/{darwin,linux}-{arm64,x64}`, `@dotlane/win32-{arm64,x64}` | One binary each; `os` and `cpu` make npm install only the one for the machine. The build requires all six |
 
 No package has install scripts. A pre-release goes to the `next` npm tag, a release to `latest`.
 Tests: `node --test 'npm/test/*.test.*'` (the launcher and the build), and
 [`scripts/npm-e2e.sh`](../scripts/npm-e2e.sh), which packs real binaries, installs them into a
-scratch project and runs `npx dotlane` (on this Mac's architecture; CI's Intel job covers x64).
+scratch project and runs `npx dotlane` (on the machine's own OS and CPU; CI runs it on macOS,
+Ubuntu and Windows).
 
 The release workflow publishes with [`scripts/npm-publish.sh`](../scripts/npm-publish.sh),
 platform packages first; every pull request runs the same script with `--dry-run`.
@@ -171,3 +177,8 @@ repository variable `NPM_PUBLISH`):
 5. **Lock it down:** on each package, *Settings → Publishing access → Require two-factor
    authentication and disallow tokens*, then revoke any npm token left on a maintainer's
    machine (`npm token list`).
+
+**The four Linux and Windows packages** (`@dotlane/linux-*`, `@dotlane/win32-*`) are new: like
+the first three, each must be published once by hand and given a trusted publisher (steps 2 and
+4) before the release workflow can publish them. Until then, a release with `NPM_PUBLISH` on
+fails at the first of them.

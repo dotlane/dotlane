@@ -134,6 +134,11 @@ jobs:
           cache: false # see test
       - name: certutil, so the NSS step (Firefox, Chromium) runs too
         run: sudo apt-get install -y --no-install-recommends libnss3-tools
+      - name: Programs resolve through systemd-resolved's stub
+        # GitHub's image points /etc/resolv.conf at resolved's upstream list, which bypasses its
+        # per-domain routing; dotlane install rightly refuses that. A desktop Ubuntu has the stub
+        # already (docs/setup-linux.md, Requirements).
+        run: sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
       - run: scripts/integration-linux.sh
       - name: npm packages end to end (linux-x64 on this runner)
         run: scripts/npm-e2e.sh

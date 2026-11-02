@@ -1,5 +1,8 @@
 # Setup (macOS)
 
+On Linux or Windows, see [`setup-linux.md`](setup-linux.md) or
+[`setup-windows.md`](setup-windows.md); they cover what differs and link back here.
+
 How to install Dotlane, check it, upgrade it and remove it. What each step does is explained in
 [`how-it-works.md`](how-it-works.md). Moving from the Bash prototype instead? See
 [Moving from the prototype](#moving-from-the-prototype).

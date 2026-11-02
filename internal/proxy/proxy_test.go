@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -29,7 +30,7 @@ func TestConfig(t *testing.T) {
 		`"host":["web.traix","web.test"]`, // every ending
 		`"dial":"localhost:5173"`,
 		`"subjects":["web.traix","web.test"]`,
-		`"root":"/s/caddy"`,
+		`"root":` + jsonString(filepath.Join("/s", "caddy")),
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("config lacks %s\n%s", want, text)
@@ -84,4 +85,10 @@ func TestPermission(t *testing.T) {
 			t.Errorf("%s allowed", name)
 		}
 	}
+}
+
+// jsonString is s as a JSON string literal: Windows paths have backslashes, which JSON escapes.
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }

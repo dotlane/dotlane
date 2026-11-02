@@ -5,8 +5,8 @@
 > Your own lane after the dot.
 
 **Dotlane gives every local project a real HTTPS address, like `https://myapp.traix`, for any
-language, on macOS, Linux and Windows.** (macOS today; Linux and Windows are on the
-[roadmap](docs/roadmap.md).)
+language, on macOS, Linux and Windows.** (Linux and Windows from the next release; see
+[`docs/compatibility.md`](docs/compatibility.md).)
 
 Technically, it is a local domain service (DNS, a trusted certificate authority and a reverse proxy
 in one program), controlled from a CLI, a per-project config file or a menu-bar app.
@@ -26,7 +26,7 @@ itself is started. Adding a domain takes about a second.
 
 ## Install
 
-On macOS (Apple Silicon or Intel), with npm:
+On macOS, Linux or Windows (x64 or arm64), with npm:
 
 ```bash
 npm install -g dotlane
@@ -34,10 +34,12 @@ dotlane install                       # once: login service, trusted CA, DNS for
 dotlane add myapp 5173                # https://myapp.traix -> localhost:5173
 ```
 
-`dotlane install` explains the two steps that ask for your password before running them. Or try
+`dotlane install` explains each step that needs administrator rights before running it. Or try
 it without installing anything, with `npx dotlane install`. Homebrew
 (`brew install dotlane/tap/dotlane`) is coming soon. Building from source, upgrading and
-uninstalling are in [`docs/setup.md`](docs/setup.md).
+uninstalling are in [`docs/setup.md`](docs/setup.md) (macOS), [`docs/setup-linux.md`](docs/setup-linux.md)
+(deb, rpm and Arch packages too) and [`docs/setup-windows.md`](docs/setup-windows.md); WSL2 in
+[`docs/wsl.md`](docs/wsl.md).
 
 ## Works with any language
 
@@ -79,7 +81,7 @@ runners, not on a development Mac. `go run ./scripts/brandgen` redraws every ico
 numbers in it (see [`docs/brand.md`](docs/brand.md)).
 
 Before pushing, `scripts/check.sh` runs what CI's `test` job runs (gofmt, build, vet and
-`govulncheck` for Linux and macOS, `go test -race`, the npm tests, `goreleaser check`); about a
+`govulncheck` for Linux, macOS and Windows, `go test -race`, the npm tests, `goreleaser check`); about a
 minute the first time, while it fetches its pinned tools, then under 20 seconds.
 
 ```bash
@@ -110,7 +112,8 @@ Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORC
 | Package | Role |
 | --- | --- |
 | `cmd/dotlane` | CLI (`install`, `uninstall`, `doctor`, `migrate`, `add`, `rm`, `ls`, `up`, `down`, `serve`, `version`) |
-| `internal/install` | Login service, CA trust and resolver files; `doctor` checks and naming the tools in the way; `migrate` from the prototype. macOS now, other OSes in Phase 4 |
+| `internal/install` | Login service, CA trust and DNS routing per OS (launchd and `/etc/resolver`; systemd and systemd-resolved; Task Scheduler and NRPT); `doctor` checks and naming the tools in the way; `migrate` from the prototype |
+| `internal/fsperm` | Keeps the state folder private: file modes on macOS and Linux, an access control list on Windows |
 | `internal/ui` | Output on Lip Gloss: one line per step, markers, aligned labels, the `ls` table, colours adapted to light/dark terminals. Help and usage are styled by Fang |
 | `internal/daemon` | Runs DNS, Caddy and the control socket around the site registry |
 | `internal/dns` | Answers `*.<tld>` with 127.0.0.1 / ::1, refuses everything else |
@@ -152,6 +155,8 @@ The same flow as text:
 | [`docs/architecture.md`](docs/architecture.md) | The design decisions: one Go binary, the daemon and its clients, configuration, what differs per OS |
 | [`docs/diagrams/dotlane-components.svg`](docs/diagrams/dotlane-components.svg) | Diagram of the tools and libraries used and how a request flows (light and dark mode) |
 | [`docs/setup.md`](docs/setup.md) | Install (npm or source; Homebrew coming soon), first site, upgrade, migrate from the prototype, uninstall (macOS) |
+| [`docs/setup-linux.md`](docs/setup-linux.md), [`docs/setup-windows.md`](docs/setup-windows.md), [`docs/wsl.md`](docs/wsl.md) | What differs on Linux, Windows and WSL2 |
+| [`docs/compatibility.md`](docs/compatibility.md) | Where each OS stands, item by item |
 | [`docs/cli.md`](docs/cli.md) | Command reference: every command, `dotlane.toml`, `config.toml`, output and exit codes |
 | [`docs/prototype/`](docs/prototype/) | The Bash prototype's architecture, setup and command reference, kept for reference |
 | [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with a Vite + FastAPI app as the example |

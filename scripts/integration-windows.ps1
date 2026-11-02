@@ -9,6 +9,9 @@
 #   pwsh -NoProfile -File scripts/integration-windows.ps1
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+# The Cert: drive used below comes with this module; load it up front, since Windows PowerShell 5.1
+# only creates the drive once the module is in.
+Import-Module Microsoft.PowerShell.Security
 
 $TLD = 'dltest'
 $SERVICE = 'dev.dotlane.ci'
@@ -77,11 +80,11 @@ function DL {
     $r
 }
 
-# Curl is curl.exe (in PowerShell 5.1, "curl" is an alias of Invoke-WebRequest) with the system's
+# CurlExe is curl.exe (in PowerShell 5.1, "curl" is an alias of Invoke-WebRequest) with the system's
 # trust: it uses Schannel and so the Windows certificate store, with no --cacert. Dotlane's
 # certificates name no revocation server, which Schannel otherwise reports as an error
 # (CRYPT_E_NO_REVOCATION_CHECK); --ssl-revoke-best-effort lets that pass, like a browser does.
-function Curl {
+function CurlExe {
     $ErrorActionPreference = 'Continue' # PowerShell 5.1 turns a program's stderr into an error
     & curl.exe --ssl-revoke-best-effort -sS @args
 }
@@ -115,7 +118,7 @@ function Show-Diagnostics {
         Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | Format-Table LocalAddress, LocalPort, OwningProcess
     }
     Show-Section "lookup of web.$TLD" { Resolve-DnsName "web.$TLD" -ErrorAction SilentlyContinue | Format-Table }
-    Show-Section "web.$TLD with curl" { Curl -v --max-time 10 "https://web.$TLD/hello.txt" 2>&1 }
+    Show-Section "web.$TLD with curl" { CurlExe -v --max-time 10 "https://web.$TLD/hello.txt" 2>&1 }
     Show-Section 'dotlane doctor' { if (Test-Path $BIN) { (Invoke-Dotlane -Arguments @('doctor') -Seconds 60).Out } }
     Show-Section 'upstream log' { Get-Content (Join-Path $WORK 'upstream.log'), (Join-Path $WORK 'upstream.err') }
 }
@@ -179,7 +182,7 @@ state_dir = '$STATE'
     # seconds to start on a cold runner, and a 502 then would be the test's fault, not Dotlane's.
     $up = $false
     for ($i = 0; $i -lt 60 -and -not $up; $i++) {
-        Curl -f --max-time 1 http://127.0.0.1:18080/hello.txt -o NUL 2>$null
+        CurlExe -f --max-time 1 http://127.0.0.1:18080/hello.txt -o NUL 2>$null
         $up = $LASTEXITCODE -eq 0
         if (-not $up) { Start-Sleep -Milliseconds 500 }
     }
@@ -191,7 +194,7 @@ state_dir = '$STATE'
 
     Step 'first site'
     DL add web 18080 | Out-Null
-    $body = (Curl -f --max-time 10 "https://web.$TLD/hello.txt") -join ''
+    $body = (CurlExe -f --max-time 10 "https://web.$TLD/hello.txt") -join ''
     if ($LASTEXITCODE -ne 0) { Fail "https://web.$TLD/hello.txt was not served" }
     if ($body.Trim() -ne 'hello') { Fail "unexpected body: $body" }
     $elapsed = [int]((Get-Date) - $start).TotalSeconds
@@ -199,12 +202,12 @@ state_dir = '$STATE'
     if ($elapsed -ge 90) { Fail "install -> first site took ${elapsed}s (budget 90s)" }
 
     Step 'HTTP redirect, unknown name, dev server down'
-    $loc = (Curl -o NUL -w '%{redirect_url}' "http://web.$TLD/x") -join ''
+    $loc = (CurlExe -o NUL -w '%{redirect_url}' "http://web.$TLD/x") -join ''
     if ($loc -ne "https://web.$TLD/x") { Fail "redirect went to $loc" }
-    $code = (Curl -o NUL -w '%{http_code}' "https://nosuch.$TLD/") -join ''
+    $code = (CurlExe -o NUL -w '%{http_code}' "https://nosuch.$TLD/") -join ''
     if ($code -ne '404') { Fail "unknown name answered $code, want the no-site page" }
     DL add down 18081 | Out-Null
-    $code = (Curl -o NUL -w '%{http_code}' "https://down.$TLD/") -join ''
+    $code = (CurlExe -o NUL -w '%{http_code}' "https://down.$TLD/") -join ''
     if ($code -ne '502') { Fail "stopped dev server answered $code" }
     DL rm down | Out-Null
 
@@ -214,7 +217,7 @@ state_dir = '$STATE'
         Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
         Select-Object -First 1 -ExpandProperty IPAddress
     if ($lan) {
-        Curl -o NUL --max-time 5 --resolve "web.${TLD}:443:$lan" "https://web.$TLD/" 2>$null
+        CurlExe -o NUL --max-time 5 --resolve "web.${TLD}:443:$lan" "https://web.$TLD/" 2>$null
         if ($LASTEXITCODE -eq 0) { Fail "a request to $lan was answered" }
         Write-Host "request to $lan got no answer"
     } else {
@@ -228,7 +231,7 @@ state_dir = '$STATE'
     $r = Invoke-Dotlane -Arguments @('up') -Dir (Join-Path $project 'sub')
     Write-Host $r.Out
     if ($r.ExitCode -ne 0) { Fail "dotlane up failed: $($r.Err)" }
-    Curl -f --max-time 10 "https://proj.$TLD/hello.txt" -o NUL
+    CurlExe -f --max-time 10 "https://proj.$TLD/hello.txt" -o NUL
     if ($LASTEXITCODE -ne 0) { Fail 'dotlane up did not serve proj' }
     $r = Invoke-Dotlane -Arguments @('down') -Dir $project
     if ($r.ExitCode -ne 0) { Fail "dotlane down failed: $($r.Err)" }
@@ -251,7 +254,7 @@ state_dir = '$STATE'
     $pidAfter = [regex]::Match($after, 'pid (\d+)').Groups[1].Value
     if ($pidBefore -eq $pidAfter) { Fail "daemon pid unchanged ($pidAfter)" }
     if ((Get-FileHash $BIN).Hash -ne (Get-FileHash $SERVICE_EXE).Hash) { Fail "the service's copy is not the new build" }
-    $body = (Curl -f --max-time 10 "https://web.$TLD/hello.txt") -join ''
+    $body = (CurlExe -f --max-time 10 "https://web.$TLD/hello.txt") -join ''
     if ($LASTEXITCODE -ne 0) { Fail "web.$TLD not served after the reinstall" }
     if ($body.Trim() -ne 'hello') { Fail "unexpected body after the reinstall: $body" }
     if ((DL ls --json).Out -notmatch '"web"') { Fail 'site web lost in the reinstall' }
@@ -270,7 +273,7 @@ state_dir = '$STATE'
     $after = Get-DaemonLine
     if ($after -notlike '*1.0.0-ci.3*') { Fail "the daemon does not run the refreshed build: $after" }
     if ([regex]::Match($before, 'pid (\d+)').Groups[1].Value -eq [regex]::Match($after, 'pid (\d+)').Groups[1].Value) { Fail 'daemon pid unchanged after refresh' }
-    Curl -f --max-time 10 "https://web.$TLD/hello.txt" -o NUL
+    CurlExe -f --max-time 10 "https://web.$TLD/hello.txt" -o NUL
     if ($LASTEXITCODE -ne 0) { Fail "web.$TLD not served after the refresh" }
 
     Step 'the next command after an upgrade restarts the service'
@@ -284,7 +287,7 @@ state_dir = '$STATE'
     $after = Get-DaemonLine
     if ($after -notlike '*1.0.0-ci.4*') { Fail "the daemon does not run the upgraded build: $after" }
     if ([regex]::Match($before, 'pid (\d+)').Groups[1].Value -eq [regex]::Match($after, 'pid (\d+)').Groups[1].Value) { Fail 'daemon pid unchanged after the automatic upgrade' }
-    Curl -f --max-time 10 "https://web.$TLD/hello.txt" -o NUL
+    CurlExe -f --max-time 10 "https://web.$TLD/hello.txt" -o NUL
     if ($LASTEXITCODE -ne 0) { Fail "web.$TLD not served after the automatic upgrade" }
 
     Step 'doctor'

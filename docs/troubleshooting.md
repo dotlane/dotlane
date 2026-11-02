@@ -10,6 +10,26 @@ dotlane doctor --fix    # repairs what dotlane install can
 The service's log is `~/Library/Logs/dotlane/dev.dotlane.log`. To restart it by hand:
 `launchctl kickstart -k gui/$(id -u)/dev.dotlane`.
 
+## Linux
+
+- **`install` stops: systemd-resolved is not running.** Enable it and point `/etc/resolv.conf` at
+  its stub ([`setup-linux.md`](setup-linux.md#requirements)).
+- **Names do not resolve.** `resolvectl domain` should show a `dl-…` link with `~traix`; if not,
+  `sudo systemctl restart dotlane-dns-dev.dotlane` and `journalctl -u dotlane-dns-dev.dotlane`.
+- **Firefox or Chromium warn about the certificate.** Install `certutil` (`libnss3-tools`,
+  `nss-tools` or `nss`) and run `dotlane install` again.
+- **The service's log:** `journalctl --user -u dev.dotlane`.
+
+## Windows
+
+- **Port 53 is taken.** Internet Connection Sharing (`SharedAccess`), Docker Desktop or a DNS
+  proxy may hold it; `doctor` names it. Windows cannot send a domain ending to another port.
+- **`curl.exe` fails with `CRYPT_E_NO_REVOCATION_CHECK`.** Schannel wants revocation data a local
+  CA does not publish: add `--ssl-revoke-best-effort`. Browsers are not affected.
+- **The UAC prompt did not appear, or was declined.** Nothing was changed; run `dotlane install`
+  again.
+- **The service's log:** `%LocalAppData%\dotlane\logs\dev.dotlane.log`.
+
 ## Go version
 
 - **"No site at …" page.** The name resolves, but no site is registered under it: `dotlane ls`,

@@ -163,7 +163,7 @@ func (f *fakeWin) Run(_ context.Context, name string, args ...string) ([]byte, e
 			}
 			out, _ := json.Marshal(rows)
 			return out, nil
-		case strings.Contains(script, `Cert:\LocalMachine\Root`):
+		case strings.Contains(script, `X509Store]::new('Root', 'LocalMachine')`):
 			if !f.trusted {
 				return nil, errors.New("exit status 1")
 			}
@@ -319,7 +319,7 @@ func TestInstallThenReinstall(t *testing.T) {
 	}
 	text := out.String()
 	for _, want := range []string{"$ certutil -addstore -f Root", "$ Add-DnsClientNrptRule -Namespace \".dldev\" -NameServers \"127.0.0.1\"",
-		"$ Register-ScheduledTask", "needs your password", "Windows asks you once", "Sends lookups for *.dldev",
+		"$ Register-ScheduledTask", "needs administrator approval", "Windows asks you once", "Sends lookups for *.dldev",
 		"dotlane-check.dldev → this PC", "Dotlane is installed."} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output lacks %q:\n%s", want, text)
@@ -345,7 +345,7 @@ func TestInstallWhenAlreadyElevatedAsksNothing(t *testing.T) {
 	if err := w.Install(context.Background()); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if text := out.String(); strings.Contains(text, "needs your password") || !strings.Contains(text, "already has administrator rights") {
+	if text := out.String(); strings.Contains(text, "needs administrator approval") || !strings.Contains(text, "already has administrator rights") {
 		t.Errorf("wrong wording for an elevated run:\n%s", text)
 	}
 }

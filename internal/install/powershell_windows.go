@@ -438,7 +438,14 @@ func untrustBody(thumbprint string) string {
 // trustedScript exits 0 when the machine's Root store holds the thumbprint. Only hex digits get
 // in, as the thumbprint is computed, but the check is cheap.
 func trustedScript(thumbprint string) string {
-	return queryPreamble + `if (Test-Path -LiteralPath ` + psQuote(`Cert:\LocalMachine\Root\`+thumbprint) + `) { exit 0 } else { exit 1 }
+	// .NET's store, not the Cert: drive: in a fresh Windows PowerShell 5.1 started with
+	// -EncodedCommand, the drive does not exist until its module loads, and Test-Path on it then
+	// says false for a certificate that is there.
+	return queryPreamble + `$store = [Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
+$store.Open('ReadOnly')
+$found = $store.Certificates.Find('FindByThumbprint', ` + psQuote(thumbprint) + `, $false).Count
+$store.Close()
+if ($found -gt 0) { exit 0 } else { exit 1 }
 `
 }
 
