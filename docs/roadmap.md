@@ -20,6 +20,10 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Next
 
+- **Domain endings from the CLI.** `dotlane tld ls|add|rm|use` and `install --tld`: add and
+  remove endings with their DNS routing, choose the primary one, and refuse endings that would
+  shadow public sites or cannot work (`.local`, delegated TLDs). The default becomes `.dotlane`;
+  existing installs keep `.traix`. The plan and tasks are in [`tld-management.md`](tld-management.md).
 - **A stable, documented control API.** The daemon's JSON API on its Unix socket (`/v1/status`,
   `/v1/sites`) documented as a public, versioned contract, with breaking changes going to `/v2`.
   The desktop app (`dotlane/desktop`) needs it before its first version; editor integrations
