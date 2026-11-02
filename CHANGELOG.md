@@ -18,6 +18,12 @@ the release notes, and refuses a tag that has none.
   two-letter ending, a special-use name (`.localhost`, `.invalid`, `.onion`, `.alt`, `.arpa`)
   or one routers often answer (`.lan`, `.home`, `.corp`). The ending keeps working.
 
+### Fixed
+
+- **`uninstall` on macOS leaving `/etc/resolver` files behind** for endings removed from
+  `config.toml` after installing: it now removes every resolver file of Dotlane's, configured or
+  not. Linux and Windows already removed all of theirs.
+
 ## [0.2.0] - 2026-11-02
 
 Linux and Windows join macOS, each on x64 and arm64: installed with npm, from the release's

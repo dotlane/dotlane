@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -190,6 +191,8 @@ var (
 	hereString = regexp.MustCompile(`(?s)\$xml = @'\n(.*?)'@`)
 	namespace  = regexp.MustCompile(`Add-DnsClientNrptRule -Namespace '([^']+)'`)
 	commentVar = regexp.MustCompile(`\$comment = '([^']+)'`)
+	// removedNamespace is the ending a removal is limited to (removeRuleBody); none means all.
+	removedNamespace = regexp.MustCompile(`-Namespace -contains '([^']+)' \} \| Remove-DnsClientNrptRule`)
 )
 
 func (f *fakeWin) Elevated(_ context.Context, body string) error {
@@ -219,12 +222,19 @@ func (f *fakeWin) Elevated(_ context.Context, body string) error {
 	if strings.Contains(body, "-delstore Root") {
 		f.trusted = false
 	}
-	if m := namespace.FindStringSubmatch(body); m != nil {
-		comment := commentVar.FindStringSubmatch(body)[1]
-		f.removeRules(comment, m[1])
-		f.rules = append(f.rules, nrptRule{Name: "{" + m[1] + "}", Namespace: m[1], NameServers: "127.0.0.1", Comment: comment})
-	} else if strings.Contains(body, "Remove-DnsClientNrptRule") {
-		f.removeRules(commentVar.FindStringSubmatch(body)[1], "")
+	// One script carries several steps; each changes the rules on its own.
+	for _, step := range strings.Split(body, "\n$step = ") {
+		if m := namespace.FindStringSubmatch(step); m != nil {
+			comment := commentVar.FindStringSubmatch(step)[1]
+			f.removeRules(comment, m[1])
+			f.rules = append(f.rules, nrptRule{Name: "{" + m[1] + "}", Namespace: m[1], NameServers: "127.0.0.1", Comment: comment})
+		} else if strings.Contains(step, "Remove-DnsClientNrptRule") {
+			ns := ""
+			if m := removedNamespace.FindStringSubmatch(step); m != nil {
+				ns = m[1]
+			}
+			f.removeRules(commentVar.FindStringSubmatch(step)[1], ns)
+		}
 	}
 	return nil
 }
@@ -989,5 +999,46 @@ func TestShownCoversTheScripts(t *testing.T) {
 	}
 	if strings.Contains(restartBody("s", 0), "Stop-Process") {
 		t.Error("a restart without a known daemon stops a process")
+	}
+}
+
+// Routes follow the config: the rules to add and to remove go into one administrator prompt,
+// and another tool's rule is left alone.
+func TestSyncRoutes(t *testing.T) {
+	w, fake, out := newTestWindows(t)
+	ctx := context.Background()
+	if err := w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	other := nrptRule{Name: "{X}", Namespace: ".corp", NameServers: "10.0.0.1", Comment: "vpn"}
+	fake.rules = append(fake.rules, other)
+
+	w.Cfg.TLDs = []string{"extra"}
+	before := fake.elevatedCalls()
+	out.Reset()
+	if err := w.SyncRoutes(ctx); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if n := fake.elevatedCalls() - before; n != 1 {
+		t.Errorf("%d elevated scripts, want 1 for adding and removing", n)
+	}
+	if got, err := w.Routed(ctx); err != nil || strings.Join(got, " ") != "extra" {
+		t.Errorf("Routed = %q, %v; rules = %+v", got, err, fake.rules)
+	}
+	if !slices.Contains(fake.rules, other) {
+		t.Errorf("another tool's rule removed: %+v", fake.rules)
+	}
+	for _, want := range []string{"Sends lookups for *.extra", "Stops sending *.dldev lookups", "rule removed"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+
+	before = fake.elevatedCalls()
+	if err := w.SyncRoutes(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if fake.elevatedCalls() != before {
+		t.Errorf("nothing to change, yet a script ran")
 	}
 }

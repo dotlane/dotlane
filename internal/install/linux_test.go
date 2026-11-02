@@ -805,3 +805,50 @@ func TestLinuxInstallSetsDefaultRouteAgain(t *testing.T) {
 		t.Errorf("default-route was not set again: %v", fake.calls)
 	}
 }
+
+// Routes follow the config: the DNS unit is rewritten with the new endings, and left alone when
+// nothing changed.
+func TestLinuxSyncRoutes(t *testing.T) {
+	m, fake, out := newTestLinux(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.Cfg.TLDs = []string{"dldev", "extra"}
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, err := m.Routed(context.Background()); err != nil || strings.Join(got, " ") != "dldev extra" {
+		t.Errorf("Routed after adding = %q, %v", got, err)
+	}
+	if !fake.ran("sudo systemctl restart " + m.dnsUnitName()) {
+		t.Errorf("DNS unit not restarted: %q", fake.calls)
+	}
+
+	m.Cfg.TLDs = []string{"extra"}
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, err := m.Routed(context.Background()); err != nil || strings.Join(got, " ") != "extra" {
+		t.Errorf("Routed after removing = %q, %v", got, err)
+	}
+
+	before := fake.sudoCalls
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.sudoCalls != before {
+		t.Errorf("nothing to change, yet sudo ran %d times", fake.sudoCalls-before)
+	}
+}
+
+// Routed reports nothing for a DNS unit that is not Dotlane's, or none at all.
+func TestLinuxRoutedIgnoresForeignUnit(t *testing.T) {
+	m, _, _ := newTestLinux(t)
+	if got, err := m.Routed(context.Background()); err != nil || len(got) != 0 {
+		t.Errorf("no unit: %q, %v", got, err)
+	}
+	os.WriteFile(m.dnsUnitPath(), []byte("[Service]\nExecStart=/usr/bin/resolvectl domain "+m.dnsLink()+" ~corp\n"), 0o644)
+	if got, err := m.Routed(context.Background()); err != nil || len(got) != 0 {
+		t.Errorf("foreign unit: %q, %v", got, err)
+	}
+}
