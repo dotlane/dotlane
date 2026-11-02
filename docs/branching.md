@@ -161,3 +161,5 @@ gh api -X PUT repos/dotlane/dotlane/rulesets/<main id> --input .github/settings/
 
 `main` stays the default branch, so the README and docs people land on describe the released
 version.
+
+<!-- throwaway: gate verification, do not merge -->
