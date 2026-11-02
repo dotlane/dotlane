@@ -46,13 +46,13 @@ Dotlane needs only a name and a port: it forwards `https://<name>.traix` to what
 way, started however you already start them.
 
 The exception is PHP. Most PHP apps are a folder of files rather than a running server, so something
-must run PHP per request. That support (PHP-FPM, per-site PHP versions) is planned for Phase 3 of the
-[roadmap](docs/roadmap.md); until then, use PHP's built-in server or any PHP server on a port.
+must run PHP per request. That support (PHP-FPM, per-site PHP versions) is next on the
+[roadmap](docs/roadmap.md#next); until then, use PHP's built-in server or any PHP server on a port.
 
 ## Status
 
 **Phase 1 is complete (2026-10-30):** one Go binary on macOS
-([`docs/phase-1.md`](docs/phase-1.md)). It covers:
+([`docs/history/phase-1.md`](docs/history/phase-1.md)). It covers:
 - the daemon: DNS, embedded Caddy, a control socket;
 - `install` / `uninstall` / `doctor`;
 - `dotlane.toml` with `up` / `down`;
@@ -65,10 +65,10 @@ second, then checks upgrades and a clean uninstall. A real Vite + FastAPI projec
 The Bash prototype it replaced (Caddy and dnsmasq around a ~100-line script, built 2026-10-29)
 is kept in [`docs/prototype/`](docs/prototype/).
 
-**Phase 2, packages, is under way** ([`docs/phase-2.md`](docs/phase-2.md)): releases with
-GoReleaser, the Homebrew cask and the npm packages are built, each tested on a macOS runner from
-install to the first site, then through an upgrade and a clean uninstall. Signing and
-notarization come next, then the public release.
+**`v0.1.0` is public (2026-11-01)** ([`docs/history/phase-2.md`](docs/history/phase-2.md)):
+releases with GoReleaser, on npm with provenance. The Homebrew cask is built and tested but on
+hold. What comes next is in each product's roadmap: the [core](docs/roadmap.md) (signing, then
+PHP), [npm](npm/ROADMAP.md) and [Homebrew](docs/homebrew.md).
 
 ## Development (Go version)
 
@@ -149,11 +149,11 @@ The same flow as text:
 | --- | --- |
 | [`docs/brand.md`](docs/brand.md) | The mark, colours, type and Dotlane's own pages; the files are in `assets/brand/` |
 | [`docs/how-it-works.md`](docs/how-it-works.md) | What the Go version does and how: the daemon, a request end to end, certificates, install, projects, `doctor`, `migrate` |
-| [`docs/architecture.md`](docs/architecture.md) | The Bash prototype: components, request flow, and why each design choice was made |
+| [`docs/architecture.md`](docs/architecture.md) | The design decisions: one Go binary, the daemon and its clients, configuration, what differs per OS |
 | [`docs/diagrams/dotlane-components.svg`](docs/diagrams/dotlane-components.svg) | Diagram of the tools and libraries used and how a request flows (light and dark mode) |
 | [`docs/setup.md`](docs/setup.md) | Install (npm or source; Homebrew coming soon), first site, upgrade, migrate from the prototype, uninstall (macOS) |
 | [`docs/cli.md`](docs/cli.md) | Command reference: every command, `dotlane.toml`, `config.toml`, output and exit codes |
-| [`docs/prototype/`](docs/prototype/) | The Bash prototype's setup and command reference, kept for reference |
+| [`docs/prototype/`](docs/prototype/) | The Bash prototype's architecture, setup and command reference, kept for reference |
 | [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with a Vite + FastAPI app as the example |
 | [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, where the CA key lives, and what is in scope |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Issues, working on the code, what a pull request needs |
@@ -165,8 +165,10 @@ The same flow as text:
 | [`docs/security.md`](docs/security.md) | Trust model of the local certificate authority, what runs with which privileges |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common problems and their fixes, and lessons from the prototype |
 | [`docs/product-notes.md`](docs/product-notes.md) | Landscape, differentiators, gaps between this prototype and a product |
-| [`docs/roadmap.md`](docs/roadmap.md) | Phases from prototype to product: Go core, Homebrew/npm, PHP, Linux/Windows, desktop app |
-| [`docs/phase-1.md`](docs/phase-1.md) | Phase 1 in milestones: the Go daemon, install, `doctor`, `dotlane.toml`, migration |
+| [`docs/roadmap.md`](docs/roadmap.md) | The core's roadmap: signing, PHP and managed processes, Linux and Windows, phones, teams |
+| [`npm/ROADMAP.md`](npm/ROADMAP.md) | The npm packages' roadmap |
+| [`docs/homebrew.md`](docs/homebrew.md) | Homebrew: where the cask is built, why it is on hold, how to resume, its roadmap |
+| [`docs/history/`](docs/history/README.md) | Finished plans: the first roadmap in phases, Phase 1 and Phase 2 |
 
 ## Files
 

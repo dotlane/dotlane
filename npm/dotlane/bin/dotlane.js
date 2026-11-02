@@ -2,7 +2,7 @@
 // The `dotlane` command from npm. The binary itself comes in a platform package
 // (@dotlane/darwin-arm64, @dotlane/darwin-x64) that npm installs as an optional dependency
 // matching this machine's `os` and `cpu`; this shim finds it and runs it with the same
-// arguments, standard streams, exit code and signals. No install scripts. docs/phase-2.md, P2-M4.
+// arguments, standard streams, exit code and signals. No install scripts. npm/ROADMAP.md.
 'use strict';
 
 const { spawnSync } = require('node:child_process');

@@ -1,7 +1,7 @@
 # How Dotlane works
 
 What the Go version of Dotlane does and how it does it, as of 2026-10-30 (Phase 1, M1–M6). The Bash
-prototype it replaces is described in [`architecture.md`](architecture.md).
+prototype it replaces is described in [`prototype/architecture.md`](prototype/architecture.md).
 
 ## What it does
 
@@ -229,7 +229,7 @@ Output is coloured on a terminal only. `NO_COLOR=1` turns colour off and always 
 
 ## Limits today
 
-- macOS only. Linux and Windows are Phase 4 of the [roadmap](roadmap.md).
+- macOS only. Linux and Windows are on the [roadmap](roadmap.md#later).
 - This Mac only: phones and other machines cannot resolve the ending, and are dropped if they
   connect.
-- No PHP without a server on a port (Phase 3).
+- No PHP without a server on a port (planned: [roadmap](roadmap.md#next)).

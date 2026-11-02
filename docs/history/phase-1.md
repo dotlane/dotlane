@@ -1,6 +1,9 @@
 # Phase 1 plan — Go core on macOS
 
-The first phase of [`roadmap.md`](roadmap.md), broken into milestones that each end with something
+> **History.** Phase 1 was done on 2026-10-30. Kept as a record; what is planned now is in the
+> [roadmaps](README.md#where-the-plans-are-now).
+
+The first phase of [`roadmap-phases.md`](roadmap-phases.md), in milestones that each end with something
 runnable. Goal: replace the Bash prototype with one Go binary that behaves the same and is easier to
 install and repair. macOS only; the code is laid out so Linux and Windows (Phase 4) add files rather
 than rewrite them.

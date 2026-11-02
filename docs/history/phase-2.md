@@ -1,8 +1,12 @@
 # Phase 2: Distribution
 
+> **History.** Phase 2 ended with the public `v0.1.0` on 2026-11-01. Signing moved to the
+> [core roadmap](../roadmap.md), Homebrew to [`homebrew.md`](../homebrew.md). Kept as a record;
+> what is planned now is in the [roadmaps](README.md#where-the-plans-are-now).
+
 Plan, written 2026-10-30, for getting Dotlane from "build it from source" to
 `brew install …/dotlane` and `npx dotlane` on a clean Mac, with signed binaries. It follows Phase 2
-of the [roadmap](roadmap.md) (≈ 1–2 weeks) and builds on Phase 1 ([`phase-1.md`](phase-1.md)).
+of the [roadmap](roadmap-phases.md) (≈ 1–2 weeks) and builds on Phase 1 ([`phase-1.md`](phase-1.md)).
 
 ## Where we start
 
@@ -42,7 +46,7 @@ Built: `.goreleaser.yaml` (darwin arm64/amd64, reproducible builds, archives wit
 `release.yml` on `v*` tags after the full test suite, and a snapshot job on every pull request.
 Release notes are the version's section of `CHANGELOG.md`, with relative links made absolute at
 the tag; a tag without a section is refused. GoReleaser 2.19.0 and Syft 1.55.0 are downloaded
-prebuilt and checked against pinned SHA-256s. How to cut a release: [`releasing.md`](releasing.md).
+prebuilt and checked against pinned SHA-256s. How to cut a release: [`releasing.md`](../releasing.md).
 
 **Done criterion met with `v0.1.0-rc.2`**
 ([run 41128845921](https://github.com/dotlane/dotlane/actions/runs/41128845921), `7c0afd5`): a
@@ -94,20 +98,20 @@ Planned:
 ### P2-M3: Homebrew tap (≈ 2 days) — built 2026-10-31, on hold since 2026-11-01
 
 Built: the cask (GoReleaser `homebrew_casks`, written by every build and attached to the draft
-release), [`tap.yml`](../.github/workflows/tap.yml) and
-[`scripts/tap-update.sh`](../scripts/tap-update.sh), which push it to the tap when a release is
+release), [`tap.yml`](../../.github/workflows/tap.yml) and
+[`scripts/tap-update.sh`](../../scripts/tap-update.sh), which push it to the tap when a release is
 published, and the `dotlane/homebrew-tap` repository (local; created on GitHub by a maintainer).
 Changed from the plan below: the cask does **not** run `dotlane install --refresh`. Homebrew 7
 runs cask hooks in a sandbox with a temporary home, so the refresh would find nothing installed,
 and its unsandboxed Ruby hooks are deprecated (checked with throwaway casks, 2026-10-31).
 Instead the commands that use the daemon (`add`, `rm`, `ls`, `up`, `down`) update the service
 when it runs an older release (`install.Newer`, `Installer.Upgrade`), which also covers npm.
-Tested: unit tests for both, and [`scripts/brew-e2e.sh`](../scripts/brew-e2e.sh) (the *homebrew*
+Tested: unit tests for both, and [`scripts/brew-e2e.sh`](../../scripts/brew-e2e.sh) (the *homebrew*
 CI job: brew install → dotlane install → a site → brew upgrade → the next command restarts the
 service → uninstall and zap leave nothing), which passes on CI for every pull request that
-changes code. Details in [`releasing.md`](releasing.md#homebrew). On hold (decided 2026-11-01):
+changes code. Details in [`releasing.md`](../releasing.md#homebrew). On hold (decided 2026-11-01):
 the tap is public but empty and `HOMEBREW_PUBLISH` is `false`, so releases attach the cask
-without committing it; [`launch.md`](launch.md#3-homebrew-tap-on-hold) says how to resume.
+without committing it; [`launch.md`](../launch.md#3-homebrew-tap-on-hold) says how to resume.
 
 Planned:
 
@@ -138,7 +142,7 @@ Built: the launcher package `dotlane` (Node shim, no install scripts) and the pl
 Mach-O for its package's CPU). Tested by unit tests for the launcher and the build (Linux CI) and
 an end-to-end `npm install` from the tarballs plus `npx dotlane` (`scripts/npm-e2e.sh`, arm64 on a
 development Mac, x64 in CI). Every release attaches the tarballs to its draft; publishing waits
-for the one-time steps in [`releasing.md`](releasing.md#npm). The names are claimed: `v0.1.0-rc.2`
+for the one-time steps in [`releasing.md`](../releasing.md#npm). The names are claimed: `v0.1.0-rc.2`
 of all three was published by hand on 2026-10-31. `v0.1.0` was published by the release
 workflow on 2026-11-01, through trusted publishing with provenance, under `latest`.
 
@@ -164,7 +168,7 @@ The esbuild/Biome pattern, with no install scripts:
 ### P2-M5: Public release (≈ 2 days) — done 2026-11-01, Homebrew on hold
 
 - Before the repository goes public: the history check and checklist in
-  [`security-guide.md`](security-guide.md#before-the-tools-repository-goes-public), the
+  [`security-guide.md`](../security-guide.md#before-the-tools-repository-goes-public), the
   organization and repository settings there, and `NOTICE` covering Caddy and the other embedded
   modules (from `go-licenses`).
 - The website (its own repository, `dotlane/website`) published; the README gets a 30-second terminal recording (VHS, which
@@ -188,14 +192,14 @@ Progress (2026-11-01):
   by the `demo` workflow; re-record it after output changes by running that workflow.
 - gitleaks found no leaks in any of the four repositories (2026-11-01).
 - The site is live.
-- Launched (2026-11-01, [`launch.md`](launch.md)): `dotlane/dotlane` public with its settings
-  ([`security-guide.md`](security-guide.md)), and `v0.1.0` published on GitHub Releases and
+- Launched (2026-11-01, [`launch.md`](../launch.md)): `dotlane/dotlane` public with its settings
+  ([`security-guide.md`](../security-guide.md)), and `v0.1.0` published on GitHub Releases and
   npm (`npm install -g dotlane`, `npx dotlane`), with provenance.
 - Not met: the tap. Homebrew is on hold, so `v0.1.0` ships through npm and the source build.
 - The exit check passed through npm on a new user account on a real Mac (2026-11-01, step 8
-  of [`launch.md`](launch.md)): `npm install -g dotlane`, `dotlane install`, a site served
+  of [`launch.md`](../launch.md)): `npm install -g dotlane`, `dotlane install`, a site served
   over HTTPS in Safari, `dotlane uninstall --purge`, then `npx dotlane` with nothing installed.
-- Left: locking down npm (step 9 of [`launch.md`](launch.md)), and signing (P2-M2).
+- Left: locking down npm (step 9 of [`launch.md`](../launch.md)), and signing (P2-M2).
 
 ## Exit criteria (from the roadmap)
 
@@ -223,5 +227,5 @@ install, upgrade and uninstall on a runner).
 ## Out of scope
 
 Linux and Windows `install` (Phase 4), homebrew-core (needs the notability Homebrew requires, see
-the [roadmap](roadmap.md)), the menu-bar app and an app bundle with `SMAppService` (Phase 5), and
+the [roadmap](roadmap-phases.md)), the menu-bar app and an app bundle with `SMAppService` (Phase 5), and
 auto-update.

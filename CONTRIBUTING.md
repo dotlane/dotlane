@@ -7,7 +7,8 @@ problems go through [`SECURITY.md`](SECURITY.md), never a public issue.
 ## Before a pull request
 
 For anything bigger than a fix, open an issue first, so the design can be agreed before the
-code. The [roadmap](docs/roadmap.md) says what is planned and in which phase.
+code. The roadmaps say what is planned: the [core](docs/roadmap.md), [npm](npm/ROADMAP.md) and
+[Homebrew](docs/homebrew.md).
 
 ## Working on the code
 

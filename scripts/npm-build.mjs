@@ -9,7 +9,7 @@
 // writes <out>/{dotlane,darwin-arm64,darwin-x64}/ and an `npm pack` tarball of each, all at the
 // same version (the launcher depends on exactly that version of the platform packages), plus
 // <out>/dist-tag: "next" for a pre-release, "latest" otherwise. Each binary is checked to be a
-// Mach-O for its package's CPU, so a mix-up cannot ship. docs/phase-2.md, P2-M4.
+// Mach-O for its package's CPU, so a mix-up cannot ship. npm/ROADMAP.md.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

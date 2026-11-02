@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        The [roadmap](https://github.com/dotlane/dotlane/blob/main/docs/roadmap.md) lists what is planned (PHP, Linux and Windows, a desktop app); check it first.
+        The [roadmap](https://github.com/dotlane/dotlane/blob/main/docs/roadmap.md) lists what is planned (PHP, Linux and Windows, phones on the network); check it first.
   - type: textarea
     id: problem
     attributes:

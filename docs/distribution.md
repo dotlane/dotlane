@@ -14,7 +14,7 @@ later, sit on top of it. How to cut a release is in [`releasing.md`](releasing.m
                     Release workflow (CI, GoReleaser)
                                    │
           builds ONE binary per OS and CPU, from the same commit
-       today: macOS arm64 and Intel   ·   Phase 4: also Linux and Windows
+       today: macOS arm64 and Intel   ·   later: also Linux and Windows
                                    │
                                    ▼
           ┌────────────────────────────────────────────────┐
@@ -60,12 +60,12 @@ later, sit on top of it. How to cut a release is in [`releasing.md`](releasing.m
 "An app for each OS" covers two different things:
 
 ```text
-  1. Linux and Windows       roadmap Phase 4, this repository
+  1. Linux and Windows       core roadmap (roadmap.md), this repository
      The same Go binary, compiled for more operating systems by the same release workflow,
      shipped through the same channels (GitHub Release, npm; later perhaps apt, winget or
      scoop). No new repository.
 
-  2. Desktop apps            roadmap Phase 5, repository dotlane/desktop
+  2. Desktop apps            repository dotlane/desktop, with its own roadmap
      A graphical app (a menu-bar app, macOS first), not another build of the binary. It is a
      client of the daemon, like the CLI, through the daemon's local API, and adds no capability
      of its own. It bundles or installs the dotlane binary.
@@ -78,11 +78,14 @@ later, sit on top of it. How to cut a release is in [`releasing.md`](releasing.m
 The website (`dotlane/website`) holds the landing page and is hosted separately; it is not a
 distribution channel.
 
+Each product plans its own features: the [core](roadmap.md), [npm](../npm/ROADMAP.md),
+[Homebrew](homebrew.md), and the website and desktop apps in their repositories.
+
 ## Repositories
 
 | Repository | Holds | Public |
 | --- | --- | --- |
-| `dotlane/dotlane` | The Go source, the release workflow, the docs | at launch |
-| `dotlane/homebrew-tap` | `Casks/dotlane.rb`, written by `tap.yml` | at launch |
-| `dotlane/desktop` | The desktop apps (Phase 5) | later |
+| `dotlane/dotlane` | The Go source, the release workflow, the npm and Homebrew packaging, the docs | yes, since 2026-11-01 |
+| `dotlane/homebrew-tap` | `Casks/dotlane.rb`, written by `tap.yml` (empty while Homebrew is on hold) | yes, since 2026-11-01 |
+| `dotlane/desktop` | The desktop apps, with their own roadmap | later |
 | `dotlane/website` | The landing page | no; the site itself is |

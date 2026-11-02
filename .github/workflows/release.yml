@@ -2,7 +2,7 @@ name: Release
 
 # A v* tag builds the macOS archives, checksums and SBOMs with GoReleaser and creates a draft
 # GitHub release, after the full test suite (ci.yml) passes. A maintainer reviews the draft and
-# publishes it. docs/phase-2.md, P2-M1.
+# publishes it. docs/history/phase-2.md, P2-M1.
 on:
   push:
     tags: ["v*"]
