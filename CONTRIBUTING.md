@@ -42,7 +42,8 @@ CI's throwaway macOS runners: on release pull requests, or on your branch with
   commands and flags, [`docs/setup.md`](docs/setup.md) for install steps.
 - **A line in [`CHANGELOG.md`](CHANGELOG.md)** under `[Unreleased]` for anything a user would
   notice (Added, Changed, Fixed, Security). Internal changes need none.
-- **Green CI:** `test` and `integration-linux`, the quick Linux tier. The macOS, Windows and
+- **Green CI:** the `gate` check, which passes once the quick Linux tier (`test`,
+  `integration-linux`) has. The macOS, Windows and
   package jobs run once per release, on the release pull request into `main`
   ([`docs/branching.md`](docs/branching.md), CI). Pull requests are squash-merged into `dev`, so
   the title becomes the commit message: say what changes, in the imperative ("Retry fresh ports

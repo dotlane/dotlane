@@ -57,7 +57,7 @@ git switch -c feat/port-retry
 # … commit, scripts/check.sh, push …
 gh pr create --base dev --draft      # draft: CI does not run yet
 gh pr ready                          # now it does
-gh pr merge --squash --delete-branch
+gh pr merge --squash --auto --delete-branch   # merges once the gate check passes
 ```
 
 Each pull request adds its line under `## [Unreleased]` in `CHANGELOG.md` (see
@@ -104,8 +104,8 @@ on the release pull request, instead of on every feature pull request.
 | Event | Runs |
 | --- | --- |
 | Push to any branch | nothing |
-| Draft pull request | nothing (one ten-second job that decides) |
-| Pull request into `dev`, docs only | nothing (the same ten-second job) |
+| Draft pull request | nothing (the ten-second job that decides, and `gate`, which fails on purpose) |
+| Pull request into `dev`, docs only | nothing (the same ten-second job; `gate` is skipped) |
 | Pull request into `dev` | **quick tier**: `test`, `integration-linux` (Linux only) |
 | Pull request into `main`, docs only | quick tier |
 | Pull request into `main` (release, hotfix) | **full tier**: also `install-tests`, `integration`, `homebrew` (macOS), `test-windows`, `integration-windows`, the Fedora and Arch integration, `release-snapshot`, `linux-packages` |
@@ -114,11 +114,11 @@ on the release pull request, instead of on every feature pull request.
 | `gh workflow run ci.yml --ref <branch>` | full tier, on demand |
 | Publishing a release | the Homebrew tap update (`tap.yml`) |
 
-The `changes` job in [`ci.yml`](../.github/workflows/ci.yml) picks the tier. Also keeping runs
-down:
+The `changes` job in [`ci.yml`](../.github/workflows/ci.yml) picks the tier, and the `gate` job
+checks the outcome against it (Guards, below). Also keeping runs down:
 
 - **Drafts**: open a pull request as a draft while still pushing to it; CI starts when it is
-  marked ready.
+  marked ready. Until then its `gate` check is red, which only says the tests have not run.
 - **Cancel in progress**: a new push to a pull request cancels its older run.
 - **Docs-only** pull requests into `dev` run nothing, and into `main` skip the full tier. Docs
   only means every file is a `*.md`, or under `docs/`, `assets/demo/` or `.github/ISSUE_TEMPLATE/`.
@@ -135,10 +135,19 @@ above covers the risky changes.
 
 - **Rulesets** ([`ruleset-main.json`](../.github/settings/ruleset-main.json),
   [`ruleset-dev.json`](../.github/settings/ruleset-dev.json)): both branches take changes only
-  through pull requests and refuse force-pushes and deletion. `main` allows merge commits only and
-  requires the full-tier checks; `dev` allows squash only and requires `test` and
-  `integration-linux`. Admins may push to `dev` directly, for the sync after a release. A
-  required check that a tier skips counts as passed.
+  through pull requests and refuse force-pushes and deletion. `main` allows merge commits only,
+  `dev` squash only. Admins may push to `dev` directly, for the sync after a release.
+- **One required check, `gate`**: both rulesets require only the `gate` job, which passes when
+  every job the tier picked by `changes` passed and nothing failed. Requiring the tier's jobs
+  directly does not work, for two reasons: a ruleset counts a skipped check as passed, and it
+  reads the newest check of each name on the head commit, even one from an older run. A draft
+  skips its jobs, so marking one ready and enabling auto-merge at once merged it on the draft's
+  skipped checks, before the new run's had even started
+  ([#34](https://github.com/dotlane/dotlane/pull/34), 2026-11-02). So `gate` fails on a draft
+  instead: that failure stays the newest `gate` until the ready run's `gate` has seen the tier
+  pass, and auto-merge waits. `gate` is skipped, so passes, only for a docs-only pull request
+  into `dev`, the one case where nothing should run. It also fails when a job it needs failed or
+  the run was cancelled.
 - **Wrong base**: the `test` job fails a pull request into `main` unless its branch starts with
   `release/`, `hotfix/` or `dependabot/` (security updates go to the default branch).
 
