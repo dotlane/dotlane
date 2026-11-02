@@ -403,6 +403,12 @@ func (m *Mac) Routed(ctx context.Context) ([]string, error) {
 	return tlds, nil
 }
 
+// Installed implements Installer.
+func (m *Mac) Installed(ctx context.Context) bool {
+	_, err := os.Stat(m.plistPath())
+	return err == nil
+}
+
 // SyncRoutes implements Installer.
 func (m *Mac) SyncRoutes(ctx context.Context) error {
 	for _, tld := range m.Cfg.TLDs {

@@ -16,6 +16,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -428,6 +429,9 @@ func TestLinuxInstallRestartsAfterRebuild(t *testing.T) {
 	if !strings.Contains(out.String(), "restarted (to load the rebuilt binary)") || !fake.ran("systemctl --user restart") {
 		t.Errorf("no restart:\n%s", out)
 	}
+	if i, j := slices.Index(fake.calls, "systemctl --user reset-failed "+m.unitName()), slices.Index(fake.calls, "systemctl --user restart "+m.unitName()); i < 0 || i > j {
+		t.Errorf("the start counter is not reset before a restart: %q", fake.calls)
+	}
 	if got, _ := os.ReadFile(m.serviceExe()); string(got) != "dotlane build 2" {
 		t.Errorf("service runs %q", got)
 	}
@@ -838,6 +842,24 @@ func TestLinuxSyncRoutes(t *testing.T) {
 	}
 	if fake.sudoCalls != before {
 		t.Errorf("nothing to change, yet sudo ran %d times", fake.sudoCalls-before)
+	}
+
+	// Another primary is the same endings in another order: nothing to change either.
+	m.Cfg.TLDs = []string{"dldev", "extra"}
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.Cfg.TLDs = []string{"extra", "dldev"}
+	before = fake.sudoCalls
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.sudoCalls != before {
+		t.Errorf("reordering the endings ran sudo %d times", fake.sudoCalls-before)
+	}
+	unit, _ := os.ReadFile(m.dnsUnitPath())
+	if !bytes.Contains(unit, []byte("\nStartLimitIntervalSec=0\n")) {
+		t.Errorf("the DNS unit can hit systemd's start limit:\n%s", unit)
 	}
 }
 

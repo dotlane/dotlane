@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -451,8 +452,8 @@ func (m *Linux) installService(ctx context.Context) error {
 			why = "to load the " + stale
 		}
 		if why != "" {
-			if out, err := m.userctl(ctx, "restart", m.unitName()); err != nil {
-				return fmt.Errorf("systemctl restart: %v: %s", err, bytes.TrimSpace(out))
+			if err := m.restart(ctx); err != nil {
+				return err
 			}
 			m.UI.OK("Login service", "restarted ("+why+")")
 		}
@@ -468,8 +469,8 @@ func (m *Linux) installService(ctx context.Context) error {
 			return fmt.Errorf("systemctl enable: %v: %s\nsee its log: %s", err, bytes.TrimSpace(out), m.journalCmd())
 		}
 		if activeErr == nil { // reinstall or upgrade: enable --now leaves a running copy alone
-			if out, err := m.userctl(ctx, "restart", m.unitName()); err != nil {
-				return fmt.Errorf("systemctl restart: %v: %s", err, bytes.TrimSpace(out))
+			if err := m.restart(ctx); err != nil {
+				return err
 			}
 		}
 		m.UI.OK("Login service", "installed · "+m.UI.Path(m.unitPath()))
@@ -483,6 +484,17 @@ func (m *Linux) installService(ctx context.Context) error {
 }
 
 // unit is the systemd user unit: start at login, restart on failure.
+// restart restarts the login service on purpose. reset-failed first flushes systemd's start
+// counter, so restarts Dotlane asks for (a few dotlane tld changes in a row) do not use up the
+// limit of five starts in ten seconds that stops a daemon that keeps crashing.
+func (m *Linux) restart(ctx context.Context) error {
+	m.userctl(ctx, "reset-failed", m.unitName()) // best effort: only the counter is at stake
+	if out, err := m.userctl(ctx, "restart", m.unitName()); err != nil {
+		return fmt.Errorf("systemctl restart: %v: %s", err, bytes.TrimSpace(out))
+	}
+	return nil
+}
+
 func (m *Linux) unit() []byte {
 	return []byte(marker + `
 [Unit]
@@ -595,15 +607,22 @@ func (m *Linux) dnsUnit() ([]byte, error) {
 		return nil, err
 	}
 	link := m.dnsLink()
-	tlds := make([]string, len(m.Cfg.TLDs))
-	for i, t := range m.Cfg.TLDs {
-		tlds[i] = "~" + t
+	// Sorted: the order of the endings means nothing to systemd-resolved, so choosing another
+	// primary (dotlane tld use) leaves the unit as it is.
+	sorted := slices.Sorted(slices.Values(m.Cfg.TLDs))
+	tlds, shown := make([]string, len(sorted)), make([]string, len(sorted))
+	for i, t := range sorted {
+		tlds[i], shown[i] = "~"+t, "."+t
 	}
+	// StartLimitIntervalSec=0: Dotlane restarts the unit whenever the endings change, and a few
+	// changes in a row (a script running dotlane tld) would otherwise hit systemd's limit of five
+	// starts in ten seconds, made for services that crash.
 	return []byte(marker + `
 [Unit]
-Description=Dotlane: send ` + m.endings() + ` lookups to 127.0.0.1:` + strconv.Itoa(m.Cfg.DNSPort) + ` (` + m.Cfg.ServiceName + `)
+Description=Dotlane: send ` + strings.Join(shown, " ") + ` lookups to 127.0.0.1:` + strconv.Itoa(m.Cfg.DNSPort) + ` (` + m.Cfg.ServiceName + `)
 After=systemd-resolved.service systemd-networkd.service
 PartOf=systemd-resolved.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
@@ -713,6 +732,12 @@ func (m *Linux) installDNS(ctx context.Context) error {
 	}
 	m.UI.OK(label, m.dnsUnitPath()+" written")
 	return nil
+}
+
+// Installed implements Installer.
+func (m *Linux) Installed(ctx context.Context) bool {
+	_, err := os.Stat(m.unitPath())
+	return err == nil
 }
 
 // SyncRoutes implements Installer: the DNS unit lists every ending, so routing one more or one

@@ -29,6 +29,9 @@ type Installer interface {
 	// sandbox, and the npm packages have no install scripts), so commands that use the daemon
 	// call it first.
 	Upgrade(ctx context.Context, version string, out io.Writer) (bool, error)
+	// Installed reports whether the login service is set up, so commands that change the
+	// configuration know whether to apply it to the machine too.
+	Installed(ctx context.Context) bool
 	// SyncRoutes makes the machine send exactly the configured domain endings to Dotlane's DNS:
 	// it routes each ending that has no route yet and removes Dotlane's routes for endings the
 	// config no longer lists, asking for administrator rights only when something changes.

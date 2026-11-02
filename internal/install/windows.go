@@ -539,6 +539,13 @@ func (w *Windows) dnsSteps(ctx context.Context) ([]adminStep, error) {
 	return steps, nil
 }
 
+// Installed implements Installer.
+func (w *Windows) Installed(ctx context.Context) bool {
+	registered, _ := w.taskState(ctx)
+	_, err := os.Stat(w.serviceExe())
+	return registered || err == nil
+}
+
 // Routed implements Installer: the endings of the rules that carry this service's comment.
 func (w *Windows) Routed(ctx context.Context) ([]string, error) {
 	rules, err := w.rules(ctx)

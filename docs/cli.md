@@ -33,14 +33,31 @@ port = 8000
 Each site records the project directory that registered it. `up` refuses a name another project
 already uses and changes nothing; it takes over a site added by hand with `dotlane add`.
 
+## Domain endings
+
+| Command | What it does |
+| --- | --- |
+| `dotlane tld ls [--json]` | Lists the endings, which is the primary, and whether each is routed to Dotlane; also an ending Dotlane still routes that `config.toml` no longer lists. |
+| `dotlane tld add <ending> [--force]` | Adds an ending: saves it in `config.toml`, routes it (password, or one administrator prompt on Windows) and restarts the service, then checks a lookup. Every site answers on it at once. |
+| `dotlane tld rm <ending>` | Removes an ending and its route; the sites stay, on the other endings. The last ending cannot be removed. Also removes a route left for an ending the file no longer lists. |
+| `dotlane tld use <ending> [--force]` | Makes an ending the primary, adding it first if needed. The others keep working until removed. |
+
+Endings that would hide real websites (any public top-level domain, such as `.com` or `.dev`, and
+any two-letter one) or that resolvers treat specially (`.local`, `.localhost`, `.invalid`,
+`.onion`, `.alt`, `.arpa`) are refused. Ones a router or company network may already answer
+(`.lan`, `.home`, `.corp`, `.mail`, `.localdomain`, `.intranet`, `.private`) need `--force`.
+`.dotlane`, `.test` and `.internal` can never collide. When Dotlane is not installed, the
+commands only save the file; `dotlane install` routes it.
+
 ## Setup and checks
 
 | Command | What it does |
 | --- | --- |
 | `dotlane install` | Login service, CA trust (password), resolver file per ending (password). Checks for conflicts first and changes nothing if another tool is in the way. Restarts the service when it is stuck, or the binary or config changed after it started. Safe to re-run. |
+| `dotlane install --tld <ending>` | Makes the ending the primary first, like `dotlane tld use`, then installs. Endings that need `--force` go through `dotlane tld use` instead. |
 | `dotlane install --refresh` | Only updates an installed service to this binary (its copy, the plist) and restarts it if it runs an older build or config. Never asks for a password; when Dotlane is not installed it says so and exits 0. What package managers run after an upgrade. |
 | `dotlane uninstall [--purge]` | Reverses install. `--purge` also deletes the sites, the CA's keys and the log. |
-| `dotlane doctor [--fix \| --json]` | Checks the config, the service, the daemon, ports 80/443 and the DNS port, private files, the CA's trust, each resolver file and a real lookup. Names other tools in the way, with their fix. `--fix` runs install for what it repairs; `--json` prints the checks. |
+| `dotlane doctor [--fix \| --json]` | Checks the config, the service, the daemon, ports 80/443 and the DNS port, private files, the CA's trust, each resolver file and a real lookup, endings that need `--force` or would be refused, and routes left for endings no longer configured. Names other tools in the way, with their fix. `--fix` runs install for what it repairs; `--json` prints the checks. |
 | `dotlane migrate` | Moves a Bash prototype install to Dotlane, keeping its sites and trusted CA (see [`setup.md`](setup.md#moving-from-the-prototype)). |
 | `dotlane serve` | Runs the service in the foreground; the login service runs this. |
 | `dotlane version` | Prints the version (also `--version`). |
@@ -62,11 +79,9 @@ service_name = "dev.dotlane"
 With several endings, every site answers on each; the first is the primary, whose URL `add`,
 `up` and `ls` print first, and which `GET /v1/status` reports as `primary_tld`.
 
-Every command warns about an ending that would shadow real websites or may already be answered
-by the network: a public top-level domain such as `.dev` or `.com`, a two-letter ending (kept
-for country codes), names that resolvers treat specially (`.localhost`, `.invalid`, `.onion`,
-`.alt`, `.arpa`), and ones routers often answer (`.lan`, `.home`, `.corp`). The ending still works;
-`.dotlane`, `.test` and `.internal` can never collide.
+`dotlane tld` edits the `tld`/`tlds` line in place, keeping the rest of the file. An ending set
+by hand that `dotlane tld add` would refuse or ask `--force` for still works; every command
+and `doctor` warn about it.
 
 A relative `state_dir` is relative to the config file. Ports below 1024 are bound on all
 interfaces on macOS (which allows a normal user nothing else; Linux and Windows bind them on loopback) and drop requests from other machines; other
