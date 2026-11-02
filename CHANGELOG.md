@@ -17,6 +17,8 @@ the release notes, and refuses a tag that has none.
   that is a public top-level domain (`.dev`, `.com`, from an embedded copy of IANA's list), a
   two-letter ending, a special-use name (`.localhost`, `.invalid`, `.onion`, `.alt`, `.arpa`)
   or one routers often answer (`.lan`, `.home`, `.corp`). The ending keeps working.
+- **`primary_tld` in `GET /v1/status`**: the first of the configured endings, whose URL comes
+  first in each site's `urls`.
 
 ## [0.2.0] - 2026-11-02
 

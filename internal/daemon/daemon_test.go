@@ -86,7 +86,7 @@ func TestDaemon(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if status.Version != "test" || status.HTTPSPort != cfg.HTTPSPort {
+	if status.Version != "test" || status.HTTPSPort != cfg.HTTPSPort || status.PrimaryTLD != "traix" {
 		t.Errorf("status = %+v", status)
 	}
 
