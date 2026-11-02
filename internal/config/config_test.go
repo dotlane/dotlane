@@ -207,3 +207,71 @@ func TestDefaultPathsPerOS(t *testing.T) {
 		t.Errorf("config and state share %q", state)
 	}
 }
+
+func TestSetTLDs(t *testing.T) {
+	for _, tc := range []struct{ name, have, want string }{
+		{"missing file", "", "tlds = [\"dotlane\", \"test\"]\n"},
+		{"tld, with its comment",
+			"# mine\ntld = \"traix\"   # the old default\ndns_port = 10055\n",
+			"# mine\ntlds = [\"dotlane\", \"test\"]   # the old default\ndns_port = 10055\n"},
+		{"tlds on several lines",
+			"dns_port = 10055\ntlds = [\n  \"traix\", # first\n  \"test\",\n]\nhttp_port = 9480\n",
+			"dns_port = 10055\ntlds = [\"dotlane\", \"test\"]\nhttp_port = 9480\n"},
+		{"both, the second dropped",
+			"tld = \"traix\"\nhttp_port = 9480\ntlds = [\"x\"]\n",
+			"tlds = [\"dotlane\", \"test\"]\nhttp_port = 9480\n"},
+		{"none yet, no final newline",
+			"# mine\ndns_port = 10055",
+			"# mine\ndns_port = 10055\ntlds = [\"dotlane\", \"test\"]\n"},
+		{"lookalikes left alone",
+			"# tld = \"x\"\n  tlds = [\"traix\"]\n",
+			"# tld = \"x\"\n  tlds = [\"dotlane\", \"test\"]\n"},
+	} {
+		p := filepath.Join(t.TempDir(), "config.toml")
+		if tc.have != "" {
+			os.WriteFile(p, []byte(tc.have), 0o600)
+		}
+		if err := SetTLDs(p, []string{"dotlane", "test"}); err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+			continue
+		}
+		got, _ := os.ReadFile(p)
+		if string(got) != tc.want {
+			t.Errorf("%s:\ngot  %q\nwant %q", tc.name, got, tc.want)
+		}
+		cfg, err := Load(p)
+		if err != nil || !slices.Equal(cfg.TLDs, []string{"dotlane", "test"}) || cfg.Primary() != "dotlane" {
+			t.Errorf("%s: reloaded %+v, %v", tc.name, cfg, err)
+		}
+		if info, err := os.Stat(p); tc.have != "" && runtime.GOOS != "windows" && (err != nil || info.Mode().Perm() != 0o600) {
+			t.Errorf("%s: mode %v, %v; want it kept", tc.name, info.Mode(), err)
+		}
+	}
+
+	for _, bad := range [][]string{nil, {"Bad"}, {"test", "test"}} {
+		if err := SetTLDs(filepath.Join(t.TempDir(), "config.toml"), bad); err == nil {
+			t.Errorf("SetTLDs(%q): no error", bad)
+		}
+	}
+}
+
+// A config file kept in a dotfiles repository and symlinked stays a symlink.
+func TestSetTLDsThroughSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need developer mode on Windows")
+	}
+	target := write(t, "tld = \"traix\"\n")
+	link := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetTLDs(link, []string{"dotlane"}); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("link replaced: %v %v", info.Mode(), err)
+	}
+	if got, _ := os.ReadFile(target); string(got) != "tlds = [\"dotlane\"]\n" {
+		t.Errorf("target = %q", got)
+	}
+}
