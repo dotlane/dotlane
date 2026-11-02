@@ -16,6 +16,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -427,6 +428,9 @@ func TestLinuxInstallRestartsAfterRebuild(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "restarted (to load the rebuilt binary)") || !fake.ran("systemctl --user restart") {
 		t.Errorf("no restart:\n%s", out)
+	}
+	if i, j := slices.Index(fake.calls, "systemctl --user reset-failed "+m.unitName()), slices.Index(fake.calls, "systemctl --user restart "+m.unitName()); i < 0 || i > j {
+		t.Errorf("the start counter is not reset before a restart: %q", fake.calls)
 	}
 	if got, _ := os.ReadFile(m.serviceExe()); string(got) != "dotlane build 2" {
 		t.Errorf("service runs %q", got)
