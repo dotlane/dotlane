@@ -59,6 +59,12 @@ state_dir = "…"          # default ~/Library/Application Support/dotlane
 service_name = "dev.dotlane"
 ```
 
+Every command warns about an ending that would shadow real websites or may already be answered
+by the network: a public top-level domain such as `.dev` or `.com`, a two-letter ending (kept
+for country codes), names that resolvers treat specially (`.localhost`, `.invalid`, `.onion`,
+`.alt`, `.arpa`), and ones routers often answer (`.lan`, `.home`, `.corp`). The ending still works;
+`.dotlane`, `.test` and `.internal` can never collide.
+
 A relative `state_dir` is relative to the config file. Ports below 1024 are bound on all
 interfaces on macOS (which allows a normal user nothing else; Linux and Windows bind them on loopback) and drop requests from other machines; other
 ports stay on loopback.

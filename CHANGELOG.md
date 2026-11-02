@@ -11,6 +11,13 @@ the release notes, and refuses a tag that has none.
 
 ## [Unreleased]
 
+### Added
+
+- **Warnings about risky domain endings.** Every command warns when `config.toml` sets an ending
+  that is a public top-level domain (`.dev`, `.com`, from an embedded copy of IANA's list), a
+  two-letter ending, a special-use name (`.localhost`, `.invalid`, `.onion`, `.alt`, `.arpa`)
+  or one routers often answer (`.lan`, `.home`, `.corp`). The ending keeps working.
+
 ## [0.2.0] - 2026-11-02
 
 Linux and Windows join macOS, each on x64 and arm64: installed with npm, from the release's
