@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 
@@ -46,7 +48,10 @@ type file struct {
 	Service   string   `toml:"service_name"`
 }
 
-var servicePattern = regexp.MustCompile(`^[a-z0-9]+(\.[a-z0-9-]+)+$`)
+var (
+	servicePattern = regexp.MustCompile(`^[a-z0-9]+(\.[a-z0-9-]+)+$`)
+	tldSetting     = regexp.MustCompile(`^\s*tlds?\s*=`)
+)
 
 // Resolve picks the config file: flag (--config), else $DOTLANE_CONFIG, else DefaultPath. The
 // default file is optional, also when named explicitly (the
@@ -192,6 +197,140 @@ func SetDNSPort(path string, port int, why string) error {
 	}
 	return f.Close()
 }
+
+// SetTLDs records the domain endings in the config file at path, creating it if needed; the
+// first is the primary. It replaces the tld or tlds setting where it stands, as one tlds line,
+// and keeps the rest of the file, its comments and a symlink to it (dotfiles) as they are.
+func SetTLDs(path string, tlds []string) error {
+	if len(tlds) == 0 {
+		return errors.New("at least one domain ending is needed")
+	}
+	seen := map[string]bool{}
+	quoted := make([]string, len(tlds))
+	for i, t := range tlds {
+		if err := tld.Syntax(t); err != nil {
+			return err
+		}
+		if seen[t] {
+			return fmt.Errorf("domain ending listed twice: %q", t)
+		}
+		seen[t] = true
+		quoted[i] = strconv.Quote(t)
+	}
+	setting := "tlds = [" + strings.Join(quoted, ", ") + "]"
+
+	if target, err := filepath.EvalSymlinks(path); err == nil {
+		path = target
+	}
+	have, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return replaceFile(path, []byte(withSetting(string(have), setting)))
+}
+
+// withSetting replaces every tld or tlds setting in body with setting, at the first one's place,
+// keeping its indent and trailing comment; with none, setting is appended.
+func withSetting(body, setting string) string {
+	lines := strings.SplitAfter(body, "\n")
+	var out strings.Builder
+	done := false
+	for i := 0; i < len(lines); i++ {
+		loc := tldSetting.FindStringIndex(lines[i])
+		if loc == nil {
+			out.WriteString(lines[i])
+			continue
+		}
+		indent := lines[i][:len(lines[i])-len(strings.TrimLeft(lines[i], " \t"))]
+		end, comment := valueEnd(lines, i, loc[1])
+		if !done {
+			out.WriteString(indent + setting)
+			if comment != "" {
+				out.WriteString("   " + comment)
+			}
+			out.WriteString("\n")
+			done = true
+		}
+		i = end
+	}
+	if !done {
+		if body != "" && !strings.HasSuffix(body, "\n") {
+			out.WriteString("\n")
+		}
+		out.WriteString(setting + "\n")
+	}
+	return out.String()
+}
+
+// valueEnd finds where the value starting at lines[i][pos:] ends: the line holding its last
+// character (an array may span lines), and the comment after it on that line, if any.
+func valueEnd(lines []string, i, pos int) (int, string) {
+	depth, began := 0, false
+	for ; i < len(lines); i, pos = i+1, 0 {
+		l := strings.TrimRight(lines[i], "\r\n")
+		var quote byte
+		for j := pos; j < len(l); j++ {
+			switch c := l[j]; {
+			case quote != 0:
+				if c == '\\' && quote == '"' {
+					j++
+				} else if c == quote {
+					quote = 0
+				}
+			case c == '"' || c == '\'':
+				quote, began = c, true
+			case c == '#':
+				if began && depth == 0 {
+					return i, strings.TrimSpace(l[j:])
+				}
+				j = len(l) // a comment inside the array
+			case c == '[':
+				depth, began = depth+1, true
+			case c == ']':
+				depth--
+			case c != ' ' && c != '\t':
+				began = true
+			}
+		}
+		if began && depth == 0 {
+			return i, ""
+		}
+	}
+	return len(lines) - 1, ""
+}
+
+// replaceFile writes data to path through a file next to it, so a reader never sees half a
+// file, and keeps the file's mode.
+func replaceFile(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	tmp, err := os.CreateTemp(dir, ".config-*.toml")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // after a failure; gone after the rename
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+// Primary is the first domain ending: commands print its URL first.
+func (c *Config) Primary() string { return c.TLDs[0] }
 
 // SocketPath is where the daemon listens for the CLI.
 func (c *Config) SocketPath() string { return filepath.Join(c.StateDir, "dotlane.sock") }

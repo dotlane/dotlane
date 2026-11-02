@@ -21,7 +21,7 @@ import (
 type Site struct {
 	Name string   `json:"name"`
 	Port int      `json:"port"`
-	URLs []string `json:"urls"`
+	URLs []string `json:"urls"` // one per domain ending, the primary's first
 	// Project is the directory of the dotlane.toml that registered the site; empty when added
 	// by hand.
 	Project string `json:"project,omitempty"`
@@ -32,12 +32,13 @@ type Site struct {
 
 // Status describes the running daemon.
 type Status struct {
-	Version   string   `json:"version"`
-	PID       int      `json:"pid"`
-	TLDs      []string `json:"tlds"`
-	DNSAddr   string   `json:"dns_addr"`
-	HTTPSPort int      `json:"https_port"`
-	StateDir  string   `json:"state_dir"`
+	Version    string   `json:"version"`
+	PID        int      `json:"pid"`
+	TLDs       []string `json:"tlds"`
+	PrimaryTLD string   `json:"primary_tld"` // the first of TLDs, shown first
+	DNSAddr    string   `json:"dns_addr"`
+	HTTPSPort  int      `json:"https_port"`
+	StateDir   string   `json:"state_dir"`
 	// Started is when the daemon started; a binary changed after that is not what it runs.
 	Started time.Time `json:"started"`
 }

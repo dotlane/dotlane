@@ -59,6 +59,9 @@ state_dir = "…"          # default ~/Library/Application Support/dotlane
 service_name = "dev.dotlane"
 ```
 
+With several endings, every site answers on each; the first is the primary, whose URL `add`,
+`up` and `ls` print first, and which `GET /v1/status` reports as `primary_tld`.
+
 Every command warns about an ending that would shadow real websites or may already be answered
 by the network: a public top-level domain such as `.dev` or `.com`, a two-letter ending (kept
 for country codes), names that resolvers treat specially (`.localhost`, `.invalid`, `.onion`,
