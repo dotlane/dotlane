@@ -310,7 +310,10 @@ func (m *Linux) dnsCheck(ctx context.Context, tld string) Check {
 		c.Status, c.Conflict = Failed, true
 		c.Detail = fmt.Sprintf("systemd-resolved already sends .%s to %s", tld, c.Detail)
 		c.Fix = fmt.Sprintf("remove that setting (see: resolvectl status), then dotlane install")
-	case !bytes.Equal(have, m.dnsUnit()):
+	case func() bool { _, err := m.dnsUnit(); return err != nil }():
+		_, err := m.dnsUnit()
+		c.Status, c.Detail = Failed, err.Error()
+	case func() bool { want, _ := m.dnsUnit(); return !bytes.Equal(have, want) }():
 		c.Status, c.Detail, c.Repairable = Failed, m.dnsUnitPath()+" is for another port or domain list", true
 		c.Fix = "dotlane install (asks for your password)"
 	case !m.dnsEnabled(ctx) || !m.dnsActive(ctx) || !m.routed(ctx):

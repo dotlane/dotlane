@@ -66,7 +66,30 @@ why() { # <url>
 }
 cleanup() {
   kill "$UPSTREAM" 2>/dev/null || true
-  [[ -n "${DONE:-}" ]] || { echo "--- daemon log"; journalctl --user -u "$UNIT" --no-pager -n 50 2>/dev/null || true; }
+  [[ -n "${DONE:-}" ]] || {
+    echo "--- daemon log"; journalctl --user -u "$UNIT" --no-pager -n 50 2>/dev/null || true
+    dns_diagnostics
+  }
+}
+# What the system's resolver and network manager think of Dotlane's link, for a failure that
+# only shows on a machine we cannot log in to (a CI runner).
+dns_diagnostics() {
+  local l=${link:-}
+  [[ -n "$l" ]] || l=$(ip -o link show 2>/dev/null | sed -n 's/^[0-9]*: \(dl-[0-9a-f]*\)[:@].*/\1/p' | head -1)
+  echo "--- systemd: $(systemctl --version | head -1); resolved $(systemctl is-active systemd-resolved 2>&1); networkd $(systemctl is-active systemd-networkd 2>&1); NetworkManager $(systemctl is-active NetworkManager 2>&1)"
+  echo "--- resolvectl status ${l:-(all links)}"; resolvectl status ${l:+"$l"} 2>&1 | head -60 || true
+  echo "--- resolvectl default-route ${l}"; [[ -z "$l" ]] || resolvectl default-route "$l" 2>&1 || true
+  echo "--- resolvectl domain"; resolvectl domain 2>&1 || true
+  echo "--- resolvectl dns"; resolvectl dns 2>&1 || true
+  if command -v networkctl >/dev/null; then
+    echo "--- networkctl list"; networkctl list --no-pager 2>&1 || true
+    [[ -z "$l" ]] || { echo "--- networkctl status $l"; networkctl status "$l" --no-pager 2>&1 | head -30 || true; }
+  fi
+  echo "--- ip -d link show ${l}"; [[ -z "$l" ]] || ip -d link show "$l" 2>&1 || true
+  echo "--- DNS unit"; systemctl status "$DNS_UNIT" --no-pager 2>&1 | head -20 || true
+  echo "--- DNS unit journal"; journalctl -u "$DNS_UNIT" --no-pager -n 40 2>&1 || true
+  echo "--- resolved and networkd journal for the link"
+  journalctl -u systemd-resolved -u systemd-networkd --no-pager -n 400 2>&1 | grep -i -e "${l:-dl-}" -e "default" | tail -30 || true
 }
 trap cleanup EXIT
 
@@ -186,7 +209,7 @@ systemctl --user is-active "$UNIT" >/dev/null 2>&1 && fail "service still runnin
 [[ ! -e /etc/systemd/system/$DNS_UNIT ]] || fail "the DNS unit left behind"
 ip link show "$link" >/dev/null 2>&1 && fail "the $link link left behind"
 resolvectl domain | grep -q "~$TLD" && fail "~$TLD still routed"
-[[ ! -e /etc/sysctl.d/50-dotlane.conf ]] || fail "/etc/sysctl.d/50-dotlane.conf left behind"
+[[ ! -e /etc/sysctl.d/50-dotlane-$SERVICE.conf ]] || fail "/etc/sysctl.d/50-dotlane-$SERVICE.conf left behind"
 [[ "$(cat /proc/sys/net/ipv4/ip_unprivileged_port_start)" == 1024 ]] || fail "ip_unprivileged_port_start was not restored to 1024"
 ls /usr/local/share/ca-certificates/dotlane-$SERVICE.crt /etc/ca-certificates/trust-source/anchors/dotlane-$SERVICE.crt \
    /etc/pki/ca-trust/source/anchors/dotlane-$SERVICE.crt >/dev/null 2>&1 && fail "the CA file is left in the system's store"

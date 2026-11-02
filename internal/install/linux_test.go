@@ -55,6 +55,7 @@ type fakeLinux struct {
 	userEnabled, userActive bool
 	dnsEnabled, dnsActive   bool
 	dnsOn                   bool              // resolved routes the link
+	leak                    bool              // resolved makes the link a default route, until it is set again
 	otherDomains            string            // lines of `resolvectl domain` that are not ours
 	ss                      string            // output of ss
 	nss                     map[string][]byte // database dir → PEM under the nickname
@@ -107,6 +108,11 @@ func (f *fakeLinux) Run(_ context.Context, name string, args ...string) ([]byte,
 				return []byte("Link 3 (" + f.m.dnsLink() + "):\n"), nil
 			}
 			return []byte(fmt.Sprintf("Link 3 (%s): 127.0.0.1:%d\n", f.m.dnsLink(), f.m.Cfg.DNSPort)), nil
+		case args[0] == "default-route":
+			if f.leak {
+				return []byte("Link 3 (" + f.m.dnsLink() + "): yes\n"), nil
+			}
+			return []byte("Link 3 (" + f.m.dnsLink() + "): no\n"), nil
 		case args[0] == "domain":
 			out := f.otherDomains
 			if f.dnsOn {
@@ -177,6 +183,10 @@ func (f *fakeLinux) Sudo(_ context.Context, stdin []byte, name string, args ...s
 		case "disable":
 			f.dnsEnabled, f.dnsActive, f.dnsOn = false, false, false
 		}
+	case "resolvectl":
+		if args[0] == "default-route" {
+			f.leak = false
+		}
 	case "update-ca-certificates", "update-ca-trust":
 		// Rebuild the bundle from every anchor folder.
 		var bundle []byte
@@ -229,14 +239,15 @@ func newTestLinux(t *testing.T) (*Linux, *fakeLinux, *bytes.Buffer) {
 		ServiceDir: filepath.Join(dir, "home", ".local", "share", "dotlane", "bin"),
 		Home:       filepath.Join(dir, "home"), UID: os.Getuid(),
 		UnitDir:       filepath.Join(dir, "home", ".config", "systemd", "user"),
-		SystemUnitDir: filepath.Join(dir, "system"), SysctlFile: filepath.Join(dir, "50-dotlane.conf"),
+		SystemUnitDir: filepath.Join(dir, "system"), SysctlFile: filepath.Join(dir, "50-dotlane-dev.dotlane.test.conf"),
 		PortStartFile: filepath.Join(dir, "port_start"), ResolvConf: filepath.Join(dir, "resolv.conf"),
 		ProcDir:      filepath.Join(dir, "proc"),
 		Stores:       []TrustStore{{Tool: "update-ca-trust", Dir: anchors, NSSPackage: "nss-tools"}},
 		Bundles:      []string{filepath.Join(dir, "bundle.crt")},
 		FirefoxGlobs: []string{".mozilla/firefox/*"},
 		UI:           ui.Plain(out), Runner: fake,
-		LookPath: func(n string) (string, error) { return "/usr/bin/" + n, nil },
+		LookPath:   func(n string) (string, error) { return "/usr/bin/" + n, nil },
+		LookSystem: func(n string) (string, error) { return "/usr/bin/" + n, nil },
 		Daemon: func(context.Context) (api.Status, error) {
 			if !fake.userActive {
 				return api.Status{}, errors.New("not running")
@@ -600,5 +611,197 @@ func TestUnitQuote(t *testing.T) {
 		if got := unitQuote(in); got != want {
 			t.Errorf("unitQuote(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// toolDir is a folder with the tools the test names, as files with mode.
+func toolDir(t *testing.T, mode os.FileMode, names ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, n := range names {
+		path := filepath.Join(dir, n)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		os.Chmod(path, mode)
+	}
+	return dir
+}
+
+func TestLookToolIn(t *testing.T) {
+	me := uint32(os.Getuid())
+	safe := toolDir(t, 0o755, "tee")
+	if got, err := lookToolIn([]string{safe}, me, "tee"); err != nil || got != filepath.Join(safe, "tee") {
+		t.Errorf("safe tool = %q, %v", got, err)
+	}
+	if _, err := lookToolIn([]string{safe}, me, "nosuch"); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Errorf("missing tool: %v", err)
+	}
+	for _, name := range []string{"", "../tee", "a/b"} {
+		if _, err := lookToolIn([]string{safe}, me, name); err == nil {
+			t.Errorf("%q accepted", name)
+		}
+	}
+	// Owned by someone else than root (here: not by the owner the lookup wants).
+	if _, err := lookToolIn([]string{safe}, me+1, "tee"); err == nil || !strings.Contains(err.Error(), "not owned by root") {
+		t.Errorf("foreign owner: %v", err)
+	}
+	for _, mode := range []os.FileMode{0o775, 0o757, 0o777} {
+		dir := toolDir(t, mode, "tee")
+		if _, err := lookToolIn([]string{dir}, me, "tee"); err == nil || !strings.Contains(err.Error(), "written by users other than root") {
+			t.Errorf("mode %o: %v", mode, err)
+		}
+	}
+	// A link out of the system folders is refused; one inside them is fine.
+	outside := toolDir(t, 0o755, "evil")
+	links := t.TempDir()
+	os.Symlink(filepath.Join(outside, "evil"), filepath.Join(links, "tee"))
+	os.Symlink(filepath.Join(safe, "tee"), filepath.Join(links, "ok"))
+	if _, err := lookToolIn([]string{links, safe}, me, "tee"); err != nil {
+		t.Errorf("the next folder has a good tee, and the bad link should not hide it: %v", err)
+	}
+	if _, err := lookToolIn([]string{links}, me, "tee"); err == nil || !strings.Contains(err.Error(), "outside the system folders") {
+		t.Errorf("link outside: %v", err)
+	}
+	if _, err := lookToolIn([]string{links, safe}, me, "ok"); err != nil {
+		t.Errorf("a link into an allowed folder was refused: %v", err)
+	}
+	if _, err := lookToolIn([]string{links}, me, "ok"); err == nil {
+		t.Error("a link into a folder that is not allowed was accepted")
+	}
+	// A directory or a non-executable file is not a tool.
+	os.Mkdir(filepath.Join(safe, "adir"), 0o755)
+	if _, err := lookToolIn([]string{safe}, me, "adir"); err == nil {
+		t.Error("directory accepted")
+	}
+}
+
+func TestLookSystemToolIgnoresPath(t *testing.T) {
+	evil := toolDir(t, 0o755, "tee", "ip")
+	t.Setenv("PATH", evil+":"+os.Getenv("PATH"))
+	if got, err := lookSystemTool("tee"); err == nil && strings.HasPrefix(got, evil) {
+		t.Errorf("tee came from PATH: %s", got)
+	}
+	if got, err := lookSystemTool("ip"); err == nil && !strings.HasPrefix(got, "/usr/") && !strings.HasPrefix(got, "/sbin/") && !strings.HasPrefix(got, "/bin/") {
+		t.Errorf("ip = %s", got)
+	}
+}
+
+func TestLinuxRootToolsComeFromTheSystem(t *testing.T) {
+	m, fake, out := newTestLinux(t)
+	m.Cfg.HTTPPort = 80
+	// PATH has a poisoned tee, ip and resolvectl first; only the unprivileged lookup sees them.
+	m.LookPath = func(n string) (string, error) { return "/home/u/bin/" + n, nil }
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	unit, _ := os.ReadFile(m.dnsUnitPath())
+	if strings.Contains(string(unit), "/home/u/bin") || !strings.Contains(string(unit), "ExecStart=/usr/bin/resolvectl dns") {
+		t.Errorf("DNS unit:\n%s", unit)
+	}
+	for _, c := range fake.calls {
+		if strings.HasPrefix(c, "sudo ") && strings.Contains(c, "/home/u/bin") {
+			t.Errorf("sudo ran %s", c)
+		}
+	}
+	if !strings.Contains(out.String(), "$ sudo /usr/bin/tee") || strings.Contains(out.String(), "/home/u/bin") {
+		t.Errorf("output:\n%s", out)
+	}
+}
+
+func TestLinuxInstallRefusesUntrustedRootTool(t *testing.T) {
+	for _, tool := range []string{"ip", "resolvectl", "tee", "sysctl"} {
+		m, fake, out := newTestLinux(t)
+		m.Cfg.HTTPPort = 80
+		m.LookSystem = func(n string) (string, error) {
+			if n == tool {
+				return "", errors.New("refusing to run " + n + " as root: /x/" + n + " can be written by users other than root")
+			}
+			return "/usr/bin/" + n, nil
+		}
+		err := m.Install(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "refusing to run "+tool) {
+			t.Errorf("%s: err = %v\n%s", tool, err, out)
+		}
+		if tool == "ip" || tool == "resolvectl" {
+			if _, statErr := os.Stat(m.dnsUnitPath()); statErr == nil {
+				t.Errorf("%s: a DNS unit was written", tool)
+			}
+			if fake.dnsOn {
+				t.Errorf("%s: DNS was routed", tool)
+			}
+		}
+	}
+}
+
+func TestLinuxSysctlFileIsPerService(t *testing.T) {
+	cfg := &config.Config{ServiceName: "dev.dotlane.x"}
+	t.Setenv("HOME", t.TempDir())
+	m, err := NewLinux(cfg, "config.toml", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.SysctlFile != "/etc/sysctl.d/50-dotlane-dev.dotlane.x.conf" {
+		t.Errorf("SysctlFile = %s", m.SysctlFile)
+	}
+}
+
+func TestLinuxUninstallKeepsPortsForAnotherInstall(t *testing.T) {
+	m, fake, out := newTestLinux(t)
+	m.Cfg.HTTPPort = 80
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(filepath.Dir(m.SysctlFile), "50-dotlane-dev.dotlane.real.conf")
+	os.WriteFile(other, m.sysctlFile(), 0o644)
+	fake.calls = nil
+	out.Reset()
+	if err := m.Uninstall(context.Background(), false); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if _, err := os.Stat(m.SysctlFile); !errors.Is(err, os.ErrNotExist) {
+		t.Error("own sysctl file left behind")
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Errorf("the other install's file was removed: %v", err)
+	}
+	if fake.ran("sudo sysctl") {
+		t.Errorf("the sysctl was reset: %v", fake.calls)
+	}
+	if start, _ := m.portStart(); start != 80 {
+		t.Errorf("port start = %d, want 80", start)
+	}
+}
+
+func TestLinuxUninstallLeavesForeignUserUnit(t *testing.T) {
+	m, fake, out := newTestLinux(t)
+	os.MkdirAll(m.UnitDir, 0o755)
+	os.WriteFile(m.unitPath(), []byte("[Unit]\nDescription=mine\n"), 0o644)
+	os.MkdirAll(m.ServiceDir, 0o755)
+	os.WriteFile(m.serviceExe(), []byte("mine"), 0o755)
+	if err := m.Uninstall(context.Background(), false); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, p := range []string{m.unitPath(), m.serviceExe()} {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("%s removed: %v", p, err)
+		}
+	}
+	if fake.ran("systemctl --user disable") {
+		t.Errorf("stopped a unit that is not Dotlane's: %v", fake.calls)
+	}
+	if !strings.Contains(out.String(), "is not Dotlane's") {
+		t.Errorf("output:\n%s", out)
+	}
+}
+
+func TestLinuxInstallSetsDefaultRouteAgain(t *testing.T) {
+	m, fake, out := newTestLinux(t)
+	fake.leak = true // resolved made the link a default route after the unit's command
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !fake.ran("sudo resolvectl default-route " + m.dnsLink() + " no") {
+		t.Errorf("default-route was not set again: %v", fake.calls)
 	}
 }

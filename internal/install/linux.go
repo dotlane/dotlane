@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/dotlane/dotlane/internal/api"
@@ -53,7 +54,7 @@ type Linux struct {
 	// SystemUnitDir is /etc/systemd/system, for the DNS unit. The paths below are the system's
 	// own; tests point them elsewhere.
 	SystemUnitDir string
-	SysctlFile    string // /etc/sysctl.d/50-dotlane.conf
+	SysctlFile    string // /etc/sysctl.d/50-dotlane-<service name>.conf: one per service, so uninstalling one leaves the other's
 	PortStartFile string // /proc/sys/net/ipv4/ip_unprivileged_port_start
 	ResolvConf    string // /etc/resolv.conf
 	ProcDir       string // /proc
@@ -65,8 +66,12 @@ type Linux struct {
 	FirefoxGlobs []string
 	UI           *ui.Printer
 	Runner       Runner
-	// LookPath finds a tool; it also looks in the sbin folders a normal user's PATH can lack.
+	// LookPath finds a tool the user runs as themselves (systemctl --user, certutil, ss); it also
+	// looks in the sbin folders a normal user's PATH can lack. Never use it for what root runs.
 	LookPath func(name string) (string, error)
+	// LookSystem finds a tool that runs as root, through sudo or from a system unit: only in the
+	// system folders, and only a file root owns and nobody else can write (see lookSystemTool).
+	LookSystem func(name string) (string, error)
 	// Daemon asks the running daemon for its status; an error means it is not answering.
 	Daemon func(ctx context.Context) (api.Status, error)
 	// Bindable reports whether 127.0.0.1:port could be bound ("tcp" or "udp").
@@ -101,7 +106,7 @@ func NewLinux(cfg *config.Config, configPath string, daemon func(context.Context
 		ServiceDir:    filepath.Join(xdgDir("XDG_DATA_HOME", filepath.Join(home, ".local", "share")), "dotlane", "bin"),
 		UnitDir:       filepath.Join(xdgDir("XDG_CONFIG_HOME", filepath.Join(home, ".config")), "systemd", "user"),
 		SystemUnitDir: "/etc/systemd/system",
-		SysctlFile:    "/etc/sysctl.d/50-dotlane.conf",
+		SysctlFile:    "/etc/sysctl.d/50-dotlane-" + cfg.ServiceName + ".conf",
 		PortStartFile: "/proc/sys/net/ipv4/ip_unprivileged_port_start",
 		ResolvConf:    "/etc/resolv.conf",
 		ProcDir:       "/proc",
@@ -112,12 +117,13 @@ func NewLinux(cfg *config.Config, configPath string, daemon func(context.Context
 			"snap/firefox/common/.mozilla/firefox/*",
 			".var/app/org.mozilla.firefox/.mozilla/firefox/*",
 		},
-		UI:       ui.New(os.Stdout),
-		Runner:   sudoRunner{},
-		LookPath: lookTool,
-		Daemon:   daemon,
-		Bindable: bindable,
-		Lookup:   net.DefaultResolver.LookupHost,
+		UI:         ui.New(os.Stdout),
+		Runner:     sudoRunner{},
+		LookPath:   lookTool,
+		LookSystem: lookSystemTool,
+		Daemon:     daemon,
+		Bindable:   bindable,
+		Lookup:     net.DefaultResolver.LookupHost,
 	}, nil
 }
 
@@ -144,6 +150,84 @@ func lookTool(name string) (string, error) {
 	return "", fmt.Errorf("%s: not found", name)
 }
 
+// systemToolDirs are the only folders root-run tools come from. /usr/local is left out on
+// purpose: it is where a user-installed program is most likely to shadow a system one.
+var systemToolDirs = []string{"/usr/sbin", "/usr/bin", "/sbin", "/bin"}
+
+// lookSystemTool finds a tool that will run as root (through sudo, or in a system unit's ExecStart,
+// where it runs at every boot): never through PATH, which a user can put their own folder first
+// in. The file must be a regular file, or a symlink that resolves into the same folders, owned by
+// root and not writable by group or others.
+func lookSystemTool(name string) (string, error) { return lookToolIn(systemToolDirs, 0, name) }
+
+// lookToolIn is lookSystemTool over dirs, with owner as the user id that must own the file.
+func lookToolIn(dirs []string, owner uint32, name string) (string, error) {
+	if name == "" || strings.ContainsRune(name, '/') {
+		return "", fmt.Errorf("%q is not a tool name", name)
+	}
+	allowed := map[string]bool{}
+	for _, dir := range dirs {
+		allowed[dir] = true
+		if real, err := filepath.EvalSymlinks(dir); err == nil {
+			allowed[real] = true
+		}
+	}
+	var problem error
+	for _, dir := range dirs {
+		path := filepath.Join(dir, name)
+		if _, err := os.Lstat(path); err != nil {
+			continue
+		}
+		real, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			continue // a dangling link
+		}
+		info, err := os.Stat(real)
+		if err != nil {
+			continue
+		}
+		st, ok := info.Sys().(*syscall.Stat_t)
+		switch {
+		case !allowed[filepath.Dir(real)] && !lockedDown(real, owner):
+			// Ubuntu's Rust coreutils are links to /usr/lib/cargo/bin/coreutils: fine, because no
+			// one but root can change anything on the way there.
+			problem = fmt.Errorf("%s resolves to %s, outside the system folders", path, real)
+		case !info.Mode().IsRegular():
+			problem = fmt.Errorf("%s is not a regular file", real)
+		case info.Mode().Perm()&0o111 == 0:
+			continue // not a program
+		case !ok || st.Uid != owner:
+			problem = fmt.Errorf("%s is not owned by root", real)
+		case info.Mode().Perm()&0o022 != 0:
+			problem = fmt.Errorf("%s can be written by users other than root", real)
+		default:
+			return path, nil
+		}
+	}
+	if problem != nil {
+		return "", fmt.Errorf("refusing to run %s as root: %v", name, problem)
+	}
+	return "", fmt.Errorf("%s: not found in %s", name, strings.Join(dirs, ", "))
+}
+
+// lockedDown reports whether path and every folder above it belong to owner and cannot be written
+// by group or others, so no one else can swap what a link to it leads to.
+func lockedDown(path string, owner uint32) bool {
+	for p := path; ; p = filepath.Dir(p) {
+		info, err := os.Stat(p)
+		if err != nil {
+			return false
+		}
+		st, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || st.Uid != owner || info.Mode().Perm()&0o022 != 0 {
+			return false
+		}
+		if p == "/" || p == filepath.Dir(p) {
+			return true
+		}
+	}
+}
+
 // sudoRunner is ExecRunner for Linux: sudo is /usr/bin/sudo, or wherever else it is installed,
 // and root needs none.
 type sudoRunner struct{ ExecRunner }
@@ -157,7 +241,7 @@ func (r sudoRunner) Sudo(ctx context.Context, stdin []byte, name string, args ..
 	}
 	cmd := exec.CommandContext(ctx, name, args...)
 	if os.Getuid() != 0 {
-		sudo, err := lookTool("sudo")
+		sudo, err := lookSystemTool("sudo")
 		if err != nil {
 			return errors.New("sudo is not installed")
 		}
@@ -181,6 +265,15 @@ func (m *Linux) tool(name string) string {
 		return path
 	}
 	return name
+}
+
+// sysTool is the path of a tool that runs as root, or an error that says why it may not.
+func (m *Linux) sysTool(name string) (string, error) {
+	path, err := m.LookSystem(name)
+	if err != nil {
+		return "", fmt.Errorf("%v (Dotlane runs only root-owned tools from the system folders as root)", err)
+	}
+	return path, nil
 }
 
 func (m *Linux) has(name string) bool {
@@ -227,8 +320,13 @@ func (m *Linux) userctl(ctx context.Context, args ...string) ([]byte, error) {
 	return m.Runner.Run(ctx, m.tool("systemctl"), append([]string{"--user"}, args...)...)
 }
 
-// sudo shows one privileged command, then runs it. Callers announce the step with UI.Ask first.
-func (m *Linux) sudo(ctx context.Context, stdin []byte, name string, args ...string) error {
+// sudo shows one privileged command, then runs it. name is the tool's bare name, found by sysTool.
+// Callers announce the step with UI.Ask first.
+func (m *Linux) sudo(ctx context.Context, stdin []byte, tool string, args ...string) error {
+	name, err := m.sysTool(tool)
+	if err != nil {
+		return err
+	}
 	shown := make([]string, len(args))
 	for i, a := range args {
 		shown[i] = m.UI.Path(a)
@@ -446,11 +544,11 @@ func (m *Linux) installPorts(ctx context.Context) error {
 		fmt.Sprintf("Lets Dotlane, without root, listen on port %d and up (%s=%d), only on\n"+
 			"    127.0.0.1 and ::1. This is a machine-wide setting; dotlane uninstall restores %d.",
 			low, portStartKey, low, defaultPortStart))
-	if err := m.sudo(ctx, m.sysctlFile(), m.tool("tee"), m.SysctlFile); err != nil {
+	if err := m.sudo(ctx, m.sysctlFile(), "tee", m.SysctlFile); err != nil {
 		return err
 	}
 	// -p loads this file alone; --system would also reapply every other sysctl file.
-	if err := m.sudo(ctx, nil, m.tool("sysctl"), "-p", m.SysctlFile); err != nil {
+	if err := m.sudo(ctx, nil, "sysctl", "-p", m.SysctlFile); err != nil {
 		return err
 	}
 	if !m.portsAllowed() {
@@ -484,9 +582,19 @@ func (m *Linux) dnsUnitPath() string { return filepath.Join(m.SystemUnitDir, m.d
 // without one resolved gives the link no DNS scope, and with a loopback one too. networkd would
 // do the same declaratively, but it is often not installed, or not enabled, next to
 // NetworkManager. Nothing here needs it.
-func (m *Linux) dnsUnit() []byte {
-	ip, link := m.tool("ip"), m.dnsLink()
-	rc := m.tool("resolvectl")
+//
+// The unit runs as root, at every boot, so its tools are the system's own (see lookSystemTool),
+// and the unit cannot be made if one is missing or not trustworthy.
+func (m *Linux) dnsUnit() ([]byte, error) {
+	ip, err := m.sysTool("ip")
+	if err != nil {
+		return nil, err
+	}
+	rc, err := m.sysTool("resolvectl")
+	if err != nil {
+		return nil, err
+	}
+	link := m.dnsLink()
 	tlds := make([]string, len(m.Cfg.TLDs))
 	for i, t := range m.Cfg.TLDs {
 		tlds[i] = "~" + t
@@ -494,7 +602,7 @@ func (m *Linux) dnsUnit() []byte {
 	return []byte(marker + `
 [Unit]
 Description=Dotlane: send ` + m.endings() + ` lookups to 127.0.0.1:` + strconv.Itoa(m.Cfg.DNSPort) + ` (` + m.Cfg.ServiceName + `)
-After=systemd-resolved.service
+After=systemd-resolved.service systemd-networkd.service
 PartOf=systemd-resolved.service
 
 [Service]
@@ -510,7 +618,7 @@ ExecStop=` + ip + ` link del ` + link + `
 
 [Install]
 WantedBy=multi-user.target systemd-resolved.service
-`)
+`), nil
 }
 
 // routed reports whether systemd-resolved now sends every domain ending, and only those, to
@@ -530,7 +638,14 @@ func (m *Linux) routed(ctx context.Context) bool {
 			return false
 		}
 	}
-	return true
+	return m.defaultRouteOff(ctx)
+}
+
+// defaultRouteOff reports whether the link is not a default route: if it were, every lookup on
+// the machine would go to Dotlane first.
+func (m *Linux) defaultRouteOff(ctx context.Context) bool {
+	out, err := m.Runner.Run(ctx, m.tool("resolvectl"), "default-route", m.dnsLink())
+	return err == nil && strings.HasSuffix(strings.TrimSpace(string(out)), ": no")
 }
 
 // containsWord reports whether s has word between spaces or line ends.
@@ -555,7 +670,10 @@ func (m *Linux) dnsEnabled(ctx context.Context) bool {
 
 func (m *Linux) installDNS(ctx context.Context) error {
 	label := "DNS for " + m.endings()
-	want := m.dnsUnit()
+	want, err := m.dnsUnit()
+	if err != nil {
+		return err
+	}
 	if have, err := os.ReadFile(m.dnsUnitPath()); err == nil && bytes.Equal(have, want) &&
 		m.dnsEnabled(ctx) && m.dnsActive(ctx) && m.routed(ctx) {
 		m.UI.OK(label, "already routed · "+m.dnsUnitPath())
@@ -565,18 +683,30 @@ func (m *Linux) installDNS(ctx context.Context) error {
 		fmt.Sprintf("Sends lookups for %s, and only those, to Dotlane's DNS on 127.0.0.1:%d, through\n"+
 			"    systemd-resolved. A small network link (%s) carries the setting; other lookups are left alone.",
 			m.wildcards(), m.Cfg.DNSPort, m.dnsLink()))
-	ctl := m.tool("systemctl")
-	if err := m.sudo(ctx, want, m.tool("tee"), m.dnsUnitPath()); err != nil {
+	if err := m.sudo(ctx, want, "tee", m.dnsUnitPath()); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, nil, ctl, "daemon-reload"); err != nil {
+	if err := m.sudo(ctx, nil, "systemctl", "daemon-reload"); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, nil, ctl, "enable", m.dnsUnitName()); err != nil {
+	if err := m.sudo(ctx, nil, "systemctl", "enable", m.dnsUnitName()); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, nil, ctl, "restart", m.dnsUnitName()); err != nil {
+	if err := m.sudo(ctx, nil, "systemctl", "restart", m.dnsUnitName()); err != nil {
 		return fmt.Errorf("%w\nsee: journalctl -u %s", err, m.dnsUnitName())
+	}
+	// systemd-resolved learns of a new link, and networkd may configure one, a moment after the
+	// unit's commands ran: if a setting did not hold, set it again.
+	for i := 0; i < 5 && !m.routed(ctx); i++ {
+		time.Sleep(200 * time.Millisecond)
+		if !m.defaultRouteOff(ctx) {
+			if err := m.sudo(ctx, nil, "resolvectl", "default-route", m.dnsLink(), "no"); err != nil {
+				return err
+			}
+		}
+	}
+	if !m.defaultRouteOff(ctx) {
+		return fmt.Errorf("systemd-resolved keeps %s as a default route, so every lookup would go to Dotlane first; see: resolvectl status %s", m.dnsLink(), m.dnsLink())
 	}
 	if !m.routed(ctx) {
 		return fmt.Errorf("the DNS unit started but systemd-resolved does not route %s to Dotlane; see: resolvectl status %s", m.wildcards(), m.dnsLink())
@@ -633,6 +763,12 @@ func (m *Linux) Uninstall(ctx context.Context, purge bool) error {
 	m.UI.Title("Uninstalling Dotlane", m.summary())
 
 	removed := false
+	if have, err := os.ReadFile(m.unitPath()); err == nil && !bytes.HasPrefix(have, []byte(marker)) {
+		m.UI.Skip("Login service", m.UI.Path(m.unitPath())+" is not Dotlane's; left in place")
+		return m.uninstallRest(ctx, purge)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	_, enabledErr := m.userctl(ctx, "is-enabled", m.unitName())
 	_, activeErr := m.userctl(ctx, "is-active", m.unitName())
 	if enabledErr == nil || activeErr == nil {
@@ -658,7 +794,12 @@ func (m *Linux) Uninstall(ctx context.Context, purge bool) error {
 	} else {
 		m.UI.Skip("Login service", "not installed")
 	}
+	return m.uninstallRest(ctx, purge)
+}
 
+// uninstallRest is Uninstall after the login service: the trust, the DNS unit, the ports, and the
+// kept files.
+func (m *Linux) uninstallRest(ctx context.Context, purge bool) error {
 	if err := m.untrustCA(ctx); err != nil {
 		return err
 	}
@@ -701,18 +842,33 @@ func (m *Linux) uninstallDNS(ctx context.Context) error {
 		return nil
 	}
 	m.UI.Ask(label, fmt.Sprintf("Stops sending %s lookups to Dotlane, and removes the %s link.", m.wildcards(), m.dnsLink()))
-	ctl := m.tool("systemctl")
-	if err := m.sudo(ctx, nil, ctl, "disable", "--now", m.dnsUnitName()); err != nil {
+	if err := m.sudo(ctx, nil, "systemctl", "disable", "--now", m.dnsUnitName()); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, nil, m.tool("rm"), m.dnsUnitPath()); err != nil {
+	if err := m.sudo(ctx, nil, "rm", m.dnsUnitPath()); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, nil, ctl, "daemon-reload"); err != nil {
+	if err := m.sudo(ctx, nil, "systemctl", "daemon-reload"); err != nil {
 		return err
 	}
 	m.UI.OK(label, m.dnsUnitPath()+" removed")
 	return nil
+}
+
+// otherSysctlFiles are the other Dotlane installs' sysctl files (another service name's, or the
+// shared name an earlier build used), next to this install's own.
+func (m *Linux) otherSysctlFiles() []string {
+	files, _ := filepath.Glob(filepath.Join(filepath.Dir(m.SysctlFile), "50-dotlane*.conf"))
+	var others []string
+	for _, f := range files {
+		if f == m.SysctlFile {
+			continue
+		}
+		if data, err := os.ReadFile(f); err == nil && bytes.HasPrefix(data, []byte(marker)) {
+			others = append(others, f)
+		}
+	}
+	return others
 }
 
 func (m *Linux) uninstallPorts(ctx context.Context) error {
@@ -727,11 +883,20 @@ func (m *Linux) uninstallPorts(ctx context.Context) error {
 		m.UI.Skip("Low ports", m.SysctlFile+" is not Dotlane's; left in place")
 		return nil
 	}
-	m.UI.Ask("Low ports", fmt.Sprintf("Restores %s to %d, the kernel's default.", portStartKey, defaultPortStart))
-	if err := m.sudo(ctx, nil, m.tool("rm"), m.SysctlFile); err != nil {
+	others := m.otherSysctlFiles()
+	if len(others) > 0 {
+		m.UI.Ask("Low ports", fmt.Sprintf("Removes %s. Another Dotlane install relies on %s, so it is left as it is.", m.SysctlFile, portStartKey))
+	} else {
+		m.UI.Ask("Low ports", fmt.Sprintf("Restores %s to %d, the kernel's default.", portStartKey, defaultPortStart))
+	}
+	if err := m.sudo(ctx, nil, "rm", m.SysctlFile); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, nil, m.tool("sysctl"), "-w", fmt.Sprintf("%s=%d", portStartKey, defaultPortStart)); err != nil {
+	if len(others) > 0 {
+		m.UI.OK("Low ports", m.SysctlFile+" removed; "+portStartKey+" kept for "+filepath.Base(others[0]))
+		return nil
+	}
+	if err := m.sudo(ctx, nil, "sysctl", "-w", fmt.Sprintf("%s=%d", portStartKey, defaultPortStart)); err != nil {
 		return err
 	}
 	m.UI.OK("Low ports", m.SysctlFile+" removed, "+portStartKey+" back to "+strconv.Itoa(defaultPortStart))

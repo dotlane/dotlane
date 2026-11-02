@@ -174,14 +174,14 @@ func (m *Linux) trustSystem(ctx context.Context, store TrustStore) error {
 		return err
 	}
 	if _, err := os.Stat(store.Dir); err != nil {
-		if err := m.sudo(ctx, nil, m.tool("mkdir"), "-p", store.Dir); err != nil {
+		if err := m.sudo(ctx, nil, "mkdir", "-p", store.Dir); err != nil {
 			return err
 		}
 	}
-	if err := m.sudo(ctx, data, m.tool("tee"), m.anchorPath(store)); err != nil {
+	if err := m.sudo(ctx, data, "tee", m.anchorPath(store)); err != nil {
 		return err
 	}
-	if err := m.sudo(ctx, nil, m.tool(store.Tool)); err != nil {
+	if err := m.sudo(ctx, nil, store.Tool); err != nil {
 		return err
 	}
 	if !m.caTrusted() {
@@ -250,14 +250,14 @@ func (m *Linux) untrustCA(ctx context.Context) error {
 				"Removes Dotlane's certificate authority from the system's trust store, so its\n"+
 					"    certificates are no longer trusted.")
 		}
-		if err := m.sudo(ctx, nil, m.tool("rm"), path); err != nil {
+		if err := m.sudo(ctx, nil, "rm", path); err != nil {
 			return err
 		}
 		args := []string{}
 		if s.Fresh != "" {
 			args = append(args, s.Fresh)
 		}
-		if err := m.sudo(ctx, nil, m.tool(s.Tool), args...); err != nil {
+		if err := m.sudo(ctx, nil, s.Tool, args...); err != nil {
 			return err
 		}
 		removed = true
