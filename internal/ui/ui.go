@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -86,7 +87,7 @@ func (p *Printer) printf(format string, args ...any) { fmt.Fprintf(p.w, format, 
 
 // Path shortens a path under the home directory to ~/…, for display.
 func (p *Printer) Path(path string) string {
-	if p.home != "" && strings.HasPrefix(path, p.home+"/") {
+	if p.home != "" && strings.HasPrefix(path, p.home+string(filepath.Separator)) {
 		return "~" + path[len(p.home):]
 	}
 	return path

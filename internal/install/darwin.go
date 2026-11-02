@@ -17,7 +17,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -109,61 +108,14 @@ func (m *Mac) logPath() string {
 	return filepath.Join(m.Home, "Library", "Logs", "dotlane", m.Cfg.ServiceName+".log")
 }
 
-// summary names what is being installed, for the title line.
-func (m *Mac) summary() string {
-	tlds := make([]string, len(m.Cfg.TLDs))
-	for i, t := range m.Cfg.TLDs {
-		tlds[i] = "." + t
-	}
-	return m.Cfg.ServiceName + " · " + strings.Join(tlds, " ")
-}
+func (m *Mac) summary() string { return summary(m.Cfg) }
 
 // serviceExe is the binary the login service runs: a copy of Exe, one per service name, so a
 // development install and a real one keep their own.
 func (m *Mac) serviceExe() string { return filepath.Join(m.ServiceDir, m.Cfg.ServiceName) }
 
-// copyBinary puts this binary at serviceExe when the copy there differs, through a temporary file
-// and a rename, so a running daemon keeps its file. It reports whether it changed anything.
-func (m *Mac) copyBinary() (bool, error) {
-	if sameFile(m.Exe, m.serviceExe()) {
-		return false, nil
-	}
-	data, err := os.ReadFile(m.Exe)
-	if err != nil {
-		return false, err
-	}
-	if err := os.MkdirAll(m.ServiceDir, 0o755); err != nil {
-		return false, err
-	}
-	tmp, err := os.CreateTemp(m.ServiceDir, ".dotlane-*")
-	if err != nil {
-		return false, err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return false, err
-	}
-	if err := tmp.Close(); err != nil {
-		return false, err
-	}
-	if err := os.Chmod(tmp.Name(), 0o755); err != nil {
-		return false, err
-	}
-	return true, os.Rename(tmp.Name(), m.serviceExe())
-}
-
-// sameFile reports whether a and b have the same content.
-func sameFile(a, b string) bool {
-	ia, err1 := os.Stat(a)
-	ib, err2 := os.Stat(b)
-	if err1 != nil || err2 != nil || ia.Size() != ib.Size() {
-		return false
-	}
-	da, err1 := os.ReadFile(a)
-	db, err2 := os.ReadFile(b)
-	return err1 == nil && err2 == nil && bytes.Equal(da, db)
-}
+// copyBinary puts this binary at serviceExe (see copyBinary).
+func (m *Mac) copyBinary() (bool, error) { return copyBinary(m.Exe, m.serviceExe()) }
 
 func (m *Mac) target() string { return fmt.Sprintf("gui/%d/%s", m.UID, m.Cfg.ServiceName) }
 
@@ -191,17 +143,6 @@ func (m *Mac) sudo(ctx context.Context, stdin []byte, name string, args ...strin
 	return nil
 }
 
-func quoteAll(args []string) []string {
-	out := make([]string, len(args))
-	for i, a := range args {
-		if strings.ContainsAny(a, " \t'\"$") {
-			a = strconv.Quote(a)
-		}
-		out[i] = a
-	}
-	return out
-}
-
 // Refresh implements Installer: install's login-service step alone (copy the binary, rewrite the
 // plist if needed, restart when stale). The CA and resolver steps, which need sudo, are left out.
 func (m *Mac) Refresh(ctx context.Context) error {
@@ -210,7 +151,7 @@ func (m *Mac) Refresh(ctx context.Context) error {
 		m.UI.Skip("Login service", "not installed; nothing to refresh (set it up with: dotlane install)")
 		return nil
 	}
-	if strings.Contains(m.Exe, "go-build") || strings.HasPrefix(m.Exe, os.TempDir()) {
+	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; refresh from a built binary", m.Exe)
 	}
 	if err := m.installService(ctx); err != nil {
@@ -244,7 +185,7 @@ func (m *Mac) Upgrade(ctx context.Context, version string, out io.Writer) (bool,
 func (m *Mac) Install(ctx context.Context) error {
 	m.UI.Title("Installing Dotlane", m.summary())
 
-	if strings.Contains(m.Exe, "go-build") || strings.HasPrefix(m.Exe, os.TempDir()) {
+	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin/dotlane ./cmd/dotlane) and install from it", m.Exe)
 	}
 	if err := m.preflight(ctx); err != nil {
@@ -328,37 +269,11 @@ func (m *Mac) installService(ctx context.Context) error {
 	return nil
 }
 
-// stale names what changed on disk after the daemon started, so it is not what the daemon runs:
-// "rebuilt binary" or "changed config"; empty if neither.
-func (m *Mac) stale(st api.Status) string {
-	changed := func(path string) bool {
-		info, err := os.Stat(path)
-		return err == nil && info.ModTime().After(st.Started)
-	}
-	switch {
-	case st.Started.IsZero(): // a daemon from before M6, which did not report it
-		return "rebuilt binary"
-	case changed(m.serviceExe()):
-		return "rebuilt binary"
-	case changed(m.ConfigPath):
-		return "changed config"
-	}
-	return ""
-}
+// stale is what the running daemon is behind on (see stale).
+func (m *Mac) stale(st api.Status) string { return stale(st, m.serviceExe(), m.ConfigPath) }
 
 func (m *Mac) waitForDaemon(ctx context.Context, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		_, err := m.Daemon(ctx)
-		if err == nil || time.Now().After(deadline) {
-			return err
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(200 * time.Millisecond):
-		}
-	}
+	return waitForDaemon(ctx, m.Daemon, timeout)
 }
 
 // plist is the launchd agent: start at login, restart on exit.

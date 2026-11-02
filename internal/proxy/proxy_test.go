@@ -11,6 +11,8 @@ import (
 )
 
 func TestConfig(t *testing.T) {
+	defer func(wide bool) { wideLowPorts = wide }(wideLowPorts)
+	wideLowPorts = true
 	cfg := &config.Config{TLDs: []string{"traix", "test"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
 	data, err := Config(cfg, []sites.Site{{Name: "web", Port: 5173}})
 	if err != nil {
@@ -51,8 +53,14 @@ func TestConfigWithoutSites(t *testing.T) {
 }
 
 func TestListenAddrs(t *testing.T) {
+	defer func(wide bool) { wideLowPorts = wide }(wideLowPorts)
+	wideLowPorts = true // macOS
 	if got := ListenAddrs(443); len(got) != 1 || got[0] != ":443" {
 		t.Errorf("443: %v", got)
+	}
+	wideLowPorts = false // Linux, Windows
+	if got := ListenAddrs(443); len(got) != 2 || got[0] != "127.0.0.1:443" || got[1] != "[::1]:443" {
+		t.Errorf("443 on loopback: %v", got)
 	}
 	if got := ListenAddrs(9443); len(got) != 2 || got[0] != "127.0.0.1:9443" || got[1] != "[::1]:9443" {
 		t.Errorf("9443: %v", got)

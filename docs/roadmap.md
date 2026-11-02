@@ -37,6 +37,8 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Later
 
+Where each OS stands, item by item, is tracked in [`compatibility.md`](compatibility.md).
+
 - **Linux.** systemd-resolved routing (with a fallback where it is missing), the CA trusted in
   the system store and NSS (Firefox, Chromium), ports 80/443 through `CAP_NET_BIND_SERVICE`, a
   systemd user unit. Tested on Ubuntu, Fedora and Arch. npm and other packages follow

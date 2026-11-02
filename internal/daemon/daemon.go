@@ -19,12 +19,10 @@ import (
 	"github.com/dotlane/dotlane/internal/api"
 	"github.com/dotlane/dotlane/internal/config"
 	"github.com/dotlane/dotlane/internal/dns"
+	"github.com/dotlane/dotlane/internal/fsperm"
 	"github.com/dotlane/dotlane/internal/proxy"
 	"github.com/dotlane/dotlane/internal/sites"
 )
-
-// macOS limits Unix socket paths to 104 bytes, including the terminating NUL.
-const maxSocketPath = 103
 
 // Daemon implements api.Backend.
 type Daemon struct {
@@ -39,13 +37,13 @@ type Daemon struct {
 
 // Run serves until ctx is cancelled, then shuts everything down.
 func Run(ctx context.Context, cfg *config.Config, version string) error {
-	if err := os.MkdirAll(cfg.StateDir, 0o700); err != nil {
+	if err := fsperm.PrivateDir(cfg.StateDir); err != nil {
 		return err
 	}
 	socket := cfg.SocketPath()
 	if len(socket) > maxSocketPath {
-		return fmt.Errorf("socket path is too long for macOS (%d bytes, max %d): %s; set a shorter state_dir",
-			len(socket), maxSocketPath, socket)
+		return fmt.Errorf("socket path is too long for %s (%d bytes, max %d): %s; set a shorter state_dir",
+			socketOS, len(socket), maxSocketPath, socket)
 	}
 	if err := claimSocket(socket); err != nil {
 		return err
@@ -74,7 +72,7 @@ func Run(ctx context.Context, cfg *config.Config, version string) error {
 		return err
 	}
 	defer os.Remove(socket)
-	if err := os.Chmod(socket, 0o600); err != nil {
+	if err := fsperm.PrivateFile(socket); err != nil {
 		ln.Close()
 		return err
 	}

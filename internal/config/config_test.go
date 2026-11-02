@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -22,7 +23,7 @@ func TestMissingFileGivesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"traix"}) || cfg.DNSPort != 10053 || cfg.HTTPPort != 80 || cfg.HTTPSPort != 443 ||
+	if !slices.Equal(cfg.TLDs, []string{"traix"}) || cfg.DNSPort != DefaultDNSPort || cfg.HTTPPort != 80 || cfg.HTTPSPort != 443 ||
 		cfg.ServiceName != "dev.dotlane" {
 		t.Errorf("defaults = %+v", cfg)
 	}
@@ -87,8 +88,12 @@ func TestRejected(t *testing.T) {
 func TestResolve(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("DOTLANE_CONFIG", "")
-	def := filepath.Join(home, ".config", "dotlane", "config.toml")
+	def, err := DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
 	other := filepath.Join(t.TempDir(), "other.toml")
 	os.WriteFile(other, []byte("tld = \"test\"\n"), 0o644)
 
@@ -140,5 +145,45 @@ func TestSetDNSPort(t *testing.T) {
 	cfg, err = Load(q)
 	if err != nil || cfg.DNSPort != 10060 || cfg.TLDs[0] != "test" {
 		t.Errorf("append: %+v %v", cfg, err)
+	}
+}
+
+func TestDefaultPathsPerOS(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("XDG_STATE_HOME", "")
+	def, err := DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := defaultStateDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch runtime.GOOS {
+	case "linux":
+		if want := filepath.Join(home, ".config", "dotlane", "config.toml"); def != want {
+			t.Errorf("DefaultPath = %q, want %q", def, want)
+		}
+		if want := filepath.Join(home, ".local", "state", "dotlane"); state != want {
+			t.Errorf("state dir = %q, want %q", state, want)
+		}
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+		t.Setenv("XDG_STATE_HOME", xdg)
+		if def, _ := DefaultPath(); def != filepath.Join(xdg, "dotlane", "config.toml") {
+			t.Errorf("DefaultPath with XDG_CONFIG_HOME = %q", def)
+		}
+		if state, _ := defaultStateDir(); state != filepath.Join(xdg, "dotlane") {
+			t.Errorf("state dir with XDG_STATE_HOME = %q", state)
+		}
+	case "darwin":
+		if want := filepath.Join(home, "Library", "Application Support", "dotlane"); state != want {
+			t.Errorf("state dir = %q, want %q", state, want)
+		}
+	}
+	if filepath.Dir(def) == state {
+		t.Errorf("config and state share %q", state)
 	}
 }
