@@ -609,3 +609,5 @@ func problems(checks []install.Check) error {
 		return fmt.Errorf("%d problems found", n)
 	}
 }
+
+// throwaway: gate verification, do not merge
