@@ -149,11 +149,16 @@ func bindable(proto string, port int) error {
 		}
 		return pc.Close()
 	}
-	ln, err := net.Listen("tcp", proxy.ListenAddrs(port)[0])
-	if err != nil {
-		return err
+	// Every address the daemon will bind: on Linux and Windows that is ::1 too, which another
+	// program can hold while 127.0.0.1 is free.
+	for _, addr := range proxy.ListenAddrs(port) {
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			return err
+		}
+		ln.Close()
 	}
-	return ln.Close()
+	return nil
 }
 
 // verifyTLS completes a TLS handshake with host on 127.0.0.1:port, checked against the system's

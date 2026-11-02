@@ -31,11 +31,16 @@ func restrictDir(dir string) error {
 
 func restrictFile(string) error { return nil }
 
-// Owner reports whether dir's access control list is the one restrictDir sets: the current user
-// and SYSTEM, nobody else. dotlane doctor uses it in place of a mode check.
+// Owner reports whether dir's access control list is the one restrictDir sets: protected from
+// the folders above, allowing the current user, and allowing nobody but the user and SYSTEM.
+// dotlane doctor uses it in place of a mode check.
 func Owner(dir string) (bool, error) {
 	sd, err := windows.GetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
 	if err != nil {
+		return false, err
+	}
+	control, _, err := sd.Control()
+	if err != nil || control&windows.SE_DACL_PROTECTED == 0 {
 		return false, err
 	}
 	dacl, _, err := sd.DACL()
@@ -50,17 +55,23 @@ func Owner(dir string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	user := false
 	for i := uint32(0); i < uint32(dacl.AceCount); i++ {
 		var ace *windows.ACCESS_ALLOWED_ACE
 		if err := windows.GetAce(dacl, i, &ace); err != nil {
 			return false, err
 		}
-		who := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
-		if !who.Equals(sid) && !who.Equals(system) {
+		if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE {
+			return false, nil // a deny or audit entry is not what restrictDir writes
+		}
+		switch who := (*windows.SID)(unsafe.Pointer(&ace.SidStart)); {
+		case who.Equals(sid):
+			user = true
+		case !who.Equals(system):
 			return false, nil
 		}
 	}
-	return true, nil
+	return user, nil
 }
 
 func currentUser() (*windows.SID, error) {

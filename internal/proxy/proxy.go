@@ -7,10 +7,12 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"net"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/modules/caddytls"
@@ -115,13 +117,28 @@ type obj = map[string]any
 // ports below 1024 only on every interface, not on 127.0.0.1 alone, so there 80 and 443 are
 // bound wide and guarded (see thisMachineOnly). Everything else stays on loopback: Linux allows
 // low ports once install has lowered net.ipv4.ip_unprivileged_port_start, and Windows always
-// does.
+// does. ::1 is left out where IPv6 is turned off (ipv6.disable=1, some containers and WSL
+// setups): binding it would fail and stop Caddy.
 func ListenAddrs(port int) []string {
 	if port < 1024 && wideLowPorts {
 		return []string{fmt.Sprintf(":%d", port)}
 	}
-	return []string{fmt.Sprintf("127.0.0.1:%d", port), fmt.Sprintf("[::1]:%d", port)}
+	addrs := []string{fmt.Sprintf("127.0.0.1:%d", port)}
+	if ipv6Loopback() {
+		addrs = append(addrs, fmt.Sprintf("[::1]:%d", port))
+	}
+	return addrs
 }
+
+// ipv6Loopback reports whether this machine can listen on ::1, checked once.
+var ipv6Loopback = sync.OnceValue(func() bool {
+	ln, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+})
 
 // wideLowPorts is whether ports below 1024 must be bound on every interface (macOS).
 var wideLowPorts = runtime.GOOS == "darwin"
