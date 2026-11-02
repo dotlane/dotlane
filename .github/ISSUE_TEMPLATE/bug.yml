@@ -14,7 +14,7 @@ body:
       description: The command you ran, what you expected, and what you got instead.
       placeholder: |
         dotlane add myapp 5173
-        Expected https://myapp.traix to load; Safari says the server cannot be found.
+        Expected https://myapp.dotlane to load; Safari says the server cannot be found.
     validations:
       required: true
   - type: textarea

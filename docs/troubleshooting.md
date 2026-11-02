@@ -14,7 +14,7 @@ The service's log is `~/Library/Logs/dotlane/dev.dotlane.log`. To restart it by 
 
 - **`install` stops: systemd-resolved is not running.** Enable it and point `/etc/resolv.conf` at
   its stub ([`setup-linux.md`](setup-linux.md#requirements)).
-- **Names do not resolve.** `resolvectl domain` should show a `dl-…` link with `~traix`; if not,
+- **Names do not resolve.** `resolvectl domain` should show a `dl-…` link with `~dotlane`; if not,
   `sudo systemctl restart dotlane-dns-dev.dotlane` and `journalctl -u dotlane-dns-dev.dotlane`.
 - **Firefox or Chromium warn about the certificate.** Install `certutil` (`libnss3-tools`,
   `nss-tools` or `nss`) and run `dotlane install` again.
@@ -50,7 +50,7 @@ The service's log is `~/Library/Logs/dotlane/dev.dotlane.log`. To restart it by 
 - **macOS asks whether `dotlane` may accept incoming connections.** Its firewall reacting to the
   all-interfaces listeners on 80/443. Allowing it is fine: Dotlane drops requests from other
   machines itself.
-- **Node.js rejects the certificate** (server-side calls to a `.traix` URL). Node ignores the
+- **Node.js rejects the certificate** (server-side calls to a `.dotlane` URL). Node ignores the
   keychain: `NODE_EXTRA_CA_CERTS="$HOME/Library/Application Support/dotlane/caddy/pki/authorities/local/root.crt"`.
 
 ## From the prototype

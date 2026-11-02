@@ -22,7 +22,7 @@ characters. Ports: 1–65535.
 Committed in the project's root. Unknown keys are rejected.
 
 ```toml
-# https://myapp.traix → the Vite dev server
+# https://myapp.dotlane → the Vite dev server
 [sites.myapp]
 port = 5173
 

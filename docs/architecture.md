@@ -45,7 +45,7 @@ The same two files on every OS:
 
 ```toml
 # ~/.config/dotlane/config.toml  — the machine (Windows: %APPDATA%\dotlane\config.toml)
-tld = "traix"                # or several: tlds = ["traix", "test"]
+tld = "dotlane"              # the default; or several: tlds = ["dotlane", "test"]
 
 # <project>/dotlane.toml       — committed, shared by the team
 [sites.myapp]

@@ -61,7 +61,7 @@ It sets up three things, and asks for your password for the last two, each expla
 1. **Login service**: runs `dotlane serve` at login and restarts it if it stops.
 2. **Certificate authority**: trusts Dotlane's local CA in the System keychain, so browsers and
    tools accept its certificates.
-3. **DNS for `.traix`**: writes `/etc/resolver/traix`, which sends `*.traix` lookups, and only
+3. **DNS for `.dotlane`**: writes `/etc/resolver/dotlane`, which sends `*.dotlane` lookups, and only
    those, to Dotlane.
 
 Steps already done are skipped, so it is safe to run again. If another tool is in the way, it
@@ -73,7 +73,7 @@ With a dev server on port 5173:
 
 ```bash
 dotlane add myapp 5173
-# ✓ https://myapp.traix → localhost:5173
+# ✓ https://myapp.dotlane → localhost:5173
 ```
 
 Or, in a project, list its sites in a `dotlane.toml` and commit it:
@@ -87,8 +87,8 @@ port = 5173
 dotlane up      # dotlane down removes them
 ```
 
-Type the full `https://myapp.traix` the first time: `.traix` is not a public ending, so a browser
-treats a bare `myapp.traix` as a search. What the app itself may need (allowed hosts, origins,
+Type the full `https://myapp.dotlane` the first time: `.dotlane` is not a public ending, so a browser
+treats a bare `myapp.dotlane` as a search. What the app itself may need (allowed hosts, origins,
 cookies) is in [`app-integration.md`](app-integration.md).
 
 ## 4. Check
@@ -96,7 +96,7 @@ cookies) is in [`app-integration.md`](app-integration.md).
 ```bash
 dotlane doctor          # every check, with the fix for anything wrong
 dotlane doctor --fix    # repairs what dotlane install can
-curl -sI https://myapp.traix | head -1
+curl -sI https://myapp.dotlane | head -1
 ```
 
 ## Upgrading
@@ -126,7 +126,7 @@ re-checks everything else. `doctor` warns when the service runs an older binary 
 In `~/.config/dotlane/config.toml`:
 
 ```toml
-tld = "test"                 # or several: tlds = ["traix", "test"]
+tld = "test"                 # or several: tlds = ["dotlane", "test"]
 ```
 
 Then run `dotlane install` again: it restarts the service to load the change and writes the

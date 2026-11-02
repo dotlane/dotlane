@@ -4,7 +4,7 @@
 
 > Your own lane after the dot.
 
-**Dotlane gives every local project a real HTTPS address, like `https://myapp.traix`, for any
+**Dotlane gives every local project a real HTTPS address, like `https://myapp.dotlane`, for any
 language, on macOS, Linux and Windows.** (Linux and Windows from the next release; see
 [`docs/compatibility.md`](docs/compatibility.md).)
 
@@ -12,11 +12,11 @@ Technically, it is a local domain service (DNS, a trusted certificate authority 
 in one program), controlled from a CLI, a per-project config file or a menu-bar app.
 
 Every local dev server gets a real, trusted HTTPS address on a private domain ending of your
-choice — `https://myapp.traix` instead of `http://localhost:5173` — in one command:
+choice — `https://myapp.dotlane` instead of `http://localhost:5173` — in one command:
 
 ```bash
 dotlane add myapp 5173
-# https://myapp.traix -> localhost:5173
+# https://myapp.dotlane -> localhost:5173
 ```
 
 No hosts-file edits, no per-site certificates, no root daemon, and no change to how the dev server
@@ -30,8 +30,8 @@ On macOS, Linux or Windows (x64 or arm64), with npm:
 
 ```bash
 npm install -g dotlane
-dotlane install                       # once: login service, trusted CA, DNS for .traix
-dotlane add myapp 5173                # https://myapp.traix -> localhost:5173
+dotlane install                       # once: login service, trusted CA, DNS for .dotlane
+dotlane add myapp 5173                # https://myapp.dotlane -> localhost:5173
 ```
 
 `dotlane install` explains each step that needs administrator rights before running it. Or try
@@ -41,9 +41,13 @@ uninstalling are in [`docs/setup.md`](docs/setup.md) (macOS), [`docs/setup-linux
 (deb, rpm and Arch packages too) and [`docs/setup-windows.md`](docs/setup-windows.md); WSL2 in
 [`docs/wsl.md`](docs/wsl.md).
 
+Another ending, or several: `dotlane tld add test`, `dotlane tld use <ending>`
+([`docs/cli.md`](docs/cli.md#domain-endings)). Installs from v0.2.0 and earlier keep `.traix`,
+the default then; `dotlane tld use dotlane` switches.
+
 ## Works with any language
 
-Dotlane needs only a name and a port: it forwards `https://<name>.traix` to whatever listens on
+Dotlane needs only a name and a port: it forwards `https://<name>.dotlane` to whatever listens on
 `localhost:<port>`. Python, Node, Go, Ruby, Java, Rust, .NET or a Docker container all work the same
 way, started however you already start them.
 
