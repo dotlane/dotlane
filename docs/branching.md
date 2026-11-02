@@ -60,6 +60,13 @@ gh pr ready                          # now it does
 gh pr merge --squash --auto --delete-branch   # merges once the gate check passes
 ```
 
+**One pull request per feature, one commit per task.** A feature gets one branch and one pull
+request, however many tasks it takes; each task is its own commit on that branch, so the
+history reads step by step while the review stays in one place. Open a second pull request only
+when it helps: an unrelated fix found on the way, or a change too large to review as one. The
+squash merge turns the branch into a single commit on `dev`, so the pull request description
+sums up all of its commits.
+
 Each pull request adds its line under `## [Unreleased]` in `CHANGELOG.md` (see
 [`CONTRIBUTING.md`](../CONTRIBUTING.md)), so the changelog on `dev` is always the next release's
 notes.
