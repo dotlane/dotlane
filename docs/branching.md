@@ -105,6 +105,7 @@ on the release pull request, instead of on every feature pull request.
 | --- | --- |
 | Push to any branch | nothing |
 | Draft pull request | nothing (one ten-second job that decides) |
+| Pull request into `dev`, docs only | nothing (the same ten-second job) |
 | Pull request into `dev` | **quick tier**: `test`, `integration-linux` (Linux only) |
 | Pull request into `main`, docs only | quick tier |
 | Pull request into `main` (release, hotfix) | **full tier**: also `install-tests`, `integration`, `homebrew` (macOS), `test-windows`, `integration-windows`, the Fedora and Arch integration, `release-snapshot`, `linux-packages` |
@@ -119,7 +120,8 @@ down:
 - **Drafts**: open a pull request as a draft while still pushing to it; CI starts when it is
   marked ready.
 - **Cancel in progress**: a new push to a pull request cancels its older run.
-- **Docs-only** pull requests into `main` skip the full tier.
+- **Docs-only** pull requests into `dev` run nothing, and into `main` skip the full tier. Docs
+  only means every file is a `*.md`, or under `docs/`, `assets/demo/` or `.github/ISSUE_TEMPLATE/`.
 - **Dependabot** opens one grouped pull request per ecosystem a week, into `dev`.
 - **Run the full tier early when it matters**: a change to the installer, DNS or certificates on
   a feature branch can be checked on macOS and Windows before it waits for the release:

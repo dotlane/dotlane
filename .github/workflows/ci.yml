@@ -26,7 +26,8 @@ concurrency:
 jobs:
   changes:
     # Picks the tier (docs/branching.md, CI):
-    # - run: the quick Linux tier (test, integration-linux). Every run except a draft pull request.
+    # - run: the quick Linux tier (test, integration-linux). Every run except a draft pull request
+    #   and a docs-only pull request into dev.
     # - full: everything else, the macOS, Windows, distro and package jobs (a macOS minute costs ten
     #   Linux minutes on a private repository, Windows two). For a release tag or a manual run,
     #   always; for a pull request into main (a release or a hotfix), when it changes more than
@@ -52,13 +53,18 @@ jobs:
           elif [[ $GITHUB_EVENT_NAME == pull_request ]]; then
             if [[ $DRAFT == true ]]; then
               run=false full=false
-            elif [[ $BASE == main ]]; then
+            else
               # The merge commit's first parent is the base branch, so this diff is the pull request.
               code=$(git diff --name-only HEAD^1 HEAD | grep -vE '\.md$|^docs/|^assets/demo/|^\.github/ISSUE_TEMPLATE/' || true)
-              if [[ -n $code ]]; then full=true; else full=false; fi
               printf 'Changed outside the docs:\n%s\n' "${code:-(nothing)}"
-            else
-              full=false
+              if [[ $BASE == main ]]; then
+                # Docs only still runs the quick tier into main: it is what gets released.
+                if [[ -n $code ]]; then full=true; else full=false; fi
+              else
+                # Docs only into dev runs nothing; the release pull request tests the batch.
+                if [[ -z $code ]]; then run=false; fi
+                full=false
+              fi
             fi
           else
             full=false
