@@ -1,6 +1,7 @@
 <!--
-Thanks for contributing. The title becomes the squash-merge commit message: say what changes,
-in the imperative ("Retry fresh ports when Start is asked for port 0").
+Thanks for contributing. Target `dev`, not `main` (docs/branching.md). The title becomes the
+squash-merge commit message: say what changes, in the imperative ("Retry fresh ports when Start
+is asked for port 0").
 Anything bigger than a fix should have an agreed issue first; see CONTRIBUTING.md.
 Security problems go through SECURITY.md, never a public pull request.
 -->
