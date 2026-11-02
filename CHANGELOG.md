@@ -22,8 +22,9 @@ archives, or on Linux with a deb, rpm or Arch package. Where each OS stands, ite
 - **Linux** (x64 and arm64): `install`, `uninstall`, `doctor`, `install --refresh` and the
   automatic upgrade. A systemd user unit runs the service; a system unit gives systemd-resolved
   a link that sends only the domain endings to Dotlane; the CA is trusted in the system store and,
-  with `certutil`, in NSS for Firefox and Chromium; `/etc/sysctl.d/50-dotlane.conf` lets the
-  service listen on ports 80 and 443. Needs systemd-resolved. Tested on Ubuntu, Fedora and Arch.
+  with `certutil`, in NSS for Firefox and Chromium; `/etc/sysctl.d/50-dotlane-<service>.conf`
+  lets the service listen on ports 80 and 443. Needs systemd-resolved. Tested on Ubuntu, Fedora
+  and Arch.
 - **Windows** (x64 and arm64): the same commands. A Task Scheduler task runs the service; NRPT
   rules send the domain endings to Dotlane's DNS on `127.0.0.1:53`; the CA is trusted in the
   machine's Root store. Every step that needs administrator rights runs in one elevated
