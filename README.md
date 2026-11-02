@@ -42,8 +42,7 @@ uninstalling are in [`docs/setup.md`](docs/setup.md) (macOS), [`docs/setup-linux
 [`docs/wsl.md`](docs/wsl.md).
 
 Another ending, or several: `dotlane tld add test`, `dotlane tld use <ending>`
-([`docs/cli.md`](docs/cli.md#domain-endings)). Installs from v0.2.0 and earlier keep `.traix`,
-the default then; `dotlane tld use dotlane` switches.
+([`docs/cli.md`](docs/cli.md#domain-endings)).
 
 ## Works with any language
 

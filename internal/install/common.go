@@ -20,7 +20,6 @@ import (
 	"github.com/dotlane/dotlane/internal/api"
 	"github.com/dotlane/dotlane/internal/config"
 	"github.com/dotlane/dotlane/internal/proxy"
-	"github.com/dotlane/dotlane/internal/ui"
 )
 
 // Process is something holding a port.
@@ -43,39 +42,6 @@ func summary(cfg *config.Config) string {
 		tlds[i] = "." + t
 	}
 	return cfg.ServiceName + " · " + strings.Join(tlds, " ")
-}
-
-// oldDefaultTLD is the domain ending Dotlane used when a config file set none, until v0.2.0.
-const oldDefaultTLD = "traix"
-
-// keepOldDefault keeps an install from before .dotlane became the default on .traix: when the
-// config file sets no ending and the machine still routes .traix to Dotlane, it records
-// tlds = ["traix"] in the file, before anything restarts the daemon. Otherwise the upgraded
-// daemon would answer on .dotlane only, and every site's address would change under its user.
-// It reports whether it pinned the ending.
-func keepOldDefault(ctx context.Context, cfg *config.Config, configPath string, routed func(context.Context) ([]string, error)) (bool, error) {
-	if cfg.TLDsSet || slices.Contains(cfg.TLDs, oldDefaultTLD) {
-		return false, nil
-	}
-	have, err := routed(ctx)
-	if err != nil {
-		return false, fmt.Errorf("checking whether this install still uses .%s, the old default: %w", oldDefaultTLD, err)
-	}
-	if !slices.Contains(have, oldDefaultTLD) {
-		return false, nil
-	}
-	why := fmt.Sprintf("kept by Dotlane: .%s was the default when it was installed (dotlane tld use %s switches)",
-		oldDefaultTLD, config.DefaultTLD)
-	if err := config.PinTLDs(configPath, []string{oldDefaultTLD}, why); err != nil {
-		return false, err
-	}
-	cfg.TLDs, cfg.TLDsSet = []string{oldDefaultTLD}, true
-	return true, nil
-}
-
-// keptNote is the line that reports keepOldDefault's change.
-func keptNote(p *ui.Printer, configPath string) (label, detail string) {
-	return "Domain ending", fmt.Sprintf(".%s kept, the default when Dotlane was installed · %s", oldDefaultTLD, p.Path(configPath))
 }
 
 // EndingChecks are doctor's checks of the domain endings, the same on every OS: endings the

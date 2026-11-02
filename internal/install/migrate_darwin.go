@@ -98,15 +98,7 @@ func (m *Mac) findPrototype(ctx context.Context) (*prototype, error) {
 // installs Dotlane in their place. If the install fails, the prototype is started again. Nothing
 // of the prototype is deleted; the files that can go are listed at the end.
 func (m *Mac) Migrate(ctx context.Context) error {
-	// The prototype's default was .traix too, and its resolver file is the one Dotlane writes.
-	pinned, err := keepOldDefault(ctx, m.Cfg, m.ConfigPath, m.Routed)
-	if err != nil {
-		return err
-	}
 	m.UI.Title("Migrating from the prototype", m.summary())
-	if pinned {
-		m.UI.OK(keptNote(m.UI, m.ConfigPath))
-	}
 	p, err := m.findPrototype(ctx)
 	if err != nil {
 		return err

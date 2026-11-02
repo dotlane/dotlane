@@ -29,11 +29,7 @@ the release notes, and refuses a tag that has none.
 
 ### Changed
 
-- **The default domain ending is now `.dotlane`** (was `.traix`): `https://myapp.dotlane`.
-  Existing installs keep `.traix`: when `config.toml` sets no ending and the machine still routes
-  `.traix` to Dotlane, `install`, `install --refresh`, `migrate` or the first command after an
-  upgrade records `tlds = ["traix"]` in the file before the service restarts, so no site's
-  address changes. `dotlane tld use dotlane` switches.
+- **The default domain ending is now `.dotlane`**: `https://myapp.dotlane`.
 
 ### Fixed
 

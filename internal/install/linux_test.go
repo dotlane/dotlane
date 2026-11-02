@@ -874,20 +874,3 @@ func TestLinuxRoutedIgnoresForeignUnit(t *testing.T) {
 		t.Errorf("foreign unit: %q, %v", got, err)
 	}
 }
-
-// An install from before .dotlane became the default keeps .traix (see TestKeepsOldDefault).
-func TestLinuxKeepsOldDefault(t *testing.T) {
-	m, _, out := newTestLinux(t)
-	m.Cfg.TLDs = []string{"traix"}
-	if err := m.Install(context.Background()); err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
-	m.Cfg.TLDs, m.Cfg.TLDsSet = []string{"dotlane"}, false
-	if err := m.Refresh(context.Background()); err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
-	cfg, err := config.Load(m.ConfigPath)
-	if err != nil || strings.Join(cfg.TLDs, " ") != "traix" || !strings.Contains(out.String(), ".traix kept") {
-		t.Errorf("file %+v (%v)\n%s", cfg, err, out)
-	}
-}

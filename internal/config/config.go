@@ -18,8 +18,7 @@ import (
 	"github.com/dotlane/dotlane/internal/tld"
 )
 
-// DefaultTLD is the domain ending when the file sets none. Until v0.2.0 it was traix; the
-// integration tests build with -X to set it back, to test the upgrade from it.
+// DefaultTLD is the domain ending when the file sets none.
 var DefaultTLD = "dotlane"
 
 // Config is the resolved configuration: defaults, overridden by the file.
