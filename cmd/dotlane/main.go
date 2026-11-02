@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -89,13 +90,21 @@ func withUsageHint(err error) error {
 
 func newRoot() *cobra.Command {
 	var configPath string
+	warned := false // a command may load the config more than once
 	loadConfig := func() (*config.Config, error) {
 		p, err := config.Resolve(configPath)
 		if err != nil {
 			return nil, err
 		}
 		configPath = p // install writes it into the login service
-		return config.Load(p)
+		cfg, err := config.Load(p)
+		if err == nil && !warned {
+			for _, w := range cfg.Warnings {
+				ui.New(os.Stderr).Warn(filepath.Base(cfg.Path), w)
+			}
+			warned = true
+		}
+		return cfg, err
 	}
 	installer := func() (install.Installer, error) {
 		cfg, err := loadConfig()

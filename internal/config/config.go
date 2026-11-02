@@ -12,6 +12,8 @@ import (
 	"regexp"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/dotlane/dotlane/internal/tld"
 )
 
 // Config is the resolved configuration: defaults, overridden by the file.
@@ -28,6 +30,9 @@ type Config struct {
 	// install can sit next to a real one.
 	ServiceName string
 	Path        string // file the settings came from; empty when only defaults apply
+	// Warnings are about endings the file sets that dotlane tld add would refuse or warn
+	// about. They are not errors, so an ending chosen before those rules keeps working.
+	Warnings []string
 }
 
 // file mirrors config.toml. Unknown keys are rejected, so typos surface.
@@ -41,10 +46,7 @@ type file struct {
 	Service   string   `toml:"service_name"`
 }
 
-var (
-	tldPattern     = regexp.MustCompile(`^[a-z][a-z0-9-]{0,61}[a-z0-9]$`)
-	servicePattern = regexp.MustCompile(`^[a-z0-9]+(\.[a-z0-9-]+)+$`)
-)
+var servicePattern = regexp.MustCompile(`^[a-z0-9]+(\.[a-z0-9-]+)+$`)
 
 // Resolve picks the config file: flag (--config), else $DOTLANE_CONFIG, else DefaultPath. The
 // default file is optional, also when named explicitly (the
@@ -142,17 +144,22 @@ func Load(path string) (*Config, error) {
 
 func (c *Config) validate() error {
 	seen := map[string]bool{}
-	for _, tld := range c.TLDs {
-		if !tldPattern.MatchString(tld) {
-			return fmt.Errorf("domain ending must be lowercase letters, digits and dashes: %q", tld)
+	for _, t := range c.TLDs {
+		if err := tld.Syntax(t); err != nil {
+			return err
 		}
-		if tld == "local" {
+		if t == "local" {
 			return errors.New("domain ending cannot be local: it belongs to multicast DNS (Bonjour, Avahi)")
 		}
-		if seen[tld] {
-			return fmt.Errorf("domain ending listed twice: %q", tld)
+		if seen[t] {
+			return fmt.Errorf("domain ending listed twice: %q", t)
 		}
-		seen[tld] = true
+		seen[t] = true
+		if warning, err := tld.Check(t); err != nil {
+			c.Warnings = append(c.Warnings, err.Error())
+		} else if warning != "" {
+			c.Warnings = append(c.Warnings, warning)
+		}
 	}
 	ports := map[string]int{"dns_port": c.DNSPort, "http_port": c.HTTPPort, "https_port": c.HTTPSPort}
 	for key, port := range ports {

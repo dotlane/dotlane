@@ -70,7 +70,7 @@ func TestRejected(t *testing.T) {
 	for _, tc := range []struct{ body, want string }{
 		{`tld = "Bad.TLD"`, "lowercase"},
 		{`tld = "local"`, "Bonjour"},
-		{`tlds = ["a1", "a1"]`, "twice"},
+		{`tlds = ["abc", "abc"]`, "twice"},
 		{"tld = \"traix\"\ntlds = [\"test\"]", "not both"},
 		{`dns_port = 70000`, "dns_port"},
 		{"http_port = 9443\nhttps_port = 9443", "differ"},
@@ -82,6 +82,26 @@ func TestRejected(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%q: error %v, want it to mention %q", tc.body, err, tc.want)
 		}
+	}
+}
+
+// Endings dotlane tld add would refuse or warn about still load from a file, with a warning,
+// so an ending chosen before those rules keeps working.
+func TestWarnings(t *testing.T) {
+	cfg, err := Load(write(t, `tlds = ["traix", "dev", "lan"]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Warnings) != 2 || !strings.Contains(cfg.Warnings[0], "public top-level domain") ||
+		!strings.Contains(cfg.Warnings[1], "routers") {
+		t.Errorf("Warnings = %q", cfg.Warnings)
+	}
+	cfg, err = Load(write(t, `tld = "dotlane"`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Warnings) != 0 {
+		t.Errorf("dotlane: Warnings = %q", cfg.Warnings)
 	}
 }
 
