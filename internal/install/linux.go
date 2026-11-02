@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -616,15 +617,22 @@ func (m *Linux) dnsUnit() ([]byte, error) {
 		return nil, err
 	}
 	link := m.dnsLink()
-	tlds := make([]string, len(m.Cfg.TLDs))
-	for i, t := range m.Cfg.TLDs {
-		tlds[i] = "~" + t
+	// Sorted: the order of the endings means nothing to systemd-resolved, so choosing another
+	// primary (dotlane tld use) leaves the unit as it is.
+	sorted := slices.Sorted(slices.Values(m.Cfg.TLDs))
+	tlds, shown := make([]string, len(sorted)), make([]string, len(sorted))
+	for i, t := range sorted {
+		tlds[i], shown[i] = "~"+t, "."+t
 	}
+	// StartLimitIntervalSec=0: Dotlane restarts the unit whenever the endings change, and a few
+	// changes in a row (a script running dotlane tld) would otherwise hit systemd's limit of five
+	// starts in ten seconds, made for services that crash.
 	return []byte(marker + `
 [Unit]
-Description=Dotlane: send ` + m.endings() + ` lookups to 127.0.0.1:` + strconv.Itoa(m.Cfg.DNSPort) + ` (` + m.Cfg.ServiceName + `)
+Description=Dotlane: send ` + strings.Join(shown, " ") + ` lookups to 127.0.0.1:` + strconv.Itoa(m.Cfg.DNSPort) + ` (` + m.Cfg.ServiceName + `)
 After=systemd-resolved.service systemd-networkd.service
 PartOf=systemd-resolved.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
