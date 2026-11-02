@@ -123,7 +123,7 @@ jobs:
   integration-linux:
     # The real thing on a throwaway Ubuntu: systemd user unit, systemd-resolved, the system CA
     # store and NSS, ports 80/443 through the sysctl, with passwordless sudo. See
-    # scripts/integration-linux.sh. Fedora and Arch are checked by hand on full VMs (docs/compatibility.md, T3).
+    # scripts/integration-linux.sh. Fedora and Arch run the same script in integration-linux-distros.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -142,6 +142,36 @@ jobs:
       - run: scripts/integration-linux.sh
       - name: npm packages end to end (linux-x64 on this runner)
         run: scripts/npm-e2e.sh
+
+  integration-linux-distros:
+    # integration-linux.sh on Fedora and Arch, each in a privileged container that boots systemd on
+    # an Ubuntu runner (scripts/integration-linux-container.sh): GitHub hosts no other distribution.
+    # Arch is rolling, so it is pinned twice, to an image digest and to that image's day of the Arch
+    # Linux Archive for its packages; a new Arch release cannot break unrelated pull requests. Move
+    # both pins together, from `docker buildx imagetools inspect archlinux:latest` (its
+    # org.opencontainers.image.version label is the day).
+    name: integration-linux (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: fedora
+            image: fedora:44
+          - distro: arch
+            image: archlinux@sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413 # 20261025.0.616225
+            snapshot: 2026/10/25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false # see test
+      - run: scripts/integration-linux-container.sh "$IMAGE"
+        env:
+          IMAGE: ${{ matrix.image }}
+          ARCH_SNAPSHOT: ${{ matrix.snapshot }}
 
   integration-windows:
     # The real thing on a throwaway Windows: scheduled task, NRPT rules, the LocalMachine Root

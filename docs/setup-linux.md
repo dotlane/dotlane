@@ -21,7 +21,7 @@ For WSL2, see [`wsl.md`](wsl.md).
 - Optional: `certutil` (`libnss3-tools` on Debian and Ubuntu, `nss-tools` on Fedora, `nss` on
   Arch), so Firefox and Chromium trust Dotlane too. Without it, `install` says what to add.
 
-Tested end to end on Ubuntu, Fedora and Arch.
+Tested end to end on Ubuntu, Fedora and Arch, on every change (CI).
 
 ## 1. Get the `dotlane` command
 

@@ -93,6 +93,10 @@ dns_diagnostics() {
 }
 trap cleanup EXIT
 
+# The lowest unprivileged port before install: 1024 on a stock kernel, 0 in a Docker container.
+# Install lowers it only when it is above 80, and uninstall must leave it as it found it.
+PORT_START=$(cat /proc/sys/net/ipv4/ip_unprivileged_port_start)
+
 step "install"
 start=$(date +%s)
 DL install
@@ -212,7 +216,7 @@ systemctl --user is-active "$UNIT" >/dev/null 2>&1 && fail "service still runnin
 ip link show "$link" >/dev/null 2>&1 && fail "the $link link left behind"
 resolvectl domain | grep -q "~$TLD" && fail "~$TLD still routed"
 [[ ! -e /etc/sysctl.d/50-dotlane-$SERVICE.conf ]] || fail "/etc/sysctl.d/50-dotlane-$SERVICE.conf left behind"
-[[ "$(cat /proc/sys/net/ipv4/ip_unprivileged_port_start)" == 1024 ]] || fail "ip_unprivileged_port_start was not restored to 1024"
+[[ "$(cat /proc/sys/net/ipv4/ip_unprivileged_port_start)" == "$PORT_START" ]] || fail "ip_unprivileged_port_start was not restored to $PORT_START"
 ls /usr/local/share/ca-certificates/dotlane-$SERVICE.crt /etc/ca-certificates/trust-source/anchors/dotlane-$SERVICE.crt \
    /etc/pki/ca-trust/source/anchors/dotlane-$SERVICE.crt >/dev/null 2>&1 && fail "the CA file is left in the system's store"
 if command -v certutil >/dev/null; then

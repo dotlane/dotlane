@@ -37,7 +37,7 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Later
 
-- **More Linux and Windows channels.** Scoop and winget manifests, Fedora and Arch on CI, a
+- **More Linux and Windows channels.** Scoop and winget manifests, a
   NetworkManager-dnsmasq fallback where systemd-resolved is missing, and signed Windows binaries.
   What is left per OS is in [`compatibility.md`](compatibility.md#still-open).
 - **FrankenPHP** as an optional PHP runtime, downloaded and supervised rather than embedded

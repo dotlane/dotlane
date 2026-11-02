@@ -12,7 +12,7 @@ Last checked: 2026-11-02, on branch `feat/cross-platform`
 | OS | Where it stands |
 | --- | --- |
 | **macOS** (arm64, x64) | Shipped in `v0.1.0`. Signing and notarization are the open item. |
-| **Linux** (amd64, arm64) | Installer, doctor, upgrade and uninstall done. End to end on Ubuntu, Fedora and Arch (arm64 VMs, by hand) and on CI's Ubuntu. Released as archives, deb, rpm, Arch packages and npm, from the next release. |
+| **Linux** (amd64, arm64) | Installer, doctor, upgrade and uninstall done. End to end on CI on Ubuntu, Fedora and Arch (x64), and by hand on arm64 VMs of all three. Released as archives, deb, rpm, Arch packages and npm, from the next release. |
 | **Windows** (amd64, arm64) | Installer, doctor, upgrade and uninstall written and unit-tested; end to end on CI's `windows-latest` (PowerShell 7 and 5.1). Not yet run on a desktop with a real UAC prompt. Released as zip and npm, from the next release. |
 | **WSL2** | Documented in [`wsl.md`](wsl.md): Dotlane on Windows with the dev server in WSL is the supported setup. |
 
@@ -74,7 +74,7 @@ Setup per OS: [macOS](setup.md), [Linux](setup-linux.md), [Windows](setup-window
 | --- | --- | --- | --- | --- | --- |
 | T1 | Installer tests with fakes | done | done | done | `darwin_test.go`, `linux_test.go`, `windows_test.go`. |
 | T2 | End to end: install, HTTPS through the system's DNS and trust, upgrade, uninstall | done | done | partial | `scripts/integration.sh`, `integration-linux.sh`, `integration-windows.ps1`. The Windows runner is already elevated, so the UAC path is only unit-tested. |
-| T3 | Distributions | — | partial | — | Ubuntu, Fedora and Arch passed `integration-linux.sh` on arm64 VMs (2026-11-02); only Ubuntu runs on CI. |
+| T3 | Distributions | — | done | — | `integration-linux.sh` on CI: Ubuntu on the runner, Fedora and Arch in containers that boot systemd (`scripts/integration-linux-container.sh`); Arch pinned to an image digest and its day of the Arch Linux Archive. Also passed by hand on arm64 VMs (2026-11-02). |
 | T4 | npm packages end to end | done | done | partial | `scripts/npm-e2e.sh` on each OS's runner; on Windows under Git Bash. |
 
 ### WSL2
@@ -99,4 +99,4 @@ Setup per OS: [macOS](setup.md), [Linux](setup-linux.md), [Windows](setup-window
 
 - Windows code signing and macOS notarization (B7).
 - Scoop and winget manifests, and installing the deb, rpm and Arch packages on CI (B6).
-- Fedora and Arch on CI (T3), and a Windows desktop run with a real UAC prompt (T2).
+- A Windows desktop run with a real UAC prompt (T2).
