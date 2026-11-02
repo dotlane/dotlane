@@ -19,14 +19,14 @@ func query(t *testing.T, addr, name string, qtype uint16, network string) *dns.M
 }
 
 func TestResponder(t *testing.T) {
-	s, err := Start("127.0.0.1:0", []string{"traix", "test"})
+	s, err := Start("127.0.0.1:0", []string{"dotlane", "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Shutdown()
 
 	for _, network := range []string{"udp", "tcp"} {
-		r := query(t, s.Addr(), "myapp.traix", dns.TypeA, network)
+		r := query(t, s.Addr(), "myapp.dotlane", dns.TypeA, network)
 		if r.Rcode != dns.RcodeSuccess || len(r.Answer) != 1 || r.Answer[0].(*dns.A).A.String() != "127.0.0.1" {
 			t.Errorf("%s A: %v", network, r)
 		}
@@ -37,12 +37,12 @@ func TestResponder(t *testing.T) {
 		t.Errorf("AAAA, mixed case, second ending: %v", r)
 	}
 
-	r = query(t, s.Addr(), "x.traix", dns.TypeMX, "udp")
+	r = query(t, s.Addr(), "x.dotlane", dns.TypeMX, "udp")
 	if r.Rcode != dns.RcodeSuccess || len(r.Answer) != 0 {
 		t.Errorf("MX: want NOERROR with no answer, got %v", r)
 	}
 
-	for _, name := range []string{"example.com", "traix.com", "nottraix"} {
+	for _, name := range []string{"example.com", "dotlane.com", "notdotlane"} {
 		r = query(t, s.Addr(), name, dns.TypeA, "udp")
 		if r.Rcode != dns.RcodeRefused || len(r.Answer) != 0 {
 			t.Errorf("%s: want REFUSED, got %v", name, r)
@@ -51,12 +51,12 @@ func TestResponder(t *testing.T) {
 }
 
 func TestStartReportsBusyPort(t *testing.T) {
-	s, err := Start("127.0.0.1:0", []string{"traix"})
+	s, err := Start("127.0.0.1:0", []string{"dotlane"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Shutdown()
-	if _, err := Start(s.Addr(), []string{"traix"}); err == nil {
+	if _, err := Start(s.Addr(), []string{"dotlane"}); err == nil {
 		t.Error("second Start on the same port succeeded")
 	}
 }

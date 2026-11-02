@@ -44,7 +44,7 @@ internal/platform/      OS specifics behind one interface:
 Shipped as planned, plus: `tlds` (several endings) already honoured by the DNS responder and the
 proxy, failed reloads roll the registry back, and a 2-second shutdown grace period so open
 websockets (Vite's live reload) cannot hold a stop or restart. Verified with the reference app's running
-Vite and FastAPI behind `https://myapp.traix:9443` and `https://api.traix:9443`, and by an
+Vite and FastAPI behind `https://myapp.dotlane:9443` and `https://api.dotlane:9443`, and by an
 end-to-end test (`internal/daemon`). Known, by design: with a non-443 `https_port`, Caddy's HTTP
 redirect omits the port; an unknown name gets a TLS alert rather than a page (friendlier answer in
 M3).
@@ -55,7 +55,7 @@ M3).
   storage in the state directory.
 - `add`, `rm`, `ls` (also `--json`) through the socket; changes apply without a restart.
 - **Done when** the daemon, run by hand on spare ports (DNS 10054, HTTPS 9443), serves
-  `https://myapp.traix:9443` next to the prototype, in tests and with `curl`.
+  `https://myapp.dotlane:9443` next to the prototype, in tests and with `curl`.
 
 ### M2 — Install and uninstall (≈ 1 week) — done 2026-10-30
 
@@ -147,14 +147,14 @@ prototype script) at the binary, and lists the prototype's files for the user to
 Re-running is safe.
 
 First real run (2026-10-30): refused, and the rollback put the prototype back as designed
-(`https://myapp.traix` kept answering). Cause: macOS lets a user listen on ports below 1024
+(`https://myapp.dotlane` kept answering). Cause: macOS lets a user listen on ports below 1024
 only on all interfaces, not on 127.0.0.1, and the daemon bound loopback only (M1–M4 were tested
 on 9443). Fix: 80 and 443 now bind on all interfaces with a first route that drops requests from
 other machines (checked live on 444/81: loopback served, the LAN address got no answer); higher
 ports stay on loopback. The HTTP redirect is now an explicit server, so it also follows a
 non-standard HTTPS port. Install's bind test uses the same addresses, and a permission error is
 reported as such rather than as "another user". Second run: migrated with no password; only
-`dotlane` listens on 443, 80 and 10053; `https://myapp.traix` verifies against the system
+`dotlane` listens on 443, 80 and 10053; `https://myapp.dotlane` verifies against the system
 roots, `http://` redirects, the LAN address gets no answer, `doctor` is all green, and `dotlane up`
 in the reference app claimed the site. Verified earlier: the embedded Caddy accepts the prototype's root (it issues its own
 intermediate under it) and curl trusts the result with no `--cacert`; the flow is covered by
@@ -168,7 +168,7 @@ Planned:
   running `caddy` as a plain command) so nothing needs trusting again, stops the Homebrew Caddy service and the dnsmasq agent, and says
   which prototype files can be deleted.
 - **Done when** this Mac moves from the prototype to the binary with no new password prompt and
-  `https://myapp.traix` keeps working.
+  `https://myapp.dotlane` keeps working.
 
 ### M6 — Hardening and release candidate (≈ 1 week) — done 2026-10-30
 
@@ -269,6 +269,6 @@ PHP, static sites and managed processes (Phase 3); packages and signing (Phase 2
 ## Before starting
 
 - Repository home and Go module path: decided 2026-10-30, the `dotlane` organization,
-  `github.com/dotlane/dotlane` (`traix` was taken by an unrelated account). The Homebrew tap and npm
+  `github.com/dotlane/dotlane`. The Homebrew tap and npm
   scope follow from it ([`phase-2.md`](phase-2.md)).
 - Licence: decided 2026-10-30, Apache-2.0 (M6).

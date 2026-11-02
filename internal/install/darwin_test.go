@@ -360,7 +360,7 @@ func TestInstallRefusesTakenHTTPSPort(t *testing.T) {
 	fake.labels[2779] = "sh.brew.caddy"
 	sites := filepath.Join(m.Home, ".config", "caddy", "sites")
 	os.MkdirAll(sites, 0o755)
-	os.WriteFile(filepath.Join(sites, "myapp.caddy"), []byte("# Managed by dotlane: https://myapp.traix -> localhost:5173\n"), 0o644)
+	os.WriteFile(filepath.Join(sites, "myapp.caddy"), []byte("# Managed by dotlane: https://myapp.dotlane -> localhost:5173\n"), 0o644)
 
 	if err := m.Install(context.Background()); err == nil {
 		t.Fatal("installed with 443 taken")
@@ -382,7 +382,7 @@ func TestInstallPicksFreeDNSPort(t *testing.T) {
 	m.Cfg.DNSPort, m.Cfg.DNSPortSet = 10053, false
 	fake.listen["udp:10053"] = []int{2588}
 	fake.paths[2588] = "/opt/homebrew/sbin/dnsmasq"
-	fake.labels[2588] = "dev.traix.dnsmasq"
+	fake.labels[2588] = "dev.dotlane.dnsmasq"
 	fake.listen["udp:10054"] = []int{999} // also taken: skip it
 	fake.paths[999] = "/usr/local/bin/something"
 	fake.daemonPorts[2] = "udp:10055"
@@ -505,7 +505,7 @@ func TestDoctorDNSPortBeforeInstall(t *testing.T) {
 	m, fake, _ := newTestMac(t)
 	fake.listen["udp:10054"] = []int{2588}
 	fake.paths[2588] = "/opt/homebrew/sbin/dnsmasq"
-	fake.labels[2588] = "dev.traix.dnsmasq"
+	fake.labels[2588] = "dev.dotlane.dnsmasq"
 	m.Cfg.DNSPortSet = false
 	if got := statuses(m.Doctor(context.Background()))["DNS port"]; got != Warning {
 		t.Errorf("default port: %s, want warn", got)

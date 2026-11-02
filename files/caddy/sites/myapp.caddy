@@ -1,4 +1,4 @@
-# Managed by dotlane: https://myapp.traix -> localhost:5173
-myapp.traix {
+# Managed by dotlane: https://myapp.dotlane -> localhost:5173
+myapp.dotlane {
 	reverse_proxy localhost:5173
 }

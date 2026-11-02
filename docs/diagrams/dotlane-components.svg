@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 800" width="1120" height="800" role="img" aria-labelledby="t d">
   <title id="t">Dotlane: tools, libraries and request flow</title>
-  <desc id="d">A client looks up myapp.traix; the macOS resolver sends only .traix lookups to dnsmasq, which answers 127.0.0.1. The client then connects over HTTPS to Caddy on port 443, which presents a certificate from its local CA (trusted in the System Keychain) and reverse-proxies to the dev server on localhost. The dotlane CLI, called by a project's mise task, writes one site file per domain that Caddy imports and reloads. Homebrew installs Caddy and dnsmasq; launchd keeps them running.</desc>
+  <desc id="d">A client looks up myapp.dotlane; the macOS resolver sends only .dotlane lookups to dnsmasq, which answers 127.0.0.1. The client then connects over HTTPS to Caddy on port 443, which presents a certificate from its local CA (trusted in the System Keychain) and reverse-proxies to the dev server on localhost. The dotlane CLI, called by a project's mise task, writes one site file per domain that Caddy imports and reloads. Homebrew installs Caddy and dnsmasq; launchd keeps them running.</desc>
   <style>
     :root {
       --bg: #ffffff; --ink: #0f172a; --muted: #475569; --line: #334155; --frame: #cbd5e1;
@@ -48,14 +48,14 @@
   <rect x="0" y="0" width="1120" height="800" fill="var(--bg)"/>
 
   <text class="title" x="40" y="44">Dotlane — tools, libraries and request flow</text>
-  <text class="sub" x="40" y="66">https://myapp.traix → localhost:5173, on one Mac. Solid numbered arrows: a request. Dashed: setup and management.</text>
+  <text class="sub" x="40" y="66">https://myapp.dotlane → localhost:5173, on one Mac. Solid numbered arrows: a request. Dashed: setup and management.</text>
 
   <!-- Row 1: clients → Caddy → dev servers -->
   <rect class="app" x="40" y="100" width="280" height="130" rx="12"/>
   <text class="h" x="60" y="130">Clients</text>
   <text class="s" x="60" y="156">Chrome · Safari · Firefox</text>
   <text class="s" x="60" y="178">curl · Node · Python</text>
-  <text class="m" x="60" y="204">https://myapp.traix</text>
+  <text class="m" x="60" y="204">https://myapp.dotlane</text>
 
   <rect class="oss" x="420" y="100" width="280" height="130" rx="12"/>
   <text class="h" x="440" y="130">Caddy 2.11.7</text>
@@ -72,8 +72,8 @@
   <!-- Row 2: resolver · site files · keychain -->
   <rect class="os" x="40" y="320" width="280" height="100" rx="12"/>
   <text class="h" x="60" y="350">macOS resolver</text>
-  <text class="m" x="60" y="374">/etc/resolver/traix</text>
-  <text class="s" x="60" y="398">routes only *.traix lookups to dnsmasq</text>
+  <text class="m" x="60" y="374">/etc/resolver/dotlane</text>
+  <text class="s" x="60" y="398">routes only *.dotlane lookups to dnsmasq</text>
 
   <rect class="own" x="420" y="320" width="280" height="100" rx="12"/>
   <text class="h" x="440" y="350">Site files</text>
@@ -88,7 +88,7 @@
   <!-- Row 3: dnsmasq · dotlane · project hook -->
   <rect class="oss" x="40" y="500" width="280" height="100" rx="12"/>
   <text class="h" x="60" y="530">dnsmasq 2.93</text>
-  <text class="m" x="60" y="554">*.traix → 127.0.0.1, ::1</text>
+  <text class="m" x="60" y="554">*.dotlane → 127.0.0.1, ::1</text>
   <text class="s" x="60" y="578">127.0.0.1:10053 · runs as the user</text>
 
   <rect class="own" x="420" y="500" width="280" height="100" rx="12"/>
@@ -104,10 +104,10 @@
   <!-- Request path -->
   <path class="req" d="M180,230 L180,316"/>
   <text class="lbl" x="192" y="268">① look up</text>
-  <text class="lbl" x="192" y="284">myapp.traix</text>
+  <text class="lbl" x="192" y="284">myapp.dotlane</text>
 
   <path class="req" d="M180,420 L180,496"/>
-  <text class="lbl" x="192" y="452">② only .traix,</text>
+  <text class="lbl" x="192" y="452">② only .dotlane,</text>
   <text class="lbl" x="192" y="468">port 10053</text>
 
   <path class="req" d="M320,165 L416,165"/>

@@ -19,8 +19,8 @@ Names: lowercase letters, digits and dashes, not starting or ending with a dash.
 Generated site file:
 
 ```caddy
-# Managed by dotlane: https://myapp.traix -> localhost:5173
-myapp.traix {
+# Managed by dotlane: https://myapp.dotlane -> localhost:5173
+myapp.dotlane {
 	reverse_proxy localhost:5173
 }
 ```
@@ -34,7 +34,7 @@ Optional file `~/.config/dotlane/config.toml` (another path with `DOTLANE_CONFIG
 it, the defaults apply:
 
 ```toml
-tld = "traix"      # domain ending: sites become https://<name>.<tld>
+tld = "dotlane"      # domain ending: sites become https://<name>.<tld>
 dns_port = 10053   # where dnsmasq answers; doctor queries it
 ```
 
@@ -52,7 +52,7 @@ earlier keep their old address until re-added.
 A project lists its sites in a `dotlane.toml` at its root, committed with the code:
 
 ```toml
-# https://myapp.traix → the Vite dev server
+# https://myapp.dotlane → the Vite dev server
 [sites.myapp]
 port = 5173
 

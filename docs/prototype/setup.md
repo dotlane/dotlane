@@ -4,13 +4,13 @@ Kept for reference: this Mac moved to the Go version on 2026-10-30. Set up the G
 [`../setup.md`](../setup.md); `dotlane migrate` moves a prototype install to it.
 
 Reproduces the reference install. Steps marked **(password)** need `sudo` or a keychain prompt;
-everything else runs as the user. The steps use the default ending, `traix`; for another one, follow
+everything else runs as the user. The steps use the default ending, `dotlane`; for another one, follow
 them and then [Using another domain ending](#using-another-domain-ending).
 
 ## Prerequisites
 
 - Homebrew.
-- Nothing else answering `*.traix`, and ports 80/443 and UDP 10053 free. Tools such as Laravel
+- Nothing else answering `*.dotlane`, and ports 80/443 and UDP 10053 free. Tools such as Laravel
   Herd/Valet bind 80/443 and install their own resolver; remove or stop them first
   (see `troubleshooting.md`).
 
@@ -20,18 +20,18 @@ them and then [Using another domain ending](#using-another-domain-ending).
 brew install caddy dnsmasq
 ```
 
-## 2. Wildcard DNS for `*.traix`
+## 2. Wildcard DNS for `*.dotlane`
 
 ```bash
 mkdir -p ~/.config/dnsmasq ~/Library/Logs
-cp files/dnsmasq/traix.conf ~/.config/dnsmasq/traix.conf
+cp files/dnsmasq/dotlane.conf ~/.config/dnsmasq/dotlane.conf
 
 # LaunchAgent: substitute $HOME, then load it
-sed "s#\$HOME#$HOME#g" files/launchd/dev.traix.dnsmasq.plist > ~/Library/LaunchAgents/dev.traix.dnsmasq.plist
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.traix.dnsmasq.plist
+sed "s#\$HOME#$HOME#g" files/launchd/dev.dotlane.dnsmasq.plist > ~/Library/LaunchAgents/dev.dotlane.dnsmasq.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.dotlane.dnsmasq.plist
 
-# (password) send only *.traix lookups to it
-printf 'nameserver 127.0.0.1\nport 10053\n' | sudo tee /etc/resolver/traix
+# (password) send only *.dotlane lookups to it
+printf 'nameserver 127.0.0.1\nport 10053\n' | sudo tee /etc/resolver/dotlane
 ```
 
 ## 3. Caddy
@@ -63,7 +63,7 @@ printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> ~/.zshrc
 dotlane doctor          # resolver, dnsmasq, Caddy, CA trust — expect "all good"
 dotlane add demo 8080
 python3 -m http.server 8080 &
-curl -sS https://demo.traix/ -o /dev/null -w '%{http_code} tls-verify=%{ssl_verify_result}\n'
+curl -sS https://demo.dotlane/ -o /dev/null -w '%{http_code} tls-verify=%{ssl_verify_result}\n'
 # 200 tls-verify=0   (0 = certificate verified, no -k needed)
 kill %1; dotlane rm demo
 ```
@@ -71,9 +71,9 @@ kill %1; dotlane rm demo
 Other useful checks:
 
 ```bash
-dig +short anything.traix @127.0.0.1 -p 10053        # 127.0.0.1
-dscacheutil -q host -a name anything.traix           # what macOS itself resolves
-scutil --dns | grep -A3 'domain   : traix'           # resolver registered
+dig +short anything.dotlane @127.0.0.1 -p 10053        # 127.0.0.1
+dscacheutil -q host -a name anything.dotlane           # what macOS itself resolves
+scutil --dns | grep -A3 'domain   : dotlane'           # resolver registered
 curl -s localhost:2019/config/ | head -c 300         # Caddy's live config
 ```
 
@@ -87,8 +87,8 @@ mkdir -p ~/.config/dotlane
 printf 'tld = "internal"\n' > ~/.config/dotlane/config.toml
 
 # answer *.internal too (the file can list several endings), then restart dnsmasq
-printf 'address=/internal/127.0.0.1\naddress=/internal/::1\n' >> ~/.config/dnsmasq/traix.conf
-launchctl kickstart -k gui/$(id -u)/dev.traix.dnsmasq
+printf 'address=/internal/127.0.0.1\naddress=/internal/::1\n' >> ~/.config/dnsmasq/dotlane.conf
+launchctl kickstart -k gui/$(id -u)/dev.dotlane.dnsmasq
 
 # (password) send *.internal lookups to it
 printf 'nameserver 127.0.0.1\nport 10053\n' | sudo tee /etc/resolver/internal
@@ -98,7 +98,7 @@ dotlane doctor          # expect "domain ending .internal" and "all good"
 
 Then re-add existing sites (`dotlane add <name> <port>`) to move them to the new ending, and update
 any app that lists the old origin (see `app-integration.md`). To drop the old ending, remove its
-`address=` lines and `sudo rm /etc/resolver/traix`.
+`address=` lines and `sudo rm /etc/resolver/dotlane`.
 
 Choosing an ending:
 
@@ -106,7 +106,7 @@ Choosing an ending:
 - **Never:** a public ending (`dev`, `app`, `com`, …; list at
   <https://data.iana.org/TLD/tlds-alpha-by-domain.txt>) — sites would shadow real websites — or
   `local`, which Bonjour uses.
-- **Branded** (`traix`): works, with the small risk that the ending becomes public one day.
+- **Branded** (`dotlane`): works, with the small risk that the ending becomes public one day.
 
 ## Moving to the Go version
 
@@ -126,16 +126,16 @@ CA is now Dotlane's.
 
 ```bash
 brew services stop caddy
-launchctl bootout gui/$(id -u)/dev.traix.dnsmasq
-rm ~/Library/LaunchAgents/dev.traix.dnsmasq.plist ~/.config/dnsmasq/traix.conf
+launchctl bootout gui/$(id -u)/dev.dotlane.dnsmasq
+rm ~/Library/LaunchAgents/dev.dotlane.dnsmasq.plist ~/.config/dnsmasq/dotlane.conf
 rm -r ~/.config/caddy/sites ~/.local/bin/dotlane
-sudo rm /etc/resolver/traix                                    # (password)
+sudo rm /etc/resolver/dotlane                                    # (password)
 caddy untrust                                                  # (password) remove the root CA
 rm /opt/homebrew/etc/Caddyfile
 brew uninstall caddy dnsmasq                                   # optional
 ```
 
-Apps that listed a `.traix` origin (see `app-integration.md`) should drop it.
+Apps that listed a `.dotlane` origin (see `app-integration.md`) should drop it.
 
 ## Reference install log (2026-10-29)
 

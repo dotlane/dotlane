@@ -35,7 +35,7 @@ type Tool struct {
 	Fix  string
 }
 
-// summary names what is being installed, for the title line: "dev.dotlane · .traix .test".
+// summary names what is being installed, for the title line: "dev.dotlane · .dotlane .test".
 func summary(cfg *config.Config) string {
 	tlds := make([]string, len(cfg.TLDs))
 	for i, t := range cfg.TLDs {

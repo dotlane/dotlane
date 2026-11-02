@@ -44,7 +44,7 @@ func TestPrototypeFile(t *testing.T) {
 }
 
 func TestAllSettings(t *testing.T) {
-	p := write(t, `tlds = ["traix", "test"]
+	p := write(t, `tlds = ["dotlane", "test"]
 http_port = 9480
 https_port = 9443
 state_dir = "state"
@@ -54,7 +54,7 @@ service_name = "dev.dotlane.dev"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"traix", "test"}) || cfg.HTTPPort != 9480 || cfg.HTTPSPort != 9443 ||
+	if !slices.Equal(cfg.TLDs, []string{"dotlane", "test"}) || cfg.HTTPPort != 9480 || cfg.HTTPSPort != 9443 ||
 		cfg.ServiceName != "dev.dotlane.dev" {
 		t.Errorf("got %+v", cfg)
 	}
@@ -71,12 +71,12 @@ func TestRejected(t *testing.T) {
 		{`tld = "Bad.TLD"`, "lowercase"},
 		{`tld = "local"`, "Bonjour"},
 		{`tlds = ["abc", "abc"]`, "twice"},
-		{"tld = \"traix\"\ntlds = [\"test\"]", "not both"},
+		{"tld = \"dotlane\"\ntlds = [\"test\"]", "not both"},
 		{`dns_port = 70000`, "dns_port"},
 		{"http_port = 9443\nhttps_port = 9443", "differ"},
-		{`tdl = "traix"`, "unknown setting"},
+		{`tdl = "dotlane"`, "unknown setting"},
 		{`service_name = "My Service"`, "reverse-DNS"},
-		{`tld = traix`, "config.toml"}, // not TOML: values need quotes
+		{`tld = dotlane`, "config.toml"}, // not TOML: values need quotes
 	} {
 		_, err := Load(write(t, tc.body))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
@@ -88,7 +88,7 @@ func TestRejected(t *testing.T) {
 // Endings dotlane tld add would refuse or warn about still load from a file, with a warning,
 // so an ending chosen before those rules keeps working.
 func TestWarnings(t *testing.T) {
-	cfg, err := Load(write(t, `tlds = ["traix", "dev", "lan"]`))
+	cfg, err := Load(write(t, `tlds = ["dotlane", "dev", "lan"]`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,19 +212,19 @@ func TestSetTLDs(t *testing.T) {
 	for _, tc := range []struct{ name, have, want string }{
 		{"missing file", "", "tlds = [\"dotlane\", \"test\"]\n"},
 		{"tld, with its comment",
-			"# mine\ntld = \"traix\"   # the old default\ndns_port = 10055\n",
+			"# mine\ntld = \"dotlane\"   # the old default\ndns_port = 10055\n",
 			"# mine\ntlds = [\"dotlane\", \"test\"]   # the old default\ndns_port = 10055\n"},
 		{"tlds on several lines",
-			"dns_port = 10055\ntlds = [\n  \"traix\", # first\n  \"test\",\n]\nhttp_port = 9480\n",
+			"dns_port = 10055\ntlds = [\n  \"dotlane\", # first\n  \"test\",\n]\nhttp_port = 9480\n",
 			"dns_port = 10055\ntlds = [\"dotlane\", \"test\"]\nhttp_port = 9480\n"},
 		{"both, the second dropped",
-			"tld = \"traix\"\nhttp_port = 9480\ntlds = [\"x\"]\n",
+			"tld = \"dotlane\"\nhttp_port = 9480\ntlds = [\"x\"]\n",
 			"tlds = [\"dotlane\", \"test\"]\nhttp_port = 9480\n"},
 		{"none yet, no final newline",
 			"# mine\ndns_port = 10055",
 			"# mine\ndns_port = 10055\ntlds = [\"dotlane\", \"test\"]\n"},
 		{"lookalikes left alone",
-			"# tld = \"x\"\n  tlds = [\"traix\"]\n",
+			"# tld = \"x\"\n  tlds = [\"dotlane\"]\n",
 			"# tld = \"x\"\n  tlds = [\"dotlane\", \"test\"]\n"},
 	} {
 		p := filepath.Join(t.TempDir(), "config.toml")
@@ -260,7 +260,7 @@ func TestSetTLDsThroughSymlink(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks need developer mode on Windows")
 	}
-	target := write(t, "tld = \"traix\"\n")
+	target := write(t, "tld = \"dotlane\"\n")
 	link := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
@@ -278,15 +278,15 @@ func TestSetTLDsThroughSymlink(t *testing.T) {
 
 func TestPinTLDs(t *testing.T) {
 	p := write(t, "dns_port = 10055\n")
-	if err := PinTLDs(p, []string{"traix"}, "kept: the old default"); err != nil {
+	if err := PinTLDs(p, []string{"dotlane"}, "kept: the old default"); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(p)
-	if string(got) != "dns_port = 10055\n\n# kept: the old default\ntlds = [\"traix\"]\n" {
+	if string(got) != "dns_port = 10055\n\n# kept: the old default\ntlds = [\"dotlane\"]\n" {
 		t.Errorf("file = %q", got)
 	}
 	cfg, err := Load(p)
-	if err != nil || !slices.Equal(cfg.TLDs, []string{"traix"}) || !cfg.TLDsSet {
+	if err != nil || !slices.Equal(cfg.TLDs, []string{"dotlane"}) || !cfg.TLDsSet {
 		t.Errorf("reloaded %+v, %v", cfg, err)
 	}
 	if err := PinTLDs(p, []string{"Bad"}, "why"); err == nil {

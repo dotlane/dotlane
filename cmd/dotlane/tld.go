@@ -136,8 +136,8 @@ func newTLDCommand(e tldEnv) *cobra.Command {
 			"or company network may already answer (.lan, .home, .corp) need --force.",
 		Example: `  dotlane tld ls
   dotlane tld add test
-  dotlane tld use dotlane
-  dotlane tld rm traix`,
+  dotlane tld use test
+  dotlane tld rm test`,
 	}
 
 	var asJSON bool
@@ -225,7 +225,7 @@ func newTLDCommand(e tldEnv) *cobra.Command {
 		Use:     "rm <ending>",
 		Aliases: []string{"remove"},
 		Short:   "Remove a domain ending and its DNS route; sites stay, on the other endings",
-		Example: "  dotlane tld rm traix",
+		Example: "  dotlane tld rm test",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t := strings.TrimPrefix(args[0], ".")

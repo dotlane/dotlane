@@ -769,7 +769,7 @@ func (m *Linux) Routed(ctx context.Context) ([]string, error) {
 	return tlds, nil
 }
 
-// wildcards is "*.traix, *.test".
+// wildcards is "*.dotlane, *.test".
 func (m *Linux) wildcards() string {
 	w := make([]string, len(m.Cfg.TLDs))
 	for i, t := range m.Cfg.TLDs {
