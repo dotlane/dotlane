@@ -931,3 +931,70 @@ func TestUninstallRemovesDroppedEndings(t *testing.T) {
 		t.Errorf("left routed: %q\n%s", got, out)
 	}
 }
+
+// An install from before .dotlane became the default keeps .traix: its config file sets no
+// ending, and /etc/resolver/traix is Dotlane's. Install, Refresh and Upgrade all pin it before
+// anything restarts the daemon.
+func TestKeepsOldDefault(t *testing.T) {
+	for _, step := range []string{"install", "refresh", "upgrade"} {
+		t.Run(step, func(t *testing.T) {
+			m, _, out := newTestMac(t)
+			m.Cfg.TLDs = []string{"traix"} // what v0.2.0 installed with
+			if err := m.Install(context.Background()); err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			m.Cfg.TLDs, m.Cfg.TLDsSet = []string{"dotlane"}, false // the new binary's default
+			var err error
+			switch step {
+			case "install":
+				err = m.Install(context.Background())
+			case "refresh":
+				err = m.Refresh(context.Background())
+			case "upgrade":
+				m.Daemon = func(context.Context) (api.Status, error) {
+					return api.Status{PID: daemonPID, Version: "0.2.0", Started: time.Now().Add(-time.Hour)}, nil
+				}
+				m.UI = ui.Plain(out)
+				_, err = m.Upgrade(context.Background(), "0.3.0", out)
+			}
+			if err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			cfg, err := config.Load(m.ConfigPath)
+			if err != nil || strings.Join(cfg.TLDs, " ") != "traix" || strings.Join(m.Cfg.TLDs, " ") != "traix" {
+				t.Errorf("file %+v (%v), in memory %q; want traix", cfg, err, m.Cfg.TLDs)
+			}
+			if !strings.Contains(out.String(), ".traix kept") {
+				t.Errorf("not reported:\n%s", out)
+			}
+			if _, err := os.Stat(filepath.Join(m.ResolverDir, "dotlane")); err == nil {
+				t.Error("routed .dotlane too")
+			}
+		})
+	}
+}
+
+// A new install, or one whose file chose its ending, is left alone.
+func TestOldDefaultLeftAlone(t *testing.T) {
+	m, _, out := newTestMac(t)
+	m.Cfg.TLDs = []string{"dotlane"}
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if _, err := os.Stat(m.ConfigPath); err == nil {
+		t.Error("a fresh install wrote the config file")
+	}
+
+	m, _, out = newTestMac(t)
+	m.Cfg.TLDs = []string{"traix"}
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.Cfg.TLDs, m.Cfg.TLDsSet = []string{"test"}, true // chosen in the file
+	if err := m.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "kept") || strings.Join(m.Cfg.TLDs, " ") != "test" {
+		t.Errorf("pinned over the file's choice: %q\n%s", m.Cfg.TLDs, out)
+	}
+}

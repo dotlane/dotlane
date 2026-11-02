@@ -17,7 +17,7 @@ DIST=$(cd "$1" && pwd)
 cd "$(dirname "$0")/.."
 WORK=$(mktemp -d)
 TAP=dotlane-e2e/tap
-TLD=traix
+TLD=dotlane # the default: the cask installs with no config file
 SERVICE=dev.dotlane
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ENV_HINTS=1
 step() { printf '\n== %s\n' "$*"; }

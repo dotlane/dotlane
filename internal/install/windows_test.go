@@ -1042,3 +1042,21 @@ func TestSyncRoutes(t *testing.T) {
 		t.Errorf("nothing to change, yet a script ran")
 	}
 }
+
+// An install from before .dotlane became the default keeps .traix (see the macOS test).
+func TestKeepsOldDefault(t *testing.T) {
+	w, _, out := newTestWindows(t)
+	ctx := context.Background()
+	w.Cfg.TLDs = []string{"traix"}
+	if err := w.Install(ctx); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	w.Cfg.TLDs, w.Cfg.TLDsSet = []string{"dotlane"}, false
+	if err := w.Refresh(ctx); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	cfg, err := config.Load(w.ConfigPath)
+	if err != nil || strings.Join(cfg.TLDs, " ") != "traix" || !strings.Contains(out.String(), ".traix kept") {
+		t.Errorf("file %+v (%v)\n%s", cfg, err, out)
+	}
+}

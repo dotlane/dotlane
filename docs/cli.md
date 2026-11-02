@@ -68,7 +68,7 @@ commands only save the file; `dotlane install` routes it.
 with `--config <file>` or `$DOTLANE_CONFIG`, and must then exist. Unknown keys are rejected.
 
 ```toml
-tld = "traix"            # or several: tlds = ["traix", "test"]; "local" is refused
+tld = "dotlane"          # the default; or several: tlds = ["dotlane", "test"]
 dns_port = 10053         # install picks a free one if the default is taken, and saves it here
 http_port = 80
 https_port = 443
@@ -78,6 +78,10 @@ service_name = "dev.dotlane"
 
 With several endings, every site answers on each; the first is the primary, whose URL `add`,
 `up` and `ls` print first, and which `GET /v1/status` reports as `primary_tld`.
+
+Until v0.2.0 the default was `traix`. An install from then whose file sets no ending keeps it:
+the first `install`, `install --refresh` or upgraded command records `tlds = ["traix"]` in the
+file, with a comment, before the service restarts. `dotlane tld use dotlane` switches.
 
 `dotlane tld` edits the `tld`/`tlds` line in place, keeping the rest of the file. An ending set
 by hand that `dotlane tld add` would refuse or ask `--force` for still works; every command

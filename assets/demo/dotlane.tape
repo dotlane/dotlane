@@ -37,7 +37,7 @@ Type "dotlane add myapp 5173" Sleep 400ms Enter
 Wait
 Sleep 3s
 
-Type "curl https://myapp.traix" Sleep 400ms Enter
+Type "curl https://myapp.dotlane" Sleep 400ms Enter
 # Fails the recording if the page is Dotlane's 502 instead of the dev server's answer.
 Wait+Screen@20s /Hello from myapp/
 Wait

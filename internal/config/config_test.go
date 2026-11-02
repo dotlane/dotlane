@@ -23,7 +23,7 @@ func TestMissingFileGivesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"traix"}) || cfg.DNSPort != DefaultDNSPort || cfg.HTTPPort != 80 || cfg.HTTPSPort != 443 ||
+	if !slices.Equal(cfg.TLDs, []string{"dotlane"}) || cfg.TLDsSet || cfg.DNSPort != DefaultDNSPort || cfg.HTTPPort != 80 || cfg.HTTPSPort != 443 ||
 		cfg.ServiceName != "dev.dotlane" {
 		t.Errorf("defaults = %+v", cfg)
 	}
@@ -38,7 +38,7 @@ func TestPrototypeFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"test"}) || cfg.DNSPort != 10055 {
+	if !slices.Equal(cfg.TLDs, []string{"test"}) || !cfg.TLDsSet || cfg.DNSPort != 10055 {
 		t.Errorf("got %+v", cfg)
 	}
 }
@@ -273,5 +273,23 @@ func TestSetTLDsThroughSymlink(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(target); string(got) != "tlds = [\"dotlane\"]\n" {
 		t.Errorf("target = %q", got)
+	}
+}
+
+func TestPinTLDs(t *testing.T) {
+	p := write(t, "dns_port = 10055\n")
+	if err := PinTLDs(p, []string{"traix"}, "kept: the old default"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(p)
+	if string(got) != "dns_port = 10055\n\n# kept: the old default\ntlds = [\"traix\"]\n" {
+		t.Errorf("file = %q", got)
+	}
+	cfg, err := Load(p)
+	if err != nil || !slices.Equal(cfg.TLDs, []string{"traix"}) || !cfg.TLDsSet {
+		t.Errorf("reloaded %+v, %v", cfg, err)
+	}
+	if err := PinTLDs(p, []string{"Bad"}, "why"); err == nil {
+		t.Error("pinned an invalid ending")
 	}
 }
