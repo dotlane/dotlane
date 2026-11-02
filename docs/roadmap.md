@@ -20,6 +20,10 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Next
 
+- **A stable, documented control API.** The daemon's JSON API on its Unix socket (`/v1/status`,
+  `/v1/sites`) documented as a public, versioned contract, with breaking changes going to `/v2`.
+  The desktop app (`dotlane/desktop`) needs it before its first version; editor integrations
+  and scripts can then be clients of the daemon like the CLI.
 - **PHP sites.** `dotlane add shop --php ~/code/shop/public`, or `php = "8.4"` and
   `root = "public"` in `dotlane.toml`: Caddy's `php_fastcgi` in front of PHP-FPM, one pool per
   PHP version, supervised by Dotlane, using the PHP versions already installed (Homebrew, mise).
@@ -28,8 +32,8 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 - **Managed processes.** An optional `command` per site that Dotlane starts, restarts on a crash
   and logs, with the port injected (`{port}`). Never the default: a site still only needs a
   port.
-- **Done when** a Laravel app, a FastAPI app and a Vite app run side by side from one
-  `dotlane.toml`, and a Herd user moves over in minutes.
+- **The runtimes are done when** a Laravel app, a FastAPI app and a Vite app run side by side
+  from one `dotlane.toml`, and a Herd user moves over in minutes.
 
 ## Later
 
@@ -40,8 +44,6 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 - **Windows.** An NRPT rule (which needs the DNS responder on `127.0.0.1:53`), the Windows
   certificate store, a service, and checks for `http.sys` reservations. **WSL2:** documented
   paths for a browser on Windows and an app in WSL.
-- **A stable, documented control API**, so the desktop app (`dotlane/desktop`) and editor
-  integrations are clients of the daemon like the CLI.
 - **FrankenPHP** as an optional PHP runtime, downloaded and supervised rather than embedded
   (embedding needs CGO, which breaks cross-compilation).
 - **Phones and other devices.** `bind = "lan"`, a LAN DNS answer or mDNS, or a tunnel, and a way
