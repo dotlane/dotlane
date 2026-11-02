@@ -180,7 +180,17 @@ repository variable `NPM_PUBLISH`):
    authentication and disallow tokens*, then revoke any npm token left on a maintainer's
    machine (`npm token list`).
 
-**The four Linux and Windows packages** (`@dotlane/linux-*`, `@dotlane/win32-*`) are new: like
-the first three, each must be published once by hand and given a trusted publisher (steps 2 and
-4) before the release workflow can publish them. Until then, a release with `NPM_PUBLISH` on
-fails at the first of them.
+**The four Linux and Windows packages** (`@dotlane/linux-*`, `@dotlane/win32-*`) went through the
+same steps on 2026-11-02, before `v0.2.0-rc.1`. Their first publish by hand is `0.0.0-placeholder`
+(a `package.json` and a README, no binary): npm reserves `0.0.0-stage`, the version it creates
+itself while it processes a new package's first publish, and refuses it from anyone else. With
+`NPM_PUBLISH` off while doing it, so a tag cannot publish half the packages, and logged in with
+`npm login`, the rest is on the command line for each package:
+
+```bash
+npm access set mfa=publish @dotlane/linux-x64        # 2FA required, tokens disallowed
+npm trust github @dotlane/linux-x64 --file release.yml --repository dotlane/dotlane \
+  --environment release --allow-publish
+```
+
+then `npm logout`, `NPM_PUBLISH` back on, and the release tagged within two days.
