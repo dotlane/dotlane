@@ -130,7 +130,7 @@ test('packages share one version, and a pre-release is tagged next', (t) => {
     tarballs.map((f) => path.basename(f)).sort(),
     ['dotlane', ...Object.keys(PLATFORMS).map((k) => `dotlane-${k}`)].map((n) => `${n}-1.2.3-rc.4.tgz`).sort(),
   );
-  assert.ok(tarballs.length === 7 && tarballs.at(-1).endsWith('/dotlane-1.2.3-rc.4.tgz'), 'the launcher is packed last');
+  assert.ok(tarballs.length === 7 && path.basename(tarballs.at(-1)) === 'dotlane-1.2.3-rc.4.tgz', 'the launcher is packed last');
 
   const launcher = JSON.parse(fs.readFileSync(path.join(out, 'dotlane/package.json'), 'utf8'));
   assert.equal(launcher.name, 'dotlane');
