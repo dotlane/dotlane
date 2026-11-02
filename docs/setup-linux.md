@@ -50,7 +50,7 @@ before it runs:
 
 1. **Login service**: a systemd user unit, `~/.config/systemd/user/dev.dotlane.service`, which
    runs `dotlane serve` from a copy of the binary in `~/.local/share/dotlane/bin/`.
-2. **Ports 80 and 443**: `/etc/sysctl.d/50-dotlane.conf` sets
+2. **Ports 80 and 443**: `/etc/sysctl.d/50-dotlane-dev.dotlane.conf` sets
    `net.ipv4.ip_unprivileged_port_start=80`, so the service can listen on them without root. It
    only binds them on `127.0.0.1` and `::1`.
 3. **Certificate authority**: trusted in the system store (`update-ca-certificates` or
