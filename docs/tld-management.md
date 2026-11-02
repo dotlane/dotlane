@@ -1,8 +1,8 @@
 # Plan: managing domain endings
 
-Status: proposed (2026-11-02). Goal: choose, add, remove and switch domain endings (TLDs) from
+Status: agreed (2026-11-02). Goal: choose, add, remove and switch domain endings (TLDs) from
 the CLI, refuse endings that cannot work or would break the machine, and make `.dotlane` the
-default instead of `.traix`.
+default instead of `.traix`. Ships in `v0.3.0`.
 
 ## What exists today
 
@@ -25,20 +25,19 @@ default instead of `.traix`.
 ### Default: `.dotlane`, not `.dl`
 
 `.dl` is two letters. Every two-letter ending is reserved for country codes (ISO 3166-1); `DL`
-is unassigned today but can be assigned at any time, and ICANN will not delegate a two-letter
-generic. `.dotlane` is the brand, is not delegated (to be re-checked against IANA's list when
-implemented) and is long enough that a collision is unlikely. The development instance keeps
-`dldev`.
+is unassigned today but can be assigned at any time. `.dotlane` is the brand, is not delegated
+(re-checked against IANA's list when implemented) and is long enough that a collision is
+unlikely. The development instance keeps `dldev`.
 
-Existing installs that never set `tld` were relying on the `traix` default. They must keep
-`.traix`, so install/refresh pins it (see T3) before the default changes under them.
+Existing installs that never set `tld` were relying on the `traix` default. They keep `.traix`:
+install/refresh/upgrade pin it before the default changes under them, in the same pull request.
 
 ### Switching means choosing the primary ending
 
 The list stays ordered and its first entry is the **primary** ending: the one `add`, `ls` and
 `up` print, and the one a desktop app shows. Switching moves an ending to the front; the others
-keep answering, so old links keep working until they are removed. One per-site ending
-(`myapp.dotlane` but `api.test`) is out of scope: every site answers on every ending, as now.
+keep answering, so old links keep working until they are removed. A per-site ending
+(`myapp.dotlane` but `api.test`) is out of scope.
 
 ### Blocklist plus warnings, no allowlist
 
@@ -47,8 +46,8 @@ Instead, three tiers:
 
 | Tier | Endings | Why |
 | --- | --- | --- |
-| **Refused** | `local` | Multicast DNS (RFC 6762): macOS's mDNSResponder and Avahi take it before `/etc/resolver` or systemd-resolved routing |
-| | `localhost` | RFC 6761: browsers, systemd-resolved and macOS answer it themselves with loopback; Dotlane's DNS is never asked, and a cert check still works, so routing it only confuses `doctor` |
+| **Refused** | `local` | Multicast DNS (RFC 6762): mDNSResponder and Avahi take it before `/etc/resolver` or systemd-resolved routing |
+| | `localhost` | RFC 6761: browsers, systemd-resolved and macOS answer it themselves with loopback; Dotlane's DNS is never asked |
 | | `invalid`, `onion`, `arpa`, `alt` | RFC 6761 / 7686 / 9476 and reverse DNS: resolvers and browsers must fail or special-case them |
 | | Any delegated public TLD (`com`, `dev`, `app`, `io`, … about 1,450) | Routing it to 127.0.0.1 shadows real websites for the whole machine. A snapshot of IANA's list, embedded and refreshed by a `go generate` script |
 | | Any two-letter ending | Reserved for country codes; may be delegated later |
@@ -74,30 +73,58 @@ The daemon stays unprivileged and does not change routing, so the control API on
 
 ## Tasks
 
-Sizes: S under half a day, M about a day, L two or more.
+| # | Task |
+| --- | --- |
+| T1 | **Ending rules.** New `internal/tld` package: `Check(tld) (warning string, err error)` with the three tiers; embedded IANA snapshot and a `go generate` script that refreshes it; table tests per tier. `config.validate` calls it (warnings printed, not fatal, for a hand-edited file) |
+| T2 | **Config writer.** `config.SetTLDs(path, []string)` rewrites the `tld`/`tlds` line in place, keeping comments and other keys (line-based like `SetDNSPort`); creates the file when missing; writes the `tlds = [...]` form. `Config.Primary()` returns `TLDs[0]` |
+| T3 | **Pin `.traix`, then switch the default.** When the config sets no ending and the OS has Dotlane's route for `traix` (resolver file with Dotlane's content, systemd unit, NRPT rule with Dotlane's comment), write `tlds = ["traix"]` with a comment saying why. Then change the default in `config.go` |
+| T4 | **Remove one ending's route, per OS.** `unroute(tld)`: macOS removes `/etc/resolver/<tld>` when its content is Dotlane's; Linux rewrites the unit's `resolvectl domain` line and restarts it; Windows removes the NRPT rule matched by comment and namespace. Uninstall also removes routes for endings no longer in the file, found by that ownership check |
+| T5 | **Add one ending's route, per OS.** `route(tld)` from the existing per-ending install steps, without running the whole install; one UAC prompt on Windows |
+| T6 | **`dotlane tld` commands.** `ls`, `add`, `rm`, `use`: T1 check, T2 write, T5/T4 routing, the `Refresh` path to restart the daemon, and the `dotlane-check.<tld>` lookup to verify. Same step-by-step output as install |
+| T7 | **`install --tld`.** Writes the chosen ending before installing; checked by T1. No interactive prompt |
+| T8 | **Primary ending in output and API.** `add`/`up`/`ls` print the primary URL first; `/v1/status` gains `primary_tld`; `api.Site.URLs` ordered primary first |
+| T9 | **Doctor.** Warn on a warned-tier ending; flag an orphaned Dotlane route with the fix (`dotlane tld rm <tld>` or `add`) |
+| T10 | **Integration tests.** On macOS, Linux and Windows: add a second ending, resolve and curl it, `use` it, remove the first, check its route is gone, uninstall leaves nothing. Upgrade: an install with no `tld` keeps `.traix` |
+| T11 | **Docs and copy.** `.traix` → `.dotlane` in README, `docs/`, npm README; `docs/cli.md` for `tld`; `security.md` with the tiers; changelog note that existing installs keep `.traix` |
+| T12 | **Desktop roadmap.** "Domain endings: list, add, remove, choose the primary" under Next, waiting on T6 and T8 |
 
-| # | Task | Size | Needs |
-| --- | --- | --- | --- |
-| T1 | **Ending rules.** New `internal/tld` package: `Check(tld) (warning string, err error)` with the three tiers; embedded IANA snapshot (`tlds-alpha-by-domain.txt`) and a `go generate` script that refreshes it; table tests for each tier. `config.validate` calls it, so a hand-edited file is checked too (warnings only printed, not fatal, for files) | M | — |
-| T2 | **Config writer.** `config.SetTLDs(path, []string)`: rewrites the `tld`/`tlds` line in place, keeping comments and other keys (go-toml does not keep comments, so line-based like `SetDNSPort`); creates the file when missing; always writes the `tlds = [...]` form. `Config.Primary()` returns `TLDs[0]` | S | — |
-| T3 | **Pin `.traix` for existing installs, then switch the default to `.dotlane`.** In install/refresh/upgrade: when the config sets no ending and the OS has Dotlane's route for `traix` (resolver file with Dotlane's content, systemd unit, NRPT rule with Dotlane's comment), write `tlds = ["traix"]` with a comment saying why. Then change the default in `config.go` | M | T2 |
-| T4 | **Remove one ending's route, per OS.** Split the per-ending part of uninstall into `unroute(tld)`: macOS removes `/etc/resolver/<tld>` when its content is Dotlane's; Linux rewrites the unit's `resolvectl domain` line and restarts it; Windows removes the NRPT rule matched by comment and namespace. Uninstall then also removes routes for endings no longer in the file, found by that ownership check (`/etc/resolver/*` content, NRPT comment) | L | — |
-| T5 | **Add one ending's route, per OS.** Expose the existing per-ending install steps (`installResolver`, the unit rewrite, `addRuleBody`) as `route(tld)` without running the whole install; Windows batches into one UAC prompt as install does | M | — |
-| T6 | **`dotlane tld` commands.** `ls`, `add`, `rm`, `use` in `cmd/dotlane`: T1 check, T2 write, T5/T4 routing, then the `Refresh` path to restart the daemon and the existing lookup check (`dotlane-check.<tld>`) to verify. Same step-by-step output and `Ask` explanations as install. `--json` for `ls` | M | T1, T2, T4, T5 |
-| T7 | **`install --tld`.** Writes the chosen ending before installing; refuses/warns via T1. No interactive prompt (install must stay scriptable); the default is `.dotlane` | S | T1, T2, T3 |
-| T8 | **Primary ending in output and API.** `add`/`up`/`ls` print the primary URL first; `/v1/status` gains `primary_tld`; `api.Site.URLs` ordered primary first | S | T2 |
-| T9 | **Doctor.** Warn on an ending in the warned tier; flag an orphaned Dotlane route (routed but not in the config) with the fix `dotlane tld rm <tld>` or `dotlane tld add <tld>` | S | T1, T4 |
-| T10 | **Integration tests.** In `integration.sh`, `integration-linux.sh`, `integration-windows.ps1`: add a second ending, resolve and curl it, `use` it, remove the first, check its route is gone, uninstall leaves nothing. Upgrade test: an install with no `tld` keeps `.traix` | M | T6, T3 |
-| T11 | **Docs and copy.** Replace `.traix` with `.dotlane` in README, `docs/`, CLI help (`main.go`), npm README, website `index.html`, Homebrew tap; `docs/cli.md` for `tld`; `security.md` "Domain ending choice" with the tiers; CHANGELOG entry noting that existing installs keep `.traix` | M | T6 |
-| T12 | **Desktop roadmap.** Add "Domain endings: list, add, remove, choose the primary" to the desktop app's Next, waiting on T6 and T8 | S | T8 |
+## Pull requests
 
-Order: T1, T2, T4 and T5 can be done in parallel; then T3, T6, T7, T8; then T9, T10, T11, T12.
-T3 must ship in the same release as the default change, never after it.
+Following [`branching.md`](branching.md): each branch comes off `dev`, opens as a draft, is
+squash-merged into `dev`, adds its line under `## [Unreleased]` in `CHANGELOG.md`, and passes
+`scripts/check.sh` before pushing. Branches touching the installer or DNS also run the full tier
+on demand (`gh workflow run ci.yml --ref <branch>`), so a macOS or Windows break shows up there
+and not on the release pull request.
+
+| # | Branch | Tasks | CI | Needs |
+| --- | --- | --- | --- | --- |
+| 1 | `feat/tld-rules` | T1 | quick | — |
+| 2 | `feat/tld-primary` | T2, T8 | quick | — |
+| 3 | `feat/tld-routing` | T5, T4 (including the uninstall fix for dropped endings) | quick + manual full | — |
+| 4 | `feat/tld-commands` | T6, T7, T9, T10 (commands) | quick + manual full | 1, 2, 3 |
+| 5 | `feat/default-dotlane` | T3 with the default change and CLI help in `main.go`, T10 (upgrade) | quick + manual full | 2, 3 |
+| 6 | `docs/dotlane-default` | T11 | none (docs only) | 4, 5 |
+
+1, 2 and 3 can go in parallel. T3's pin and the default change stay in one pull request so one
+can never land without the other. The uninstall fix in 3 is a bug in `v0.2.0`; if it should ship
+before `v0.3.0`, it goes as `hotfix/v0.2.1` from `main` instead, then `dev` is synced.
+
+Outside this repository:
+
+- **Website and Homebrew tap**: `.traix` → `.dotlane`, merged when `v0.3.0` is published, so the
+  site never describes an unreleased default.
+- **Desktop**: T12 in its `ROADMAP.md`.
+
+## Release
+
+A minor release, `v0.3.0`: the default ending changes. `release/v0.3.0` from `dev`, rename
+`[Unreleased]`, pull request into `main` (full tier), merge commit, tag **`v0.3.0-rc.1`** for
+testers; a fix goes through `hotfix/…` into `main` and `-rc.2`. Then `v0.3.0`, and sync `dev`
+from `main`. Full steps in [`releasing.md`](releasing.md).
 
 ## Open questions
 
 - **Name-constrained CA** (core roadmap, Later): once the CA is limited to the configured
   endings, adding an ending means a new CA and a new trust prompt. `tld add` must then say so.
-- **`.internal` on managed networks:** worth suggesting, but some companies already use it
-  internally; the warning should fire only when the network's DNS answers it (a lookup before
-  routing), not always.
+- **`.internal` on managed networks:** warn only when the network's DNS already answers it (a
+  lookup before routing), not always.
