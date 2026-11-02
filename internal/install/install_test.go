@@ -1,6 +1,11 @@
 package install
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/dotlane/dotlane/internal/config"
+)
 
 func TestNewer(t *testing.T) {
 	for _, tc := range []struct {
@@ -27,5 +32,22 @@ func TestNewer(t *testing.T) {
 		if got := Newer(tc.version, tc.running); got != tc.want {
 			t.Errorf("Newer(%q, %q) = %v, want %v", tc.version, tc.running, got, tc.want)
 		}
+	}
+}
+
+func TestEndingChecks(t *testing.T) {
+	cfg := &config.Config{TLDs: []string{"test", "lan"}, Warnings: []string{".lan is often answered by routers"}}
+	checks := EndingChecks(cfg, []string{"test", "old"})
+	if len(checks) != 2 {
+		t.Fatalf("checks = %+v", checks)
+	}
+	if c := checks[0]; c.Name != "Domain ending" || c.Status != Warning || !strings.Contains(c.Detail, "routers") {
+		t.Errorf("warning check = %+v", c)
+	}
+	if c := checks[1]; c.Name != "DNS for .old" || c.Status != Warning || !strings.Contains(c.Fix, "dotlane tld rm old") {
+		t.Errorf("orphan check = %+v", c)
+	}
+	if checks := EndingChecks(&config.Config{TLDs: []string{"test"}}, []string{"test"}); len(checks) != 0 {
+		t.Errorf("all good, yet %+v", checks)
 	}
 }

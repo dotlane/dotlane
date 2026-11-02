@@ -130,6 +130,27 @@ after=$(daemon)
 [[ "$(sed -E 's/.*pid ([0-9]+).*/\1/' <<<"$before")" != "$(sed -E 's/.*pid ([0-9]+).*/\1/' <<<"$after")" ]] || fail "daemon pid unchanged after refresh"
 curl -fsS --max-time 10 "https://web.$TLD/hello.txt" >/dev/null || fail "web.$TLD not served after the refresh"
 
+step "domain endings"
+# A second ending answers at once, can become the primary, and the first can go: its resolver
+# file goes with it, and the sites stay, on the new ending.
+TLD2=dltest2
+DL tld add "$TLD2"
+[[ -e /etc/resolver/$TLD2 ]] || fail "dotlane tld add did not write /etc/resolver/$TLD2"
+body=$(curl -fsS --max-time 10 "https://web.$TLD2/hello.txt") || { why "https://web.$TLD2/hello.txt"; fail "web.$TLD2 not served after tld add"; }
+[[ "$body" == hello ]] || fail "unexpected body on .$TLD2: $body"
+DL tld use "$TLD2"
+DL ls --json | python3 -c 'import json,sys; u=next(s["urls"] for s in json.load(sys.stdin) if s["name"]=="web"); sys.exit(0 if u[0].startswith("https://web.'"$TLD2"'") else "primary URL is " + u[0])'
+DL tld rm "$TLD"
+[[ ! -e /etc/resolver/$TLD ]] || fail "dotlane tld rm left /etc/resolver/$TLD"
+curl -fsS --max-time 10 "https://web.$TLD2/hello.txt" >/dev/null || fail "web.$TLD2 not served after removing .$TLD"
+DL tld ls --json | grep -q "\"$TLD\"" && fail "dotlane tld ls still lists .$TLD"
+# Back to the first ending, so the steps below test what they always did.
+DL tld use "$TLD"
+DL tld rm "$TLD2"
+[[ ! -e /etc/resolver/$TLD2 ]] || fail "dotlane tld rm left /etc/resolver/$TLD2"
+curl -fsS --max-time 10 "https://web.$TLD/hello.txt" >/dev/null || fail "web.$TLD not served after switching back"
+echo "added, served, made primary, removed, and back"
+
 step "doctor"
 DL doctor
 

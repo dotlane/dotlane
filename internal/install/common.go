@@ -44,6 +44,25 @@ func summary(cfg *config.Config) string {
 	return cfg.ServiceName + " · " + strings.Join(tlds, " ")
 }
 
+// EndingChecks are doctor's checks of the domain endings, the same on every OS: endings the
+// config sets that dotlane tld add would refuse or warn about, and endings Dotlane still routes
+// that the config no longer lists (routed, from Installer.Routed).
+func EndingChecks(cfg *config.Config, routed []string) []Check {
+	var checks []Check
+	for _, w := range cfg.Warnings {
+		checks = append(checks, Check{Name: "Domain ending", Status: Warning, Detail: w,
+			Fix: "choose another: dotlane tld use <ending>, then dotlane tld rm <this one>"})
+	}
+	for _, t := range routed {
+		if !slices.Contains(cfg.TLDs, t) {
+			checks = append(checks, Check{Name: "DNS for ." + t, Status: Warning,
+				Detail: "still sent to Dotlane, but config.toml no longer lists it",
+				Fix:    fmt.Sprintf("dotlane tld rm %s (or dotlane tld add %s to keep it)", t, t)})
+		}
+	}
+	return checks
+}
+
 // union is a, then the entries of b that a lacks.
 func union(a, b []string) []string {
 	out := slices.Clone(a)

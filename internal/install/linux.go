@@ -715,6 +715,12 @@ func (m *Linux) installDNS(ctx context.Context) error {
 	return nil
 }
 
+// Installed implements Installer.
+func (m *Linux) Installed(ctx context.Context) bool {
+	_, err := os.Stat(m.unitPath())
+	return err == nil
+}
+
 // SyncRoutes implements Installer: the DNS unit lists every ending, so routing one more or one
 // fewer rewrites it.
 func (m *Linux) SyncRoutes(ctx context.Context) error { return m.installDNS(ctx) }
