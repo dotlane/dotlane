@@ -192,7 +192,7 @@ var (
 	namespace  = regexp.MustCompile(`Add-DnsClientNrptRule -Namespace '([^']+)'`)
 	commentVar = regexp.MustCompile(`\$comment = '([^']+)'`)
 	// removedNamespace is the ending a removal is limited to (removeRuleBody); none means all.
-	removedNamespace = regexp.MustCompile(`-Namespace -contains '([^']+)' \} \| Remove-DnsClientNrptRule`)
+	removedNamespace = regexp.MustCompile(`\$_\.Namespace -contains '([^']+)' \} \| Remove-DnsClientNrptRule`)
 )
 
 func (f *fakeWin) Elevated(_ context.Context, body string) error {
