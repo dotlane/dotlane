@@ -20,6 +20,12 @@ the release notes, and refuses a tag that has none.
 - **`primary_tld` in `GET /v1/status`**: the first of the configured endings, whose URL comes
   first in each site's `urls`.
 
+### Fixed
+
+- **`uninstall` on macOS leaving `/etc/resolver` files behind** for endings removed from
+  `config.toml` after installing: it now removes every resolver file of Dotlane's, configured or
+  not. Linux and Windows already removed all of theirs.
+
 ## [0.2.0] - 2026-11-02
 
 Linux and Windows join macOS, each on x64 and arm64: installed with npm, from the release's

@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,17 @@ func summary(cfg *config.Config) string {
 		tlds[i] = "." + t
 	}
 	return cfg.ServiceName + " · " + strings.Join(tlds, " ")
+}
+
+// union is a, then the entries of b that a lacks.
+func union(a, b []string) []string {
+	out := slices.Clone(a)
+	for _, s := range b {
+		if !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // temporaryBuild reports whether exe is a `go run` or test binary, which a login service must not

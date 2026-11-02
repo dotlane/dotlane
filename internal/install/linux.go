@@ -715,6 +715,35 @@ func (m *Linux) installDNS(ctx context.Context) error {
 	return nil
 }
 
+// SyncRoutes implements Installer: the DNS unit lists every ending, so routing one more or one
+// fewer rewrites it.
+func (m *Linux) SyncRoutes(ctx context.Context) error { return m.installDNS(ctx) }
+
+// Routed implements Installer: the endings in the DNS unit's resolvectl domain line.
+func (m *Linux) Routed(ctx context.Context) ([]string, error) {
+	have, err := os.ReadFile(m.dnsUnitPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.HasPrefix(have, []byte(marker)) {
+		return nil, nil
+	}
+	var tlds []string
+	for _, line := range strings.Split(string(have), "\n") {
+		f := strings.Fields(strings.TrimPrefix(line, "ExecStart="))
+		if len(f) < 3 || !strings.HasPrefix(line, "ExecStart=") || f[1] != "domain" || f[2] != m.dnsLink() {
+			continue
+		}
+		for _, d := range f[3:] {
+			tlds = append(tlds, strings.TrimPrefix(d, "~"))
+		}
+	}
+	return tlds, nil
+}
+
 // wildcards is "*.traix, *.test".
 func (m *Linux) wildcards() string {
 	w := make([]string, len(m.Cfg.TLDs))

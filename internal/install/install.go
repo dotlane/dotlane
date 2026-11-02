@@ -29,6 +29,13 @@ type Installer interface {
 	// sandbox, and the npm packages have no install scripts), so commands that use the daemon
 	// call it first.
 	Upgrade(ctx context.Context, version string, out io.Writer) (bool, error)
+	// SyncRoutes makes the machine send exactly the configured domain endings to Dotlane's DNS:
+	// it routes each ending that has no route yet and removes Dotlane's routes for endings the
+	// config no longer lists, asking for administrator rights only when something changes.
+	// Another tool's route is left alone.
+	SyncRoutes(ctx context.Context) error
+	// Routed lists the domain endings Dotlane's routes cover on this machine, configured or not.
+	Routed(ctx context.Context) ([]string, error)
 	// Uninstall reverses Install; purge also deletes Dotlane's state and log.
 	Uninstall(ctx context.Context, purge bool) error
 	// Doctor checks the installation and what could get in its way.

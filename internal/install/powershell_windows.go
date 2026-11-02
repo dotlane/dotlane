@@ -517,6 +517,23 @@ Clear-DnsClientCache
 `
 }
 
+// removeRuleShown is removeRuleBody as the user reads it.
+func removeRuleShown(service, tld string) []string {
+	return []string{
+		fmt.Sprintf(`Get-DnsClientNrptRule | Where-Object { $_.Comment -eq "%s" -and $_.Namespace -contains ".%s" } | Remove-DnsClientNrptRule -Force`, nrptComment(service), tld),
+		"Clear-DnsClientCache",
+	}
+}
+
+// removeRuleBody removes the service's DNS rule for tld, leaving its other rules and other
+// tools' rules alone.
+func removeRuleBody(service, tld string) string {
+	return `$comment = ` + psQuote(nrptComment(service)) + `
+Get-DnsClientNrptRule | Where-Object { $_.Comment -eq $comment -and $_.Namespace -contains ` + psQuote("."+tld) + ` } | Remove-DnsClientNrptRule -Force
+Clear-DnsClientCache
+`
+}
+
 // removeRulesBody removes every DNS rule of the service, whichever endings it was installed with.
 func removeRulesBody(service string) string {
 	return `$comment = ` + psQuote(nrptComment(service)) + `
