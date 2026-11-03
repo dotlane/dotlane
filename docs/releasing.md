@@ -63,9 +63,15 @@ CI runs at each step are in [`branching.md`](branching.md).
 4. The *Release* workflow first checks that the version has a changelog section (and stops if
    not), then runs the full test suite (unit tests, `govulncheck`, the integration
    test on a macOS runner), then GoReleaser builds and uploads everything to a **draft** release.
-   Tags with a suffix (`-rc.1`) are marked as pre-releases.
+   Tags with a suffix (`-rc.1`) are marked as pre-releases. The same job then **publishes the npm
+   packages** (when `NPM_PUBLISH` is on, see [npm](#npm)): a release goes out under `latest`, a
+   pre-release under `next`, before anyone reviews the draft. npm users get it from that moment,
+   and a version once published cannot be published again, so a broken one is fixed with a new
+   tag.
 5. Review the draft: the files are all there, `checksums.txt` verifies
    (`shasum -a 256 -c checksums.txt` after downloading), the notes read well. Then publish it.
+   Publishing makes the GitHub release public and runs the Homebrew tap update; npm already has
+   the version.
 
 A tag that fails the tests produces no release; delete the tag (`git push --delete origin <tag>`),
 fix through a pull request into `main`, and tag again.
@@ -165,7 +171,11 @@ scratch project and runs `npx dotlane` (on the machine's own OS and CPU; CI runs
 Ubuntu and Windows).
 
 The release workflow publishes with [`scripts/npm-publish.sh`](../scripts/npm-publish.sh),
-platform packages first; every merge group runs the same script with `--dry-run`.
+platform packages first, in the same job that creates the draft: npm gets the version before the
+draft is reviewed, not when it is published. Every merge group runs the same script with
+`--dry-run`. The registry can take a few minutes to list a new version (`v0.3.0`'s Windows
+packages took six); `npm view @dotlane/win32-x64@<version> version --prefer-online` shows when it
+has.
 
 **Publishing is off** until these one-time steps are done (the *Publish to npm* step checks the
 repository variable `NPM_PUBLISH`):
