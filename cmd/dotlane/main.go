@@ -51,17 +51,18 @@ func versionString() string {
 // compatible checks that this binary, at version cli, can use the daemon st describes. It fails
 // when they speak different versions of the API, naming the side to update, and warns when the
 // daemon runs a later release than this command: two installs (an older npx, another Node
-// version) leave an old command on the PATH, and the service is never downgraded to it.
-func compatible(st api.Status, cli string) (warning string, err error) {
+// version) leave an old command on the PATH, and the service is never downgraded to it. update
+// gives the command that updates this binary (updateHint).
+func compatible(st api.Status, cli string, update func() string) (warning string, err error) {
 	switch {
 	case st.APIVersion() > api.Version:
 		return "", fmt.Errorf("this dotlane (%s) is too old for the Dotlane service, which runs %s\n"+
-			"update it (npm install -g dotlane), or use the dotlane that installed the service", cli, st.Version)
+			"update it: %s\nor use the dotlane that installed the service", cli, st.Version, update())
 	case st.APIVersion() < api.Version:
 		return "", fmt.Errorf("the Dotlane service runs %s, too old for this dotlane (%s)\n"+
 			"update it: dotlane install --refresh", st.Version, cli)
 	case install.Newer(st.Version, cli):
-		return fmt.Sprintf("this is %s, older than the service (%s); update it: npm install -g dotlane", cli, st.Version), nil
+		return fmt.Sprintf("this is %s, older than the service (%s); update it: %s", cli, st.Version, update()), nil
 	}
 	return "", nil
 }
@@ -162,7 +163,7 @@ func newRoot() *cobra.Command {
 		if err != nil {
 			return c, nil // the command itself reports a daemon that is not running
 		}
-		warning, err := compatible(st, versionString())
+		warning, err := compatible(st, versionString(), updateHint)
 		if err != nil {
 			return nil, err
 		}

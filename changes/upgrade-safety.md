@@ -3,7 +3,8 @@
 - **`api` in `GET /v1/status`**: the version of the control API the daemon serves. Every command
   that uses the daemon checks it first, and stops with what to update when this `dotlane` and the
   service do not match: an older command left on the PATH (another Node version, a project's
-  `npx`), or a service that was not refreshed. A command older than the service, but compatible,
+  `npx`), with the command that updates it for how it was installed (npm, npx, pnpm, yarn,
+  Homebrew, `go install` or a clone), or a service that was not refreshed. A command older than the service, but compatible,
   warns.
 
 ### Fixed

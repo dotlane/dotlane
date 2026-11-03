@@ -116,8 +116,9 @@ Pre-releases are published under the `next` tag, so test one with `npm install -
 
 Before each command talks to the service, it checks that both speak the same version of the
 control API. When they do not, it stops and says which one to update: an older `dotlane` left on
-the PATH (another Node version, a project's `npx`) is told to update itself, an older service to
-run `dotlane install --refresh`. A command older than the service, but compatible, only warns.
+the PATH (another Node version, a project's `npx`) is told to update itself, with the command
+for how it was installed (npm, npx, a project's `node_modules`, pnpm, yarn, Homebrew, `go install`
+or a clone), an older service to run `dotlane install --refresh`. A command older than the service, but compatible, only warns.
 
 If a new release does not start, go back to the one before; `--refresh` installs whatever binary
 runs it, older or not:
