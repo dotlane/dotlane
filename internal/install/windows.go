@@ -248,6 +248,11 @@ func (w *Windows) Install(ctx context.Context) error {
 	if _, err := w.spec().xml(); err != nil {
 		return err
 	}
+	unlock, err := lockService(ctx, w.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := w.preflight(ctx); err != nil {
 		return err
 	}

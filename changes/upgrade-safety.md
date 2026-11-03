@@ -11,4 +11,5 @@
 ### Fixed
 
 - **Commands started together after an upgrade restarting the service over each other**: they now
-  take turns, and the ones that wait find it already updated.
+  take turns, and the ones that wait find it already updated. `install` and `doctor --fix` take
+  their turn too, so an automatic update no longer restarts the service in the middle of one.

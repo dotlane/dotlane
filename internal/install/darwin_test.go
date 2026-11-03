@@ -915,6 +915,61 @@ func TestUpgradeWaitsForAnotherCommand(t *testing.T) {
 	}
 }
 
+// install (and doctor --fix, which runs it) waits while another command holds the service lock,
+// such as an automatic upgrade restarting the service, and changes nothing until it has the lock.
+func TestInstallWaitsForAnotherCommand(t *testing.T) {
+	m, _, out := newTestMac(t)
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second) // the upgrading command
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan error)
+	go func() { got <- m.Install(context.Background()) }()
+	// Only the file system and the channel are looked at while Install runs: the race detector
+	// cannot see that the file lock orders this goroutine and Install's use of the fake.
+	select {
+	case err := <-got:
+		t.Fatalf("Install finished while another command held the lock: %v\n%s", err, out)
+	case <-time.After(150 * time.Millisecond):
+	}
+	if _, err := os.Stat(m.plistPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("wrote the login service while another command held the lock: %v", err)
+	}
+	unlock()
+	if err := <-got; err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if _, err := os.Stat(m.plistPath()); err != nil {
+		t.Errorf("not installed after the lock was released: %v", err)
+	}
+}
+
+// An automatic upgrade waits while install holds the lock: it does not restart the service install
+// is setting up.
+func TestUpgradeWaitsForInstall(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: "0.1.0", Started: time.Now().Add(-time.Hour)}, nil
+	}
+	fake.calls = nil
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second) // install, in another terminal
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if done, err := m.Upgrade(ctx, "0.2.0", &bytes.Buffer{}); done || err == nil {
+		t.Errorf("Upgrade = %v, %v; want it to wait for install", done, err)
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("restarted the service during install: %v", fake.calls)
+	}
+}
+
 // A command with nothing to upgrade does not wait for one that holds the lock, such as a refresh
 // waiting on a password or on the service to start.
 func TestUpgradeNotNeededDoesNotWait(t *testing.T) {

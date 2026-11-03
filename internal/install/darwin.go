@@ -204,6 +204,11 @@ func (m *Mac) Install(ctx context.Context) error {
 	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin/dotlane ./cmd/dotlane) and install from it", m.Exe)
 	}
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := m.preflight(ctx); err != nil {
 		return err
 	}
