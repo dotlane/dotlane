@@ -18,8 +18,9 @@ const serviceLockWait = time.Minute
 // upgrade, commands started together (a dev script running `dotlane up` in each package) all find
 // the old daemon, and without it each would restart the service over the others. The next one
 // waits, then finds the daemon up to date. Install, and so doctor --fix and migrate, holds it too,
-// so an automatic upgrade does not restart the service in the middle of one. It gives up when ctx ends or wait passes, and returns
-// the function that releases the lock; the OS releases it too if the command dies.
+// so an automatic upgrade does not restart the service in the middle of one. It gives up when ctx
+// ends or wait passes, and returns the function that releases the lock; the OS releases it too if
+// the command dies.
 func lockService(ctx context.Context, cfg *config.Config, wait time.Duration) (func(), error) {
 	// install takes the lock before the daemon has made its state folder; make it as the daemon
 	// would, private, and leave an existing one alone.

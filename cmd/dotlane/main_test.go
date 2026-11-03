@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
 
@@ -90,33 +91,57 @@ func TestCompatible(t *testing.T) {
 // want is the folder in this OS's form; the commands must run in any shell, Windows PowerShell 5.1
 // included.
 func TestUpdateCommand(t *testing.T) {
-	files := map[string]bool{
-		"/Users/me/app/package.json":                   true,
-		"/Users/me/bun app/package.json":               true,
-		"/Users/me/bun app/bun.lock":                   true,
-		"/Users/me/pnpm-app/package.json":              true,
-		"/Users/me/pnpm-app/pnpm-lock.yaml":            true,
-		"/Users/me/yarn-app/package.json":              true,
-		"/Users/me/yarn-app/yarn.lock":                 true,
-		"/Users/me/Library/pnpm/global/5/package.json": true,
-		"/Users/me/.config/yarn/global/package.json":   true,
-		"/Users/me/.bun/install/global/package.json":   true,
-		"/Users/me/src/dotlane/go.mod":                 true,
-		"/Users/me/My Projects/dotlane/go.mod":         true,
+	files := map[string]string{
+		"/Users/me/app/package.json":                   `{"name": "app"}`,
+		"/Users/me/bun app/package.json":               `{"name": "app"}`,
+		"/Users/me/bun app/bun.lock":                   "",
+		"/Users/me/pnpm-app/package.json":              `{"name": "app"}`,
+		"/Users/me/pnpm-app/pnpm-lock.yaml":            "",
+		"/Users/me/yarn-app/package.json":              `{"name": "app"}`,
+		"/Users/me/yarn-app/yarn.lock":                 "",
+		"/Users/me/mono/package.json":                  `{"name": "mono", "workspaces": ["packages/*"]}`,
+		"/Users/me/pnpm-mono/package.json":             `{"name": "mono"}`,
+		"/Users/me/pnpm-mono/pnpm-lock.yaml":           "",
+		"/Users/me/pnpm-mono/pnpm-workspace.yaml":      "",
+		"/Users/me/yarn-mono/package.json":             `{"workspaces": {"packages": ["apps/*"]}}`,
+		"/Users/me/yarn-mono/yarn.lock":                "",
+		"/Users/me/bun-mono/package.json":              `{"workspaces": ["apps/*"]}`,
+		"/Users/me/bun-mono/bun.lockb":                 "",
+		"/Users/me/Library/pnpm/global/5/package.json": "{}",
+		"/Users/me/.config/yarn/global/package.json":   "{}",
+		"/Users/me/.bun/install/global/package.json":   "{}",
+		"/Users/me/src/dotlane/go.mod":                 "",
+		"/Users/me/My Projects/dotlane/go.mod":         "",
 	}
-	exists := func(p string) bool { return files[filepath.ToSlash(p)] }
+	readOnly := map[string]bool{"/usr/local/lib/node_modules": true}
+	fs := hintFS{
+		exists: func(p string) bool {
+			_, ok := files[filepath.ToSlash(p)]
+			return ok
+		},
+		writable: func(p string) bool { return !readOnly[filepath.ToSlash(p)] },
+		read:     func(p string) []byte { return []byte(files[filepath.ToSlash(p)]) },
+	}
+	const where = ", where <workspace> is the one that uses dotlane"
 	for _, tc := range []struct {
 		name, goos, exe, released, built, dir, want string
 	}{
 		{name: "npm global", exe: "/opt/homebrew/lib/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "npm install -g dotlane"},
 		{name: "npm global, nvm", exe: "/Users/me/.nvm/versions/node/v22.1.0/lib/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "npm install -g dotlane"},
+		{name: "npm global, owned by root", exe: "/usr/local/lib/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "sudo npm install -g dotlane"},
 		{name: "npm global, Windows", goos: "windows", exe: "C:/Users/me/AppData/Roaming/npm/node_modules/@dotlane/win32-x64/bin/dotlane.exe", released: "0.2.0", want: "npm install -g dotlane"},
 		{name: "npm project", exe: "/Users/me/app/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/app", want: "npm install --prefix {dir} dotlane@latest"},
 		{name: "bun project, space in path", exe: "/Users/me/bun app/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/bun app", want: `bun add --cwd "{dir}" dotlane@latest`},
 		{name: "pnpm project", exe: "/Users/me/pnpm-app/node_modules/.pnpm/@dotlane+darwin-arm64@0.2.0/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/pnpm-app", want: "pnpm -C {dir} add dotlane@latest"},
 		{name: "yarn project", exe: "/Users/me/yarn-app/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/yarn-app", want: "yarn --cwd {dir} add dotlane@latest"},
+		{name: "npm workspaces", exe: "/Users/me/mono/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/mono", want: "npm install --prefix {dir} -w <workspace> dotlane@latest" + where},
+		{name: "pnpm workspaces", exe: "/Users/me/pnpm-mono/node_modules/.pnpm/@dotlane+darwin-arm64@0.2.0/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/pnpm-mono", want: "pnpm -C {dir} --filter <workspace> add dotlane@latest" + where},
+		{name: "yarn workspaces", exe: "/Users/me/yarn-mono/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/yarn-mono", want: "yarn --cwd {dir} workspace <workspace> add dotlane@latest" + where},
+		{name: "bun workspaces", exe: "/Users/me/bun-mono/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/bun-mono", want: "bun add --cwd <workspace folder> dotlane@latest, where <workspace folder> is the one in {dir} that uses dotlane"},
 		{name: "npx", exe: "/Users/me/.npm/_npx/1a2b3c/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "npx dotlane@latest"},
 		{name: "bunx", exe: "/private/var/folders/xy/T/bunx-501-dotlane@latest/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "bunx dotlane@latest"},
+		{name: "Volta", exe: "/Users/me/.volta/tools/image/packages/dotlane/lib/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "volta install dotlane@latest"},
+		{name: "Volta, Windows", goos: "windows", exe: "C:/Users/me/AppData/Local/Volta/tools/image/packages/dotlane/node_modules/@dotlane/win32-x64/bin/dotlane.exe", released: "0.2.0", want: "volta install dotlane@latest"},
 		{name: "pnpm global", exe: "/Users/me/Library/pnpm/global/5/node_modules/.pnpm/@dotlane+darwin-arm64@0.2.0/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "pnpm add -g dotlane@latest"},
 		{name: "yarn global", exe: "/Users/me/.config/yarn/global/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "yarn global add dotlane@latest"},
 		{name: "bun global", exe: "/Users/me/.bun/install/global/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "bun add -g dotlane@latest"},
@@ -126,6 +151,8 @@ func TestUpdateCommand(t *testing.T) {
 		{name: "go install", exe: "/Users/me/go/bin/dotlane", built: "v0.2.0", want: "go install github.com/dotlane/dotlane/cmd/dotlane@latest"},
 		{name: "clone", exe: "/Users/me/src/dotlane/bin/dotlane", built: "v0.0.0-20261103101010-abcdefabcdef+dirty", dir: "/Users/me/src/dotlane",
 			want: "git -C {dir} pull && go build -C {dir} -o bin/dotlane ./cmd/dotlane"},
+		{name: "clone at a release tag", exe: "/Users/me/src/dotlane/bin/dotlane", dir: "/Users/me/src/dotlane", // builtVersion gives ""
+			want: "git -C {dir} pull && go build -C {dir} -o bin/dotlane ./cmd/dotlane"},
 		{name: "clone, Windows", goos: "windows", exe: "/Users/me/My Projects/dotlane/bin/dotlane.exe", built: "(devel)", dir: "/Users/me/My Projects/dotlane",
 			want: `git -C "{dir}" pull, then go build -C "{dir}" -o bin\dotlane.exe .\cmd\dotlane`},
 		{name: "clone, elsewhere", exe: "/tmp/dotlane", built: "(devel)", want: "git pull && go build -o bin/dotlane ./cmd/dotlane, in your clone"},
@@ -133,12 +160,27 @@ func TestUpdateCommand(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			want := strings.ReplaceAll(tc.want, "{dir}", filepath.FromSlash(tc.dir))
-			if got := updateCommand(tc.goos, filepath.FromSlash(tc.exe), tc.released, tc.built, exists); got != want {
+			if got := updateCommand(tc.goos, filepath.FromSlash(tc.exe), tc.released, tc.built, fs); got != want {
 				t.Errorf("got %q, want %q", got, want)
 			}
 			if tc.goos == "windows" && strings.Contains(want, "&&") {
 				t.Errorf("Windows PowerShell 5.1 has no &&: %q", want)
 			}
 		})
+	}
+}
+
+// Since Go 1.24 a build in a clone at a clean release tag records that tag, like go install; only
+// the version control settings tell them apart.
+func TestBuiltVersion(t *testing.T) {
+	installed := &debug.BuildInfo{Main: debug.Module{Version: "v0.2.0"}}
+	if got := builtVersion(installed); got != "v0.2.0" {
+		t.Errorf("go install: %q", got)
+	}
+	cloned := &debug.BuildInfo{Main: debug.Module{Version: "v0.2.0"}, Settings: []debug.BuildSetting{
+		{Key: "vcs", Value: "git"}, {Key: "vcs.revision", Value: "fede79627908"}, {Key: "vcs.modified", Value: "false"},
+	}}
+	if got := builtVersion(cloned); got != "" {
+		t.Errorf("clone at a tag: %q, want none", got)
 	}
 }

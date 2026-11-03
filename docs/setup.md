@@ -117,10 +117,12 @@ the middle of one.
 Pre-releases are published under the `next` tag, so test one with `npm install -g dotlane@next`.
 
 Before each command talks to the service, it checks that both speak the same version of the
-control API. When they do not, it stops and says which one to update: an older `dotlane` left on
-the PATH (another Node version, a project's `npx`) is told to update itself, with the command
-for how it was installed (npm, npx, pnpm, yarn or bun, globally or in a project, bunx, Homebrew,
-`go install` or a clone; written to run in any shell, Windows PowerShell 5.1 included), an older service to run `dotlane install --refresh`. A command older than the service, but compatible, only warns.
+control API. When they do not, it stops and says which one to update. An older `dotlane` left on
+the PATH (another Node version, a project's `npx`) is told the command that updates it, for how it
+was installed: npm (with `sudo` when its global folder belongs to root), npx, pnpm, yarn, bun or
+bunx, globally, in a project or in one of a monorepo's workspaces, Volta, Homebrew, `go install`
+or a clone. Each runs in any shell, Windows PowerShell 5.1 included. An older service is told to
+run `dotlane install --refresh`. A command older than the service, but compatible, only warns.
 
 If a new release does not start, go back to the one before; `--refresh` installs whatever binary
 runs it, older or not:
