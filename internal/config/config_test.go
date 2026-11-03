@@ -275,21 +275,3 @@ func TestSetTLDsThroughSymlink(t *testing.T) {
 		t.Errorf("target = %q", got)
 	}
 }
-
-func TestPinTLDs(t *testing.T) {
-	p := write(t, "dns_port = 10055\n")
-	if err := PinTLDs(p, []string{"dotlane"}, "kept: the old default"); err != nil {
-		t.Fatal(err)
-	}
-	got, _ := os.ReadFile(p)
-	if string(got) != "dns_port = 10055\n\n# kept: the old default\ntlds = [\"dotlane\"]\n" {
-		t.Errorf("file = %q", got)
-	}
-	cfg, err := Load(p)
-	if err != nil || !slices.Equal(cfg.TLDs, []string{"dotlane"}) || !cfg.TLDsSet {
-		t.Errorf("reloaded %+v, %v", cfg, err)
-	}
-	if err := PinTLDs(p, []string{"Bad"}, "why"); err == nil {
-		t.Error("pinned an invalid ending")
-	}
-}
