@@ -38,6 +38,9 @@ var (
 	date    = ""
 )
 
+// supportURL is printed once, at the end of dotlane install (README.md, Support).
+const supportURL = "https://www.buymeacoffee.com/pedrodee"
+
 func versionString() string {
 	if version != "" {
 		return version
@@ -481,7 +484,13 @@ func newRoot() *cobra.Command {
 			if refresh {
 				return i.Refresh(cmd.Context())
 			}
-			return i.Install(cmd.Context())
+			if err := i.Install(cmd.Context()); err != nil {
+				return err
+			}
+			// Once, after a full install only: never on --refresh or any everyday command.
+			out := ui.New(cmd.OutOrStdout())
+			out.Line("%s", out.Dim("Dotlane is free and open source. If it saves you time: "+supportURL))
+			return nil
 		},
 	}
 	install.Flags().StringVar(&installTLD, "tld", "", "make this domain ending the primary one first (saved in config.toml)")

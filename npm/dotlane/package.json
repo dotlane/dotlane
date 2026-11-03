@@ -10,6 +10,7 @@
     "directory": "npm/dotlane"
   },
   "bugs": "https://github.com/dotlane/dotlane/issues",
+  "funding": "https://www.buymeacoffee.com/pedrodee",
   "keywords": [
     "https",
     "local development",

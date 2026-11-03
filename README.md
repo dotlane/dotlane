@@ -193,6 +193,12 @@ The same flow as text:
 | `files/caddy/sites/myapp.caddy` | `~/.config/caddy/sites/myapp.caddy` (written by `dotlane add`) |
 | `files/resolver/dotlane` | `/etc/resolver/dotlane` (root-owned) |
 
+## Support
+
+Dotlane is free and open source. If it saves you time, you can buy me a coffee:
+
+<a href="https://www.buymeacoffee.com/pedrodee" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217"></a>
+
 ## Licence
 
 Apache-2.0 ([`LICENSE`](LICENSE), [`NOTICE`](NOTICE)), the same licence as Caddy, which the binary

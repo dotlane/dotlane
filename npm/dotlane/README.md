@@ -27,3 +27,5 @@ Node launcher: npm installs the binary for your machine from `@dotlane/darwin-ar
 `node_modules`, so the service keeps running whatever happens to the project.
 
 Documentation, source and licence (Apache-2.0): https://github.com/dotlane/dotlane
+
+If Dotlane saves you time, you can [buy me a coffee](https://www.buymeacoffee.com/pedrodee).
