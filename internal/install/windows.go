@@ -664,6 +664,11 @@ func containsLoopback(addrs []string) bool {
 // CA's keys) and the log.
 func (w *Windows) Uninstall(ctx context.Context, purge bool) error {
 	w.UI.Title("Uninstalling Dotlane", w.summary())
+	unlock, err := lockUninstall(ctx, w.Cfg)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	name := w.Cfg.ServiceName
 
 	var steps []adminStep
@@ -703,6 +708,7 @@ func (w *Windows) Uninstall(ctx context.Context, purge bool) error {
 	}
 
 	if purge {
+		unlock()
 		if err := removeAll(w.Cfg.StateDir); err != nil {
 			return err
 		}

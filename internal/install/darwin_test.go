@@ -944,6 +944,50 @@ func TestInstallWaitsForAnotherCommand(t *testing.T) {
 	}
 }
 
+// Uninstall waits while another command holds the lock, so an automatic upgrade does not put back
+// the service it removes.
+func TestUninstallWaitsForAnotherCommand(t *testing.T) {
+	m, _, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second) // the upgrading command
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan error)
+	go func() { got <- m.Uninstall(context.Background(), true) }()
+	select {
+	case err := <-got:
+		t.Fatalf("Uninstall finished while another command held the lock: %v\n%s", err, out)
+	case <-time.After(150 * time.Millisecond):
+	}
+	if _, err := os.Stat(m.plistPath()); err != nil {
+		t.Fatalf("removed the login service while another command held the lock: %v", err)
+	}
+	unlock()
+	if err := <-got; err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, p := range []string{m.plistPath(), m.Cfg.StateDir} {
+		if _, err := os.Stat(p); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s kept after uninstall --purge", p)
+		}
+	}
+}
+
+// Uninstall with nothing installed does not leave a state folder behind for its lock.
+func TestUninstallNothingLeavesNoState(t *testing.T) {
+	m, _, out := newTestMac(t)
+	os.RemoveAll(m.Cfg.StateDir)
+	if err := m.Uninstall(context.Background(), false); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if _, err := os.Stat(m.Cfg.StateDir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("uninstall made %s: %v", m.Cfg.StateDir, err)
+	}
+}
+
 // An automatic upgrade waits while install holds the lock: it does not restart the service install
 // is setting up.
 func TestUpgradeWaitsForInstall(t *testing.T) {

@@ -487,6 +487,11 @@ func containsLoopback(addrs []string) bool {
 // CA's keys) and the log.
 func (m *Mac) Uninstall(ctx context.Context, purge bool) error {
 	m.UI.Title("Uninstalling Dotlane", m.summary())
+	unlock, err := lockUninstall(ctx, m.Cfg)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	removed := false
 	if _, err := m.Runner.Run(ctx, "/bin/launchctl", "print", m.target()); err == nil {
@@ -528,6 +533,7 @@ func (m *Mac) Uninstall(ctx context.Context, purge bool) error {
 	}
 
 	if purge {
+		unlock()
 		if err := os.RemoveAll(m.Cfg.StateDir); err != nil {
 			return err
 		}

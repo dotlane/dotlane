@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/dotlane/dotlane/internal/config"
@@ -19,8 +20,8 @@ const serviceLockWait = time.Minute
 // the old daemon, and without it each would restart the service over the others. The next one
 // waits, then finds the daemon up to date. Install, and so doctor --fix and migrate, holds it too,
 // so an automatic upgrade does not restart the service in the middle of one. It gives up when ctx
-// ends or wait passes, and returns the function that releases the lock; the OS releases it too if
-// the command dies.
+// ends or wait passes, and returns the function that releases the lock, which may be called more
+// than once; the OS releases it too if the command dies.
 func lockService(ctx context.Context, cfg *config.Config, wait time.Duration) (func(), error) {
 	// install takes the lock before the daemon has made its state folder; make it as the daemon
 	// would, private, and leave an existing one alone.
@@ -41,7 +42,7 @@ func lockService(ctx context.Context, cfg *config.Config, wait time.Duration) (f
 			return nil, err
 		}
 		if locked {
-			return func() { f.Close() }, nil
+			return sync.OnceFunc(func() { f.Close() }), nil
 		}
 		if time.Now().After(deadline) {
 			f.Close()
@@ -54,4 +55,15 @@ func lockService(ctx context.Context, cfg *config.Config, wait time.Duration) (f
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+// lockUninstall is lockService for uninstall, so an automatic upgrade does not put back the service
+// it is removing. With no state folder there is no lock to wait for, and uninstall leaves none
+// behind. uninstall --purge deletes the folder, lock and all, and Windows cannot delete an open
+// file, so it releases the lock first.
+func lockUninstall(ctx context.Context, cfg *config.Config) (func(), error) {
+	if _, err := os.Stat(cfg.StateDir); err != nil {
+		return func() {}, nil
+	}
+	return lockService(ctx, cfg, serviceLockWait)
 }

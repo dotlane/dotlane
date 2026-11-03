@@ -110,9 +110,9 @@ The package manager replaces the `dotlane` command, but cannot restart the servi
 `dotlane add`, `rm`, `ls`, `up` or `down` sees that the service runs an older release, updates its
 copy of the binary and restarts it, without a password (`DOTLANE_NO_AUTO_REFRESH=1` turns that
 off). To do it right away instead, run `dotlane install --refresh`. Commands started together
-take turns: one restarts the service, the others wait for it. `dotlane install` and
-`dotlane doctor --fix` take their turn too, so an automatic update never restarts the service in
-the middle of one.
+take turns: one restarts the service, the others wait for it. `dotlane install`,
+`dotlane doctor --fix` and `dotlane uninstall` take their turn too, so an automatic update never
+restarts the service in the middle of one.
 
 Pre-releases are published under the `next` tag, so test one with `npm install -g dotlane@next`.
 
