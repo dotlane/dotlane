@@ -11,6 +11,11 @@ people and agents can work in parallel without conflicts or a CI run for every m
 - **`release/vX.Y`**, only when needed: a maintenance branch cut from a tag, for a patch to a
   version that `main` has already moved past (Patches, below).
 
+![Branches, pull requests, CI and releases: three branches from main, quick CI on each pull request, the merge queue running the full tier once for the group, one pull request taken out, squash commits on main, then the release candidate and release tags](diagrams/branching-flow.svg)
+
+The diagram plays through a full cycle; its source is
+[`diagrams/branching-flow.py`](diagrams/branching-flow.py). In short:
+
 ```
 feat/x ─┐  feat/y ─┐  fix/z ─┐
         ▼          ▼         ▼
@@ -20,6 +25,17 @@ main  ───●──────────●─────●───�
          │       (x, y, z squashed)   │
       v0.3.0-rc.1                  v0.3.0
 ```
+
+Why one long-lived branch is enough: nothing reaches users from `main` itself, only from tags.
+The merge queue tests every group together before it lands, release candidates give testers a
+build before the release, and a `release/vX.Y` branch appears only when an old version needs a
+patch. A second permanent branch (`dev`, `staging`) would bring back the syncing and the
+conflicts without adding a check that the queue and the tags don't already make.
+
+The one trade-off: `main` is the default branch, so GitHub shows the latest code and docs, which
+may describe features not released yet. The docs as released are at each tag
+(`https://github.com/dotlane/dotlane/tree/v0.3.0`), and the release notes say what each version
+holds.
 
 ## Day to day
 
