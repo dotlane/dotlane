@@ -1,15 +1,19 @@
 name: CI
 
-# Pull requests only, into dev or main (docs/branching.md). No push trigger: a merge reruns what
-# its pull request already ran, and release.yml reruns everything on a v* tag before publishing.
+# Pull requests and the merge queue (docs/branching.md). No push trigger: what lands on main is
+# exactly what its merge group tested, and release.yml reruns everything on a v* tag before
+# publishing.
 on:
   pull_request:
-    branches: [dev, main]
+    # main, and the maintenance branches a patch for an older version goes through.
+    branches: [main, "release/**"]
     # The default three, plus leaving draft: drafts run nothing until they are ready.
     types: [opened, synchronize, reopened, ready_for_review]
+  # The merge queue tests each group of pull requests on top of main before merging it.
+  merge_group:
   # release.yml runs the same tests before publishing a release.
   workflow_call:
-  # The full suite on any branch, before opening a release pull request:
+  # The full suite on any branch, before a risky change waits for the queue:
   # `gh workflow run ci.yml --ref <branch>`.
   workflow_dispatch:
 
@@ -18,7 +22,8 @@ permissions:
   contents: read
 
 # A new push to a branch or pull request cancels that branch's older runs, so stale runs do not
-# hold the few macOS runners the plan allows.
+# hold the few macOS runners the plan allows. Each merge group has a ref of its own, so the queue's
+# runs never cancel each other.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -26,13 +31,13 @@ concurrency:
 jobs:
   changes:
     # Picks the tier (docs/branching.md, CI):
-    # - run: the quick Linux tier (test, integration-linux). Every run except a draft pull request
-    #   and a docs-only pull request into dev.
+    # - run: the quick Linux tier (test, integration-linux). Every run except a draft and a
+    #   docs-only pull request or merge group.
     # - full: everything else, the macOS, Windows, distro and package jobs (a macOS minute costs ten
     #   Linux minutes on a private repository, Windows two). For a release tag or a manual run,
-    #   always; for a pull request into main (a release or a hotfix), when it changes more than
-    #   docs; for a pull request into dev, never: the release pull request runs them once for the
-    #   whole batch.
+    #   always; for a merge group or a pull request into a release/ branch, when it changes more
+    #   than docs; for a pull request into main, never: its merge group runs them, once for every
+    #   pull request in the group.
     # The rulesets require only gate, which checks the outcome against this tier.
     runs-on: ubuntu-latest
     outputs:
@@ -47,25 +52,32 @@ jobs:
         env:
           BASE: ${{ github.base_ref }}
           DRAFT: ${{ github.event.pull_request.draft }}
+          QUEUE_BASE: ${{ github.event.merge_group.base_sha }}
         run: |
           run=true draft=false
+          docs='\.md$|^docs/|^assets/demo/|^\.github/ISSUE_TEMPLATE/|^changes/'
           if [[ $GITHUB_REF == refs/tags/* || $GITHUB_EVENT_NAME == workflow_dispatch ]]; then
             full=true
-          elif [[ $GITHUB_EVENT_NAME == pull_request ]]; then
-            if [[ $DRAFT == true ]]; then
-              run=false full=false draft=true
+          elif [[ $GITHUB_EVENT_NAME == pull_request && $DRAFT == true ]]; then
+            run=false full=false draft=true
+          elif [[ $GITHUB_EVENT_NAME == pull_request || $GITHUB_EVENT_NAME == merge_group ]]; then
+            if [[ $GITHUB_EVENT_NAME == merge_group ]]; then
+              # A group holds one commit per pull request; diff it against the main it sits on.
+              git fetch -q --no-tags --depth=1 origin "$QUEUE_BASE"
+              from=$QUEUE_BASE
             else
               # The merge commit's first parent is the base branch, so this diff is the pull request.
-              code=$(git diff --name-only HEAD^1 HEAD | grep -vE '\.md$|^docs/|^assets/demo/|^\.github/ISSUE_TEMPLATE/' || true)
-              printf 'Changed outside the docs:\n%s\n' "${code:-(nothing)}"
-              if [[ $BASE == main ]]; then
-                # Docs only still runs the quick tier into main: it is what gets released.
-                if [[ -n $code ]]; then full=true; else full=false; fi
-              else
-                # Docs only into dev runs nothing; the release pull request tests the batch.
-                if [[ -z $code ]]; then run=false; fi
-                full=false
-              fi
+              from=HEAD^1
+            fi
+            code=$(git diff --name-only "$from" HEAD | grep -vE "$docs" || true)
+            printf 'Changed outside the docs:\n%s\n' "${code:-(nothing)}"
+            # Docs only runs nothing: there is nothing for the tests to find.
+            if [[ -z $code ]]; then run=false; fi
+            # Into main the full tier waits for the merge group; a release/ branch has no queue.
+            if [[ -n $code && ( $GITHUB_EVENT_NAME == merge_group || $BASE == release/* ) ]]; then
+              full=true
+            else
+              full=false
             fi
           else
             full=false
@@ -82,16 +94,6 @@ jobs:
     if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
-      # Here rather than in changes, so a wrong base fails a job named for it; gate fails too.
-      - name: Only release, hotfix and Dependabot branches go into main
-        if: github.base_ref == 'main'
-        env:
-          HEAD: ${{ github.head_ref }}
-        run: |
-          if [[ ! $HEAD =~ ^(release|hotfix|dependabot)/ ]]; then
-            echo "::error::$HEAD targets main. Open it against dev instead (docs/branching.md)."
-            exit 1
-          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -250,7 +252,8 @@ jobs:
         run: scripts/npm-e2e.sh
 
   release-snapshot:
-    # GoReleaser's dry run on every release and hotfix pull request, so .goreleaser.yaml cannot rot between releases.
+    # GoReleaser's dry run on every merge group that changes code, so .goreleaser.yaml cannot rot
+    # between releases.
     # Linux cross-compiles the macOS and Windows binaries (CGO_ENABLED=0) at a tenth of the macOS minutes.
     # Full tier only; not on a release tag (release.yml calls this file as a push), which builds the
     # real thing.
@@ -272,8 +275,8 @@ jobs:
         # third-party actions (docs/security-guide.md, workflow rules).
         run: scripts/install-release-tools.sh "$RUNNER_TEMP/bin"
       - run: goreleaser check
-      - name: CHANGELOG.md has an Unreleased section
-        run: grep -q '^## \[Unreleased\]' CHANGELOG.md
+      - name: The changelog fragments collect
+        run: scripts/changelog.sh check
       - run: goreleaser release --snapshot --clean
       - name: Verify checksums and archives
         working-directory: dist
@@ -324,8 +327,8 @@ jobs:
     # Fedora and the Arch package on Arch, each installed with the distribution's own package manager
     # in a container that boots systemd. dotlane install then runs from /usr/bin, the end-to-end test
     # runs against it (minus the steps that rebuild the binary), and removing the package must take
-    # /usr/bin/dotlane with it (scripts/integration-linux-container.sh, PACKAGE). Pull requests only,
-    # like release-snapshot; Arch uses the same two pins as integration-linux-distros.
+    # /usr/bin/dotlane with it (scripts/integration-linux-container.sh, PACKAGE). Not on a tag, like
+    # release-snapshot; Arch uses the same two pins as integration-linux-distros.
     name: linux-packages (${{ matrix.distro }})
     needs: release-snapshot
     runs-on: ubuntu-latest
@@ -368,7 +371,7 @@ jobs:
     # The snapshot's cask on a throwaway Mac, the way a user meets it: brew install, dotlane
     # install, a site, brew upgrade (the next command restarts the service on the new version),
     # then dotlane uninstall --purge and brew uninstall --zap leave nothing. See
-    # scripts/brew-e2e.sh. Pull requests only, like release-snapshot; Intel, like integration.
+    # scripts/brew-e2e.sh. Not on a tag, like release-snapshot; Intel, like integration.
     needs: [release-snapshot, changes]
     if: needs.changes.outputs.full == 'true'
     runs-on: macos-15-intel
@@ -389,9 +392,9 @@ jobs:
     # The one check the rulesets require (docs/branching.md, Guards). A ruleset counts a skipped
     # check as passed, and it reads the newest check of that name on the head commit, even one from
     # an older run. So a draft fails here instead of skipping its jobs: when it is marked ready, this
-    # failure stays the newest gate until the new run's gate has seen the tier pass, and auto-merge
-    # waits for it. Skipped, which passes, only for a docs-only pull request into dev. always():
-    # it also runs, and fails, when a job it needs failed or the run was cancelled.
+    # failure stays the newest gate until the new run's gate has seen the tier pass, and the queue
+    # waits for it. Skipped, which passes, only for a docs-only pull request or merge group.
+    # always(): it also runs, and fails, when a job it needs failed or the run was cancelled.
     needs:
       - changes
       - test
