@@ -170,6 +170,11 @@ func (w *Windows) Refresh(ctx context.Context) error {
 	if temporaryBuild(w.Exe) {
 		return fmt.Errorf("%s is a temporary build; refresh from a built binary", w.Exe)
 	}
+	unlock, err := lockService(ctx, w.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := w.finishService(ctx, true); err != nil {
 		return err
 	}
@@ -203,6 +208,11 @@ func (w *Windows) Upgrade(ctx context.Context, version string, out io.Writer) (b
 	if _, err := os.Stat(w.serviceExe()); err != nil {
 		return false, nil
 	}
+	unlock, err := lockService(ctx, w.Cfg, serviceLockWait)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
 	st, err := w.Daemon(ctx)
 	if err != nil || !Newer(version, st.Version) {
 		return false, nil

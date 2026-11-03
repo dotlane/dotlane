@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -871,6 +872,46 @@ func TestUpgrade(t *testing.T) {
 	}
 	if !strings.Contains(other.String(), "it runs 0.1.0, this is 0.2.0") || out.Len() != 0 {
 		t.Errorf("report went to the wrong place:\nwriter:\n%s\nstdout:\n%s", other, out)
+	}
+}
+
+// Commands started together after an upgrade: the first restarts the service while the others
+// wait for it, then find the daemon on the new release and leave it alone.
+func TestUpgradeWaitsForAnotherCommand(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	var running atomic.Value
+	running.Store("0.1.0")
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: running.Load().(string), Started: time.Now().Add(-time.Hour)}, nil
+	}
+	os.WriteFile(m.Exe, []byte("dotlane build 2"), 0o755)
+	fake.calls = nil
+
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second) // the first command
+	if err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		done bool
+		err  error
+	}
+	got := make(chan result)
+	go func() {
+		done, err := m.Upgrade(context.Background(), "0.2.0", &bytes.Buffer{})
+		got <- result{done, err}
+	}()
+	time.Sleep(150 * time.Millisecond)
+	running.Store("0.2.0") // the first command restarted it
+	unlock()
+
+	if r := <-got; r.done || r.err != nil {
+		t.Errorf("Upgrade = %v, %v", r.done, r.err)
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("restarted it again: %v", fake.calls)
 	}
 }
 

@@ -155,6 +155,11 @@ func (m *Mac) Refresh(ctx context.Context) error {
 	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; refresh from a built binary", m.Exe)
 	}
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := m.installService(ctx); err != nil {
 		return err
 	}
@@ -170,6 +175,11 @@ func (m *Mac) Upgrade(ctx context.Context, version string, out io.Writer) (bool,
 	if _, err := os.Stat(m.plistPath()); err != nil {
 		return false, nil
 	}
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
 	st, err := m.Daemon(ctx)
 	if err != nil || !Newer(version, st.Version) {
 		return false, nil
