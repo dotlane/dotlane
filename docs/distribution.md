@@ -29,10 +29,10 @@ later, sit on top of it. How to cut a release is in [`releasing.md`](releasing.m
           │  dotlane-*.tgz (seven)    the npm packages     │
           └───────┬────────────────────────────┬───────────┘
                   │                            │
-    publishing the draft runs               npm publish (by hand until the
-    tap.yml, which commits the cask         repository is public; then the
-                  │                         release workflow, with trusted
-                  │                         publishing)
+    publishing the draft runs               the release workflow runs npm
+    tap.yml, which commits the cask         publish (trusted publishing),
+                  │                         before the draft is reviewed
+                  │                            │
                   ▼                            ▼
        dotlane/homebrew-tap               npmjs.com
        Casks/dotlane.rb, pointing         dotlane                 a small Node launcher
@@ -53,6 +53,10 @@ later, sit on top of it. How to cut a release is in [`releasing.md`](releasing.m
   GoReleaser built for that tag; nothing is rebuilt per channel.
 - **The GitHub Release is the source of truth.** The cask downloads the release's archives and
   checks their SHA-256; the npm platform packages contain the same binary.
+- **npm gets a version first.** The release workflow publishes the npm packages in the job that
+  creates the draft, so a release is on npm under `latest` (a pre-release under `next`) while the
+  GitHub release is still a draft. Publishing the draft only makes the GitHub release public and
+  updates the tap.
 - **Pre-releases** (`v0.1.0-rc.3`) stay drafts and go to npm under the `next` tag; the tap only
   changes when a release (not a pre-release) is published.
 - **Upgrades:** `brew upgrade` or `npm install -g dotlane` replaces the binary; the next `add`,
