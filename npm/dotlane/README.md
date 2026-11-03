@@ -21,9 +21,10 @@ npm install --save-dev dotlane
 npx dotlane up
 ```
 
-macOS (Apple Silicon and Intel) for now; Linux and Windows are planned. This package is a small
-Node launcher: npm installs the binary for your machine from `@dotlane/darwin-arm64` or
-`@dotlane/darwin-x64`, with no install scripts. `dotlane install` copies the binary out of
+macOS, Linux and Windows, on x64 and arm64 (Linux needs systemd-resolved). This package is a
+small Node launcher: npm installs the binary for your machine from one of the `@dotlane/*`
+platform packages (`darwin`, `linux` or `win32`, each `x64` or `arm64`), with no install
+scripts. `dotlane install` copies the binary out of
 `node_modules`, so the service keeps running whatever happens to the project.
 
 Documentation, source and licence (Apache-2.0): https://github.com/dotlane/dotlane
