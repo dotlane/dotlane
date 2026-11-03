@@ -4,7 +4,8 @@
   that uses the daemon checks it first, and stops with what to update when this `dotlane` and the
   service do not match: an older command left on the PATH (another Node version, a project's
   `npx`), with the command that updates it for how it was installed (npm, npx, pnpm, yarn,
-  Homebrew, `go install` or a clone), or a service that was not refreshed. A command older than the service, but compatible,
+  bun or bunx, globally or in a project, Homebrew, `go install` or a clone, in a form any shell
+  runs, Windows PowerShell 5.1 included), or a service that was not refreshed. A command older than the service, but compatible,
   warns.
 
 ### Fixed

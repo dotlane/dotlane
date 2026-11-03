@@ -86,35 +86,58 @@ func TestCompatible(t *testing.T) {
 	}
 }
 
-// The update hint follows the install: where the binary is, and how it was built.
+// The update hint follows the install: where the binary is, and how it was built. {dir} in a
+// want is the folder in this OS's form; the commands must run in any shell, Windows PowerShell 5.1
+// included.
 func TestUpdateCommand(t *testing.T) {
 	files := map[string]bool{
 		"/Users/me/app/package.json":                   true,
+		"/Users/me/bun app/package.json":               true,
+		"/Users/me/bun app/bun.lock":                   true,
+		"/Users/me/pnpm-app/package.json":              true,
+		"/Users/me/pnpm-app/pnpm-lock.yaml":            true,
+		"/Users/me/yarn-app/package.json":              true,
+		"/Users/me/yarn-app/yarn.lock":                 true,
 		"/Users/me/Library/pnpm/global/5/package.json": true,
 		"/Users/me/.config/yarn/global/package.json":   true,
+		"/Users/me/.bun/install/global/package.json":   true,
 		"/Users/me/src/dotlane/go.mod":                 true,
+		"/Users/me/My Projects/dotlane/go.mod":         true,
 	}
 	exists := func(p string) bool { return files[filepath.ToSlash(p)] }
 	for _, tc := range []struct {
-		name, exe, released, built, want string
+		name, goos, exe, released, built, dir, want string
 	}{
-		{"npm global", "/opt/homebrew/lib/node_modules/@dotlane/darwin-arm64/bin/dotlane", "0.2.0", "", "npm install -g dotlane"},
-		{"npm global, nvm", "/Users/me/.nvm/versions/node/v22.1.0/lib/node_modules/@dotlane/darwin-arm64/bin/dotlane", "0.2.0", "", "npm install -g dotlane"},
-		{"npm global, Windows", "C:/Users/me/AppData/Roaming/npm/node_modules/@dotlane/win32-x64/bin/dotlane.exe", "0.2.0", "", "npm install -g dotlane"},
-		{"project", "/Users/me/app/node_modules/@dotlane/darwin-arm64/bin/dotlane", "0.2.0", "", "cd /Users/me/app && npm install dotlane@latest"},
-		{"npx", "/Users/me/.npm/_npx/1a2b3c/node_modules/@dotlane/darwin-arm64/bin/dotlane", "0.2.0", "", "npx dotlane@latest"},
-		{"pnpm global", "/Users/me/Library/pnpm/global/5/node_modules/.pnpm/@dotlane+darwin-arm64@0.2.0/node_modules/@dotlane/darwin-arm64/bin/dotlane", "0.2.0", "", "pnpm add -g dotlane@latest"},
-		{"yarn global", "/Users/me/.config/yarn/global/node_modules/@dotlane/darwin-arm64/bin/dotlane", "0.2.0", "", "yarn global add dotlane@latest"},
-		{"Homebrew cask", "/opt/homebrew/Caskroom/dotlane/0.2.0/dotlane", "0.2.0", "", "brew upgrade dotlane"},
-		{"Homebrew formula", "/home/linuxbrew/.linuxbrew/Cellar/dotlane/0.2.0/bin/dotlane", "0.2.0", "", "brew upgrade dotlane"},
-		{"release archive", "/usr/local/bin/dotlane", "0.2.0", "", "get the latest release from https://github.com/dotlane/dotlane/releases/latest"},
-		{"go install", "/Users/me/go/bin/dotlane", "", "v0.2.0", "go install github.com/dotlane/dotlane/cmd/dotlane@latest"},
-		{"clone", "/Users/me/src/dotlane/bin/dotlane", "", "v0.0.0-20261103101010-abcdefabcdef+dirty", "cd /Users/me/src/dotlane && git pull && go build -o bin/dotlane ./cmd/dotlane"},
-		{"clone, elsewhere", "/tmp/dotlane", "", "(devel)", "git pull && go build -o bin/dotlane ./cmd/dotlane, in your clone"},
+		{name: "npm global", exe: "/opt/homebrew/lib/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "npm install -g dotlane"},
+		{name: "npm global, nvm", exe: "/Users/me/.nvm/versions/node/v22.1.0/lib/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "npm install -g dotlane"},
+		{name: "npm global, Windows", goos: "windows", exe: "C:/Users/me/AppData/Roaming/npm/node_modules/@dotlane/win32-x64/bin/dotlane.exe", released: "0.2.0", want: "npm install -g dotlane"},
+		{name: "npm project", exe: "/Users/me/app/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/app", want: "npm install --prefix {dir} dotlane@latest"},
+		{name: "bun project, space in path", exe: "/Users/me/bun app/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/bun app", want: `bun add --cwd "{dir}" dotlane@latest`},
+		{name: "pnpm project", exe: "/Users/me/pnpm-app/node_modules/.pnpm/@dotlane+darwin-arm64@0.2.0/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/pnpm-app", want: "pnpm -C {dir} add dotlane@latest"},
+		{name: "yarn project", exe: "/Users/me/yarn-app/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", dir: "/Users/me/yarn-app", want: "yarn --cwd {dir} add dotlane@latest"},
+		{name: "npx", exe: "/Users/me/.npm/_npx/1a2b3c/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "npx dotlane@latest"},
+		{name: "bunx", exe: "/private/var/folders/xy/T/bunx-501-dotlane@latest/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "bunx dotlane@latest"},
+		{name: "pnpm global", exe: "/Users/me/Library/pnpm/global/5/node_modules/.pnpm/@dotlane+darwin-arm64@0.2.0/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "pnpm add -g dotlane@latest"},
+		{name: "yarn global", exe: "/Users/me/.config/yarn/global/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "yarn global add dotlane@latest"},
+		{name: "bun global", exe: "/Users/me/.bun/install/global/node_modules/@dotlane/darwin-arm64/bin/dotlane", released: "0.2.0", want: "bun add -g dotlane@latest"},
+		{name: "Homebrew cask", exe: "/opt/homebrew/Caskroom/dotlane/0.2.0/dotlane", released: "0.2.0", want: "brew upgrade dotlane"},
+		{name: "Homebrew formula", exe: "/home/linuxbrew/.linuxbrew/Cellar/dotlane/0.2.0/bin/dotlane", released: "0.2.0", want: "brew upgrade dotlane"},
+		{name: "release archive", exe: "/usr/local/bin/dotlane", released: "0.2.0", want: "get the latest release from https://github.com/dotlane/dotlane/releases/latest"},
+		{name: "go install", exe: "/Users/me/go/bin/dotlane", built: "v0.2.0", want: "go install github.com/dotlane/dotlane/cmd/dotlane@latest"},
+		{name: "clone", exe: "/Users/me/src/dotlane/bin/dotlane", built: "v0.0.0-20261103101010-abcdefabcdef+dirty", dir: "/Users/me/src/dotlane",
+			want: "git -C {dir} pull && go build -C {dir} -o bin/dotlane ./cmd/dotlane"},
+		{name: "clone, Windows", goos: "windows", exe: "/Users/me/My Projects/dotlane/bin/dotlane.exe", built: "(devel)", dir: "/Users/me/My Projects/dotlane",
+			want: `git -C "{dir}" pull, then go build -C "{dir}" -o bin\dotlane.exe .\cmd\dotlane`},
+		{name: "clone, elsewhere", exe: "/tmp/dotlane", built: "(devel)", want: "git pull && go build -o bin/dotlane ./cmd/dotlane, in your clone"},
+		{name: "clone, elsewhere, Windows", goos: "windows", exe: "/tmp/dotlane.exe", want: `git pull, then go build -o bin\dotlane.exe .\cmd\dotlane, in your clone`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := filepath.ToSlash(updateCommand(tc.exe, tc.released, tc.built, exists)); got != tc.want {
-				t.Errorf("got %q, want %q", got, tc.want)
+			want := strings.ReplaceAll(tc.want, "{dir}", filepath.FromSlash(tc.dir))
+			if got := updateCommand(tc.goos, filepath.FromSlash(tc.exe), tc.released, tc.built, exists); got != want {
+				t.Errorf("got %q, want %q", got, want)
+			}
+			if tc.goos == "windows" && strings.Contains(want, "&&") {
+				t.Errorf("Windows PowerShell 5.1 has no &&: %q", want)
 			}
 		})
 	}
