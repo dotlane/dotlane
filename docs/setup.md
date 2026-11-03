@@ -109,7 +109,22 @@ brew upgrade dotlane          # Homebrew, once available
 The package manager replaces the `dotlane` command, but cannot restart the service. The next
 `dotlane add`, `rm`, `ls`, `up` or `down` sees that the service runs an older release, updates its
 copy of the binary and restarts it, without a password (`DOTLANE_NO_AUTO_REFRESH=1` turns that
-off). To do it right away instead, run `dotlane install --refresh`.
+off). To do it right away instead, run `dotlane install --refresh`. Commands started together
+take turns: one restarts the service, the others wait for it.
+
+Pre-releases are published under the `next` tag, so test one with `npm install -g dotlane@next`.
+
+Before each command talks to the service, it checks that both speak the same version of the
+control API. When they do not, it stops and says which one to update: an older `dotlane` left on
+the PATH (another Node version, a project's `npx`) is told to update itself, an older service to
+run `dotlane install --refresh`. A command older than the service, but compatible, only warns.
+
+If a new release does not start, go back to the one before; `--refresh` installs whatever binary
+runs it, older or not:
+
+```bash
+npm install -g dotlane@<previous version> && dotlane install --refresh
+```
 
 From source, rebuild and refresh the service yourself:
 
