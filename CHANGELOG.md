@@ -9,6 +9,56 @@ fragment in [`changes/`](changes/README.md), so pull requests never edit this fi
 release collects the fragments into the version's section ([`docs/releasing.md`](docs/releasing.md)).
 The release workflow publishes that section as the release notes, and refuses a tag that has none.
 
+## [0.3.0] - 2026-11-03
+
+Domain endings from the CLI, with `.dotlane` as the new default, and safer upgrades: the CLI and
+the service check that they match, and commands take turns with the login service.
+
+**Upgrading from 0.2.0 without an ending set in `config.toml`:** the service moves your sites to
+`.dotlane` on its own, but routing a new ending needs your password, so run `dotlane install`
+once. `dotlane doctor` then shows the old ending's route; remove it with `dotlane tld rm <ending>`,
+or keep that ending as the primary with `dotlane tld use <ending>`.
+
+### Added
+
+- **A way to support Dotlane**: a Buy Me a Coffee link in the README, in `npm fund` and on the
+  GitHub Sponsor button, and one dimmed line at the end of `dotlane install` (never on
+  `--refresh` or any other command).
+- **Warnings about risky domain endings.** Every command warns when `config.toml` sets an ending
+  that is a public top-level domain (`.dev`, `.com`, from an embedded copy of IANA's list), a
+  two-letter ending, a special-use name (`.localhost`, `.invalid`, `.onion`, `.alt`, `.arpa`)
+  or one routers often answer (`.lan`, `.home`, `.corp`). The ending keeps working.
+- **`dotlane tld ls | add | rm | use`**: list the domain endings, add one, remove one and its
+  route, or choose the primary. Each change is saved in `config.toml` and, when Dotlane is
+  installed, applied at once: the DNS routes follow and the service restarts. Endings that would
+  hide real websites are refused; ones a router may already answer need `--force`.
+- **`dotlane install --tld <ending>`** makes an ending the primary before installing.
+- **`doctor`** warns about a risky ending and about a route left for an ending no longer
+  configured.
+- **`primary_tld` in `GET /v1/status`**: the first of the configured endings, whose URL comes
+  first in each site's `urls`.
+- **`api` in `GET /v1/status`**: the version of the control API the daemon serves. Every command
+  that uses the daemon checks it first, and stops with what to update when this `dotlane` and the
+  service do not match: a service that was not refreshed, or an older command left on the PATH
+  (another Node version, a project's `npx`). The command gets the update command for how it was
+  installed (npm, npx, pnpm, yarn, bun or bunx, globally, in a project or a workspace, Volta,
+  Homebrew, `go install` or a clone), in a form any shell runs, Windows PowerShell 5.1 included.
+  A command older than the service, but compatible, warns.
+
+### Changed
+
+- **The default domain ending is now `.dotlane`**: `https://myapp.dotlane`.
+
+### Fixed
+
+- **`uninstall` on macOS leaving `/etc/resolver` files behind** for endings removed from
+  `config.toml` after installing: it now removes every resolver file of Dotlane's, configured or
+  not. Linux and Windows already removed all of theirs.
+- **Commands started together after an upgrade restarting the service over each other**: they now
+  take turns, and the ones that wait find it already updated. `install`, `doctor --fix` and
+  `uninstall` take their turn too, so an automatic update no longer restarts the service in the
+  middle of one, or puts back a service `uninstall` is removing.
+
 ## [0.2.0] - 2026-11-02
 
 Linux and Windows join macOS, each on x64 and arm64: installed with npm, from the release's
@@ -90,5 +140,6 @@ source; Homebrew is coming soon. Phases 1 and 2 of the [roadmap](docs/roadmap.md
 - Binaries are not yet signed or notarized by Apple. npm downloads are not quarantined, so macOS
   runs them as they are; the Homebrew cask will remove the quarantine attribute.
 
+[0.3.0]: https://github.com/dotlane/dotlane/releases/tag/v0.3.0
 [0.2.0]: https://github.com/dotlane/dotlane/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0
