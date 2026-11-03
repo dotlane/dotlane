@@ -4,38 +4,10 @@ All notable changes to Dotlane are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-Every version gets its own section before it is tagged: changes collect under
-**Unreleased** as they land, and cutting a release renames that heading to the version and date
-([`docs/releasing.md`](docs/releasing.md)). The release workflow publishes the version's section as
-the release notes, and refuses a tag that has none.
-
-## [Unreleased]
-
-### Added
-
-- **Warnings about risky domain endings.** Every command warns when `config.toml` sets an ending
-  that is a public top-level domain (`.dev`, `.com`, from an embedded copy of IANA's list), a
-  two-letter ending, a special-use name (`.localhost`, `.invalid`, `.onion`, `.alt`, `.arpa`)
-  or one routers often answer (`.lan`, `.home`, `.corp`). The ending keeps working.
-- **`dotlane tld ls | add | rm | use`**: list the domain endings, add one, remove one and its
-  route, or choose the primary. Each change is saved in `config.toml` and, when Dotlane is
-  installed, applied at once: the DNS routes follow and the service restarts. Endings that would
-  hide real websites are refused; ones a router may already answer need `--force`.
-- **`dotlane install --tld <ending>`** makes an ending the primary before installing.
-- **`doctor`** warns about a risky ending and about a route left for an ending no longer
-  configured.
-- **`primary_tld` in `GET /v1/status`**: the first of the configured endings, whose URL comes
-  first in each site's `urls`.
-
-### Changed
-
-- **The default domain ending is now `.dotlane`**: `https://myapp.dotlane`.
-
-### Fixed
-
-- **`uninstall` on macOS leaving `/etc/resolver` files behind** for endings removed from
-  `config.toml` after installing: it now removes every resolver file of Dotlane's, configured or
-  not. Linux and Windows already removed all of theirs.
+Every version gets its own section before it is tagged. Until then, each change waits as a
+fragment in [`changes/`](changes/README.md), so pull requests never edit this file; cutting a
+release collects the fragments into the version's section ([`docs/releasing.md`](docs/releasing.md)).
+The release workflow publishes that section as the release notes, and refuses a tag that has none.
 
 ## [0.2.0] - 2026-11-02
 
@@ -118,6 +90,5 @@ source; Homebrew is coming soon. Phases 1 and 2 of the [roadmap](docs/roadmap.md
 - Binaries are not yet signed or notarized by Apple. npm downloads are not quarantined, so macOS
   runs them as they are; the Homebrew cask will remove the quarantine attribute.
 
-[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/dotlane/dotlane/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0
