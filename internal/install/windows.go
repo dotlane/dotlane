@@ -170,6 +170,11 @@ func (w *Windows) Refresh(ctx context.Context) error {
 	if temporaryBuild(w.Exe) {
 		return fmt.Errorf("%s is a temporary build; refresh from a built binary", w.Exe)
 	}
+	unlock, err := lockService(ctx, w.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := w.finishService(ctx, true); err != nil {
 		return err
 	}
@@ -207,6 +212,16 @@ func (w *Windows) Upgrade(ctx context.Context, version string, out io.Writer) (b
 	if err != nil || !Newer(version, st.Version) {
 		return false, nil
 	}
+	// Only a command that would restart the service waits for the lock; then it asks again, since
+	// the command it waited for may have done it.
+	unlock, err := lockService(ctx, w.Cfg, serviceLockWait)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	if st, err = w.Daemon(ctx); err != nil || !Newer(version, st.Version) {
+		return false, nil
+	}
 	if registered, _ := w.taskState(ctx); !registered {
 		return false, nil
 	}
@@ -233,6 +248,11 @@ func (w *Windows) Install(ctx context.Context) error {
 	if _, err := w.spec().xml(); err != nil {
 		return err
 	}
+	unlock, err := lockService(ctx, w.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := w.preflight(ctx); err != nil {
 		return err
 	}
@@ -644,6 +664,11 @@ func containsLoopback(addrs []string) bool {
 // CA's keys) and the log.
 func (w *Windows) Uninstall(ctx context.Context, purge bool) error {
 	w.UI.Title("Uninstalling Dotlane", w.summary())
+	unlock, err := lockUninstall(ctx, w.Cfg)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	name := w.Cfg.ServiceName
 
 	var steps []adminStep
@@ -683,6 +708,7 @@ func (w *Windows) Uninstall(ctx context.Context, purge bool) error {
 	}
 
 	if purge {
+		unlock()
 		if err := removeAll(w.Cfg.StateDir); err != nil {
 			return err
 		}

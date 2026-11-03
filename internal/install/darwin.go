@@ -155,6 +155,11 @@ func (m *Mac) Refresh(ctx context.Context) error {
 	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; refresh from a built binary", m.Exe)
 	}
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := m.installService(ctx); err != nil {
 		return err
 	}
@@ -174,6 +179,16 @@ func (m *Mac) Upgrade(ctx context.Context, version string, out io.Writer) (bool,
 	if err != nil || !Newer(version, st.Version) {
 		return false, nil
 	}
+	// Only a command that would restart the service waits for the lock; then it asks again, since
+	// the command it waited for may have done it.
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	if st, err = m.Daemon(ctx); err != nil || !Newer(version, st.Version) {
+		return false, nil
+	}
 	m.UI = ui.New(out)
 	m.UI.Title("Updating the Dotlane service", fmt.Sprintf("it runs %s, this is %s", st.Version, version))
 	if err := m.installService(ctx); err != nil {
@@ -189,6 +204,11 @@ func (m *Mac) Install(ctx context.Context) error {
 	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin/dotlane ./cmd/dotlane) and install from it", m.Exe)
 	}
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := m.preflight(ctx); err != nil {
 		return err
 	}
@@ -467,6 +487,11 @@ func containsLoopback(addrs []string) bool {
 // CA's keys) and the log.
 func (m *Mac) Uninstall(ctx context.Context, purge bool) error {
 	m.UI.Title("Uninstalling Dotlane", m.summary())
+	unlock, err := lockUninstall(ctx, m.Cfg)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	removed := false
 	if _, err := m.Runner.Run(ctx, "/bin/launchctl", "print", m.target()); err == nil {
@@ -508,6 +533,7 @@ func (m *Mac) Uninstall(ctx context.Context, purge bool) error {
 	}
 
 	if purge {
+		unlock()
 		if err := os.RemoveAll(m.Cfg.StateDir); err != nil {
 			return err
 		}

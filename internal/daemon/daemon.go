@@ -129,6 +129,7 @@ func (d *Daemon) Status() api.Status {
 		HTTPSPort:  d.cfg.HTTPSPort,
 		StateDir:   d.cfg.StateDir,
 		Started:    d.started,
+		API:        api.Version,
 	}
 }
 

@@ -356,6 +356,11 @@ func (m *Linux) Refresh(ctx context.Context) error {
 	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; refresh from a built binary", m.Exe)
 	}
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := m.installService(ctx); err != nil {
 		return err
 	}
@@ -375,6 +380,16 @@ func (m *Linux) Upgrade(ctx context.Context, version string, out io.Writer) (boo
 	if err != nil || !Newer(version, st.Version) {
 		return false, nil
 	}
+	// Only a command that would restart the service waits for the lock; then it asks again, since
+	// the command it waited for may have done it.
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	if st, err = m.Daemon(ctx); err != nil || !Newer(version, st.Version) {
+		return false, nil
+	}
 	m.UI = ui.New(out)
 	m.UI.Title("Updating the Dotlane service", fmt.Sprintf("it runs %s, this is %s", st.Version, version))
 	if err := m.installService(ctx); err != nil {
@@ -390,6 +405,11 @@ func (m *Linux) Install(ctx context.Context) error {
 	if temporaryBuild(m.Exe) {
 		return fmt.Errorf("%s is a temporary build; build dotlane first (go build -o bin/dotlane ./cmd/dotlane) and install from it", m.Exe)
 	}
+	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := m.preflight(ctx); err != nil {
 		return err
 	}
@@ -815,11 +835,16 @@ func loopbackIn(addrs []string) bool {
 // CA's keys).
 func (m *Linux) Uninstall(ctx context.Context, purge bool) error {
 	m.UI.Title("Uninstalling Dotlane", m.summary())
+	unlock, err := lockUninstall(ctx, m.Cfg)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	removed := false
 	if have, err := os.ReadFile(m.unitPath()); err == nil && !bytes.HasPrefix(have, []byte(marker)) {
 		m.UI.Skip("Login service", m.UI.Path(m.unitPath())+" is not Dotlane's; left in place")
-		return m.uninstallRest(ctx, purge)
+		return m.uninstallRest(ctx, purge, unlock)
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -848,12 +873,12 @@ func (m *Linux) Uninstall(ctx context.Context, purge bool) error {
 	} else {
 		m.UI.Skip("Login service", "not installed")
 	}
-	return m.uninstallRest(ctx, purge)
+	return m.uninstallRest(ctx, purge, unlock)
 }
 
 // uninstallRest is Uninstall after the login service: the trust, the DNS unit, the ports, and the
-// kept files.
-func (m *Linux) uninstallRest(ctx context.Context, purge bool) error {
+// kept files, deleted after unlock releases the lock that is among them.
+func (m *Linux) uninstallRest(ctx context.Context, purge bool, unlock func()) error {
 	if err := m.untrustCA(ctx); err != nil {
 		return err
 	}
@@ -865,6 +890,7 @@ func (m *Linux) uninstallRest(ctx context.Context, purge bool) error {
 	}
 
 	if purge {
+		unlock()
 		if err := os.RemoveAll(m.Cfg.StateDir); err != nil {
 			return err
 		}

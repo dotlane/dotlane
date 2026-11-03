@@ -17,6 +17,10 @@ import (
 	"github.com/dotlane/dotlane/internal/sites"
 )
 
+// Version is the version of this API. It goes up only with a change an older client or daemon
+// cannot handle, so the CLI can say which side to update instead of failing on a request.
+const Version = 1
+
 // Site is a site as the daemon reports it.
 type Site struct {
 	Name string   `json:"name"`
@@ -41,6 +45,17 @@ type Status struct {
 	StateDir   string   `json:"state_dir"`
 	// Started is when the daemon started; a binary changed after that is not what it runs.
 	Started time.Time `json:"started"`
+	// API is the daemon's Version; see APIVersion.
+	API int `json:"api,omitempty"`
+}
+
+// APIVersion is the version of the API the daemon serves: 1 for a daemon from before it was
+// reported.
+func (s Status) APIVersion() int {
+	if s.API == 0 {
+		return 1
+	}
+	return s.API
 }
 
 // Backend is what the daemon provides to the handler.

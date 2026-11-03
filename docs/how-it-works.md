@@ -39,7 +39,7 @@ The CLI, `dotlane.toml` and a future menu-bar app are all clients of the control
 
 | Call | Used by |
 | --- | --- |
-| `GET /v1/status` | `doctor`, `install` (is the daemon up, which PID, version) |
+| `GET /v1/status` | `doctor`, `install` (is the daemon up, which PID, version); every command that uses the daemon, for `api`, the API version both sides must share |
 | `GET /v1/sites` | `ls`, `up`, `down`, `migrate` |
 | `PUT /v1/sites/{name}` `{port, project}` | `add`, `up`, `migrate` |
 | `DELETE /v1/sites/{name}` | `rm`, `down`, `up` (sites dropped from the file) |

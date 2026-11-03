@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -871,6 +872,172 @@ func TestUpgrade(t *testing.T) {
 	}
 	if !strings.Contains(other.String(), "it runs 0.1.0, this is 0.2.0") || out.Len() != 0 {
 		t.Errorf("report went to the wrong place:\nwriter:\n%s\nstdout:\n%s", other, out)
+	}
+}
+
+// Commands started together after an upgrade: the first restarts the service while the others
+// wait for it, then find the daemon on the new release and leave it alone.
+func TestUpgradeWaitsForAnotherCommand(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	var running atomic.Value
+	running.Store("0.1.0")
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: running.Load().(string), Started: time.Now().Add(-time.Hour)}, nil
+	}
+	os.WriteFile(m.Exe, []byte("dotlane build 2"), 0o755)
+	fake.calls = nil
+
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second) // the first command
+	if err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		done bool
+		err  error
+	}
+	got := make(chan result)
+	go func() {
+		done, err := m.Upgrade(context.Background(), "0.2.0", &bytes.Buffer{})
+		got <- result{done, err}
+	}()
+	time.Sleep(150 * time.Millisecond)
+	running.Store("0.2.0") // the first command restarted it
+	unlock()
+
+	if r := <-got; r.done || r.err != nil {
+		t.Errorf("Upgrade = %v, %v", r.done, r.err)
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("restarted it again: %v", fake.calls)
+	}
+}
+
+// install (and doctor --fix, which runs it) waits while another command holds the service lock,
+// such as an automatic upgrade restarting the service, and changes nothing until it has the lock.
+func TestInstallWaitsForAnotherCommand(t *testing.T) {
+	m, _, out := newTestMac(t)
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second) // the upgrading command
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan error)
+	go func() { got <- m.Install(context.Background()) }()
+	// Only the file system and the channel are looked at while Install runs: the race detector
+	// cannot see that the file lock orders this goroutine and Install's use of the fake.
+	select {
+	case err := <-got:
+		t.Fatalf("Install finished while another command held the lock: %v\n%s", err, out)
+	case <-time.After(150 * time.Millisecond):
+	}
+	if _, err := os.Stat(m.plistPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("wrote the login service while another command held the lock: %v", err)
+	}
+	unlock()
+	if err := <-got; err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if _, err := os.Stat(m.plistPath()); err != nil {
+		t.Errorf("not installed after the lock was released: %v", err)
+	}
+}
+
+// Uninstall waits while another command holds the lock, so an automatic upgrade does not put back
+// the service it removes.
+func TestUninstallWaitsForAnotherCommand(t *testing.T) {
+	m, _, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second) // the upgrading command
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan error)
+	go func() { got <- m.Uninstall(context.Background(), true) }()
+	select {
+	case err := <-got:
+		t.Fatalf("Uninstall finished while another command held the lock: %v\n%s", err, out)
+	case <-time.After(150 * time.Millisecond):
+	}
+	if _, err := os.Stat(m.plistPath()); err != nil {
+		t.Fatalf("removed the login service while another command held the lock: %v", err)
+	}
+	unlock()
+	if err := <-got; err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, p := range []string{m.plistPath(), m.Cfg.StateDir} {
+		if _, err := os.Stat(p); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s kept after uninstall --purge", p)
+		}
+	}
+}
+
+// Uninstall with nothing installed does not leave a state folder behind for its lock.
+func TestUninstallNothingLeavesNoState(t *testing.T) {
+	m, _, out := newTestMac(t)
+	os.RemoveAll(m.Cfg.StateDir)
+	if err := m.Uninstall(context.Background(), false); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if _, err := os.Stat(m.Cfg.StateDir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("uninstall made %s: %v", m.Cfg.StateDir, err)
+	}
+}
+
+// An automatic upgrade waits while install holds the lock: it does not restart the service install
+// is setting up.
+func TestUpgradeWaitsForInstall(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: "0.1.0", Started: time.Now().Add(-time.Hour)}, nil
+	}
+	fake.calls = nil
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second) // install, in another terminal
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if done, err := m.Upgrade(ctx, "0.2.0", &bytes.Buffer{}); done || err == nil {
+		t.Errorf("Upgrade = %v, %v; want it to wait for install", done, err)
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("restarted the service during install: %v", fake.calls)
+	}
+}
+
+// A command with nothing to upgrade does not wait for one that holds the lock, such as a refresh
+// waiting on a password or on the service to start.
+func TestUpgradeNotNeededDoesNotWait(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: "0.2.0", Started: time.Now().Add(-time.Hour)}, nil
+	}
+	fake.calls = nil
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if done, err := m.Upgrade(ctx, "0.2.0", &bytes.Buffer{}); done || err != nil {
+		t.Errorf("Upgrade = %v, %v", done, err)
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("calls: %v", fake.calls)
 	}
 }
 
