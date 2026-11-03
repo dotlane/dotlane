@@ -48,6 +48,24 @@ func versionString() string {
 	return "dev"
 }
 
+// compatible checks that this binary, at version cli, can use the daemon st describes. It fails
+// when they speak different versions of the API, naming the side to update, and warns when the
+// daemon runs a later release than this command: two installs (an older npx, another Node
+// version) leave an old command on the PATH, and the service is never downgraded to it.
+func compatible(st api.Status, cli string) (warning string, err error) {
+	switch {
+	case st.APIVersion() > api.Version:
+		return "", fmt.Errorf("this dotlane (%s) is too old for the Dotlane service, which runs %s\n"+
+			"update it (npm install -g dotlane), or use the dotlane that installed the service", cli, st.Version)
+	case st.APIVersion() < api.Version:
+		return "", fmt.Errorf("the Dotlane service runs %s, too old for this dotlane (%s)\n"+
+			"update it: dotlane install --refresh", st.Version, cli)
+	case install.Newer(st.Version, cli):
+		return fmt.Sprintf("this is %s, older than the service (%s); update it: npm install -g dotlane", cli, st.Version), nil
+	}
+	return "", nil
+}
+
 // versionLine is versionString with the commit and build date, when the build recorded them.
 func versionLine() string {
 	if commit == "" {
@@ -123,7 +141,8 @@ func newRoot() *cobra.Command {
 	}
 	// client reaches the daemon, after bringing the login service up to this binary when it runs
 	// an older release: package managers replace the binary but cannot restart the service
-	// (install.Installer.Upgrade). DOTLANE_NO_AUTO_REFRESH=1 turns that off.
+	// (install.Installer.Upgrade). DOTLANE_NO_AUTO_REFRESH=1 turns that off. It then checks
+	// that this binary and the daemon speak the same API (compatible).
 	client := func(cmd *cobra.Command) (*api.Client, error) {
 		cfg, err := loadConfig()
 		if err != nil {
@@ -136,7 +155,21 @@ func newRoot() *cobra.Command {
 				}
 			}
 		}
-		return api.NewClient(cfg.SocketPath()), nil
+		c := api.NewClient(cfg.SocketPath())
+		ctx, cancel := context.WithTimeout(cmd.Context(), 2*time.Second)
+		st, err := c.Status(ctx)
+		cancel()
+		if err != nil {
+			return c, nil // the command itself reports a daemon that is not running
+		}
+		warning, err := compatible(st, versionString())
+		if err != nil {
+			return nil, err
+		}
+		if warning != "" {
+			ui.New(cmd.ErrOrStderr()).Warn("Dotlane command", warning)
+		}
+		return c, nil
 	}
 
 	root := &cobra.Command{
