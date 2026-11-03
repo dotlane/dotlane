@@ -175,13 +175,18 @@ func (m *Mac) Upgrade(ctx context.Context, version string, out io.Writer) (bool,
 	if _, err := os.Stat(m.plistPath()); err != nil {
 		return false, nil
 	}
+	st, err := m.Daemon(ctx)
+	if err != nil || !Newer(version, st.Version) {
+		return false, nil
+	}
+	// Only a command that would restart the service waits for the lock; then it asks again, since
+	// the command it waited for may have done it.
 	unlock, err := lockService(ctx, m.Cfg, serviceLockWait)
 	if err != nil {
 		return false, err
 	}
 	defer unlock()
-	st, err := m.Daemon(ctx)
-	if err != nil || !Newer(version, st.Version) {
+	if st, err = m.Daemon(ctx); err != nil || !Newer(version, st.Version) {
 		return false, nil
 	}
 	m.UI = ui.New(out)

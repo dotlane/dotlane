@@ -208,13 +208,18 @@ func (w *Windows) Upgrade(ctx context.Context, version string, out io.Writer) (b
 	if _, err := os.Stat(w.serviceExe()); err != nil {
 		return false, nil
 	}
+	st, err := w.Daemon(ctx)
+	if err != nil || !Newer(version, st.Version) {
+		return false, nil
+	}
+	// Only a command that would restart the service waits for the lock; then it asks again, since
+	// the command it waited for may have done it.
 	unlock, err := lockService(ctx, w.Cfg, serviceLockWait)
 	if err != nil {
 		return false, err
 	}
 	defer unlock()
-	st, err := w.Daemon(ctx)
-	if err != nil || !Newer(version, st.Version) {
+	if st, err = w.Daemon(ctx); err != nil || !Newer(version, st.Version) {
 		return false, nil
 	}
 	if registered, _ := w.taskState(ctx); !registered {

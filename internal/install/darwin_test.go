@@ -915,6 +915,33 @@ func TestUpgradeWaitsForAnotherCommand(t *testing.T) {
 	}
 }
 
+// A command with nothing to upgrade does not wait for one that holds the lock, such as a refresh
+// waiting on a password or on the service to start.
+func TestUpgradeNotNeededDoesNotWait(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	m.Daemon = func(context.Context) (api.Status, error) {
+		return api.Status{PID: daemonPID, Version: "0.2.0", Started: time.Now().Add(-time.Hour)}, nil
+	}
+	fake.calls = nil
+	unlock, err := lockService(context.Background(), m.Cfg, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if done, err := m.Upgrade(ctx, "0.2.0", &bytes.Buffer{}); done || err != nil {
+		t.Errorf("Upgrade = %v, %v", done, err)
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("calls: %v", fake.calls)
+	}
+}
+
 // Routes follow the config: a new ending gets its file, a dropped one loses it, and another
 // tool's file is left alone.
 func TestSyncRoutes(t *testing.T) {
