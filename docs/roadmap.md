@@ -20,10 +20,6 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Next
 
-- **Domain endings from the CLI.** `dotlane tld ls|add|rm|use` and `install --tld`: add and
-  remove endings with their DNS routing, choose the primary one, and refuse endings that would
-  shadow public sites or cannot work (`.local`, delegated TLDs). The default becomes `.dotlane`.
-  The plan and tasks are in [`tld-management.md`](tld-management.md).
 - **A stable, documented control API.** The daemon's JSON API on its Unix socket (`/v1/status`,
   `/v1/sites`) documented as a public, versioned contract, with breaking changes going to `/v2`.
   The desktop app (`dotlane/desktop`) needs it before its first version; editor integrations
@@ -55,6 +51,17 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 - **AI agents.** Stable URLs, `ls --json`, and an MCP-style endpoint that lists sites.
 
 ## Done
+
+**`v0.3.0`**, domain endings from the CLI and safer upgrades:
+
+- `dotlane tld ls|add|rm|use` and `install --tld`: add and remove endings with their DNS
+  routing, choose the primary one, and refuse endings that would shadow public sites or cannot
+  work (`.local`, delegated TLDs). The default is now `.dotlane`. The plan is in
+  [`tld-management.md`](tld-management.md).
+- The CLI and the daemon check that they speak the same control API version, and an outdated
+  `dotlane` is told the command that updates it, for how it was installed.
+- Commands take turns with the login service, so an automatic upgrade never restarts it over
+  another command, `install` or `uninstall`.
 
 **`v0.2.0`** (2026-11-02), Linux and Windows, each on x64 and arm64.
 [`compatibility.md`](compatibility.md) tracks each item:
