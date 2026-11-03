@@ -191,19 +191,6 @@ func SetDNSPort(path string, port int, why string) error {
 	return appendSetting(path, why, fmt.Sprintf("dns_port = %d", port))
 }
 
-// PinTLDs records endings in the config file at path, creating it if needed, with a comment
-// saying why. Only for files that do not set them yet (see TLDsSet); SetTLDs changes them.
-func PinTLDs(path string, tlds []string, why string) error {
-	quoted := make([]string, len(tlds))
-	for i, t := range tlds {
-		if err := tld.Syntax(t); err != nil {
-			return err
-		}
-		quoted[i] = strconv.Quote(t)
-	}
-	return appendSetting(path, why, "tlds = ["+strings.Join(quoted, ", ")+"]")
-}
-
 // appendSetting adds a commented setting at the end of the config file at path.
 func appendSetting(path, why, setting string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
