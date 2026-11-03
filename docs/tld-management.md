@@ -88,11 +88,10 @@ The daemon stays unprivileged and does not change routing, so the control API on
 
 ## Pull requests
 
-Following [`branching.md`](branching.md): each branch comes off `dev`, opens as a draft, is
-squash-merged into `dev`, adds its line under `## [Unreleased]` in `CHANGELOG.md`, and passes
-`scripts/check.sh` before pushing. Branches touching the installer or DNS also run the full tier
-on demand (`gh workflow run ci.yml --ref <branch>`), so a macOS or Windows break shows up there
-and not on the release pull request.
+These went in under the earlier `dev` branch flow ([`branching.md`](branching.md), History): each
+branch came off `dev`, was squash-merged into it, and added its changelog line; those lines are
+now the fragment [`changes/tld-management.md`](../changes/tld-management.md). Branches touching
+the installer or DNS also ran the full tier on demand (`gh workflow run ci.yml --ref <branch>`).
 
 | # | Branch | Tasks | CI | Needs |
 | --- | --- | --- | --- | --- |
@@ -104,7 +103,8 @@ and not on the release pull request.
 | 6 | `docs/dotlane-default` | T11 | none (docs only) | 4, 5 |
 
 1, 2 and 3 can go in parallel. The uninstall fix in 3 is a bug in `v0.2.0`; if it should ship
-before `v0.3.0`, it goes as `hotfix/v0.2.1` from `main` instead, then `dev` is synced.
+before `v0.3.0`, it goes out as `v0.2.1` from a `release/v0.2` branch ([`branching.md`](branching.md),
+Patches).
 
 Outside this repository:
 
@@ -114,10 +114,10 @@ Outside this repository:
 
 ## Release
 
-A minor release, `v0.3.0`: the default ending changes. `release/v0.3.0` from `dev`, rename
-`[Unreleased]`, pull request into `main` (full tier), merge commit, tag **`v0.3.0-rc.1`** for
-testers; a fix goes through `hotfix/…` into `main` and `-rc.2`. Then `v0.3.0`, and sync `dev`
-from `main`. Full steps in [`releasing.md`](releasing.md).
+A minor release, `v0.3.0`: the default ending changes. Tag **`v0.3.0-rc.1`** on `main` for
+testers; a fix is a pull request into `main`, then `-rc.2`. Then the release pull request
+(`scripts/changelog.sh release v0.3.0`) and the `v0.3.0` tag on its commit. Full steps in
+[`releasing.md`](releasing.md).
 
 ## Open questions
 

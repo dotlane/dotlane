@@ -155,11 +155,11 @@ NSS or the Root store.
 | C4 | **Trust and untrust a given root, per OS.** `trustCA(root)` / `untrustCA(root)` instead of the one `root.crt`; Windows puts trust-new and untrust-old in one elevated step. Uninstall removes every Dotlane root (all generations, legacy, and by name). Integration: after install, a leaf for `web.example.com` signed with the intermediate key from the state folder is **rejected** by `curl` (and Safari's SecTrust, Schannel) on each OS: the protection, end to end |
 | C5 | **Rotation.** Steps 2 to 7 for `tld add` and `tld rm`, shared with `install`'s migration and `doctor --fix`; idempotent re-run. Integration: `tld add` asks once, sites on both endings verify against the system trust, the old root is gone from the store; `tld rm` narrows; an upgrade from a `local`-root install keeps working until `dotlane install` migrates it |
 | C6 | **Doctor.** Unconstrained (legacy) CA: warning, repairable. Active generation not covering the config: failure with the fix. Previous roots still trusted: warning. Root expiring within a year: warning, `dotlane install` rotates |
-| C7 | **Docs.** `security.md` (the CA section: what is protected now, which clients enforce it, from C1), `how-it-works.md`, `cli.md` (`tld add`/`rm` ask for a password once more, and why), `setup*.md`; changelog lines in each PR above |
+| C7 | **Docs.** `security.md` (the CA section: what is protected now, which clients enforce it, from C1), `how-it-works.md`, `cli.md` (`tld add`/`rm` ask for a password once more, and why), `setup*.md`; changelog lines in the fragment |
 
 ## Pull request
 
-One pull request for the whole feature, `feat/ca-name-constraints` from `dev`, with **one commit
+One pull request for the whole feature, `feat/ca-name-constraints` from `main`, with **one commit
 per task**, in order ([`branching.md`](branching.md): one pull request per feature, one commit
 per task). Each commit builds and passes `scripts/check.sh` on its own, so the history of the
 branch reads as the plan and a failing step is easy to find:
@@ -174,12 +174,13 @@ branch reads as the plan and a failing step is easy to find:
 | 6 | C6 | the doctor checks |
 | 7 | C7 | the docs |
 
-Each commit adds its own `CHANGELOG.md` line where a user would notice it (commits 4 to 7).
+Commits 4 to 7 each add their lines to the branch's fragment, `changes/ca-name-constraints.md`,
+where a user would notice the change.
 
 - **Draft while it grows:** pushed after every commit, so the quick tier runs once it is marked
   ready. Run the full tier on demand (`gh workflow run ci.yml --ref feat/ca-name-constraints`)
   after commits 3, 4 and 5: they change the daemon, the trust store and the installer on every OS.
-- **Merging:** the squash merge turns the seven commits into one on `dev`, titled for the
+- **Merging:** the squash merge turns the seven commits into one on `main`, titled for the
   feature, so the pull request description sums up all seven; the step-by-step history stays on
   the pull request.
 - **Review:** commit by commit (GitHub's "Commits" tab), since each is one task.
