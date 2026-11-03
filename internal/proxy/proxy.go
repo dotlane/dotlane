@@ -33,7 +33,7 @@ import (
 func init() { caddy.RegisterModule(Permission{}) }
 
 // Permission lets Caddy issue a certificate on demand for any single-label name under the
-// domain endings (unknown.traix), so a name without a site gets a page saying so instead of a
+// domain endings (unknown.dotlane), so a name without a site gets a page saying so instead of a
 // TLS error. Anything else is refused. Only this Mac resolves the endings to Dotlane, and other
 // machines are dropped, so this cannot be used to mint certificates for someone else.
 type Permission struct {

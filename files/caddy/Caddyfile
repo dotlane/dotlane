@@ -1,4 +1,4 @@
-# Machine-wide Caddy for local *.traix sites.
+# Machine-wide Caddy for local *.dotlane sites.
 # Each site is one file in ~/.config/caddy/sites/, managed with `dotlane`.
 # Certificates come from Caddy's own local CA; run `caddy trust` once to trust it.
 {

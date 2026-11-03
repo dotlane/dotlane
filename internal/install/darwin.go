@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -359,6 +360,76 @@ func (m *Mac) installResolver(ctx context.Context, tld string) error {
 	return nil
 }
 
+// removeResolver removes /etc/resolver/<tld> when it is Dotlane's.
+func (m *Mac) removeResolver(ctx context.Context, tld string) error {
+	label := "DNS for ." + tld
+	path := m.resolverPath(tld)
+	have, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		m.UI.Skip(label, "not set")
+	case err != nil:
+		return err
+	case !bytes.Equal(have, m.resolverFile()):
+		m.UI.Skip(label, path+" has other settings, so it is not Dotlane's; left in place")
+	default:
+		m.UI.Ask(label, fmt.Sprintf("Stops sending *.%s lookups to Dotlane.", tld))
+		if err := m.sudo(ctx, nil, "/bin/rm", path); err != nil {
+			return err
+		}
+		m.UI.OK(label, path+" removed")
+	}
+	return nil
+}
+
+// Routed implements Installer: the files in /etc/resolver with exactly Dotlane's content.
+func (m *Mac) Routed(ctx context.Context) ([]string, error) {
+	entries, err := os.ReadDir(m.ResolverDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var tlds []string
+	for _, e := range entries {
+		if !e.Type().IsRegular() {
+			continue
+		}
+		if have, err := os.ReadFile(m.resolverPath(e.Name())); err == nil && bytes.Equal(have, m.resolverFile()) {
+			tlds = append(tlds, e.Name())
+		}
+	}
+	return tlds, nil
+}
+
+// Installed implements Installer.
+func (m *Mac) Installed(ctx context.Context) bool {
+	_, err := os.Stat(m.plistPath())
+	return err == nil
+}
+
+// SyncRoutes implements Installer.
+func (m *Mac) SyncRoutes(ctx context.Context) error {
+	for _, tld := range m.Cfg.TLDs {
+		if err := m.installResolver(ctx, tld); err != nil {
+			return err
+		}
+	}
+	routed, err := m.Routed(ctx)
+	if err != nil {
+		return err
+	}
+	for _, tld := range routed {
+		if !slices.Contains(m.Cfg.TLDs, tld) {
+			if err := m.removeResolver(ctx, tld); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // verifyDNS checks the whole path through the macOS resolver. A failure is reported, not fatal:
 // macOS sometimes takes a few seconds to pick up a new resolver file.
 func (m *Mac) verifyDNS(ctx context.Context) {
@@ -425,23 +496,14 @@ func (m *Mac) Uninstall(ctx context.Context, purge bool) error {
 		return err
 	}
 
-	for _, tld := range m.Cfg.TLDs {
-		label := "DNS for ." + tld
-		path := m.resolverPath(tld)
-		have, err := os.ReadFile(path)
-		switch {
-		case errors.Is(err, os.ErrNotExist):
-			m.UI.Skip(label, "not set")
-		case err != nil:
+	// Also the endings an earlier config listed: their files are Dotlane's too.
+	routed, err := m.Routed(ctx)
+	if err != nil {
+		return err
+	}
+	for _, tld := range union(m.Cfg.TLDs, routed) {
+		if err := m.removeResolver(ctx, tld); err != nil {
 			return err
-		case !bytes.Equal(have, m.resolverFile()):
-			m.UI.Skip(label, path+" has other settings, so it is not Dotlane's; left in place")
-		default:
-			m.UI.Ask(label, fmt.Sprintf("Stops sending *.%s lookups to Dotlane.", tld))
-			if err := m.sudo(ctx, nil, "/bin/rm", path); err != nil {
-				return err
-			}
-			m.UI.OK(label, path+" removed")
 		}
 	}
 

@@ -6,7 +6,7 @@ prototype it replaces is described in [`prototype/architecture.md`](prototype/ar
 ## What it does
 
 Dotlane gives every local dev server a real, trusted HTTPS address on a private domain ending:
-`https://myapp.traix` instead of `http://localhost:5173`. A site is a name and a port. Dotlane
+`https://myapp.dotlane` instead of `http://localhost:5173`. A site is a name and a port. Dotlane
 answers DNS for the name, presents a certificate for it that the Mac trusts, and forwards the
 traffic to `localhost:<port>`. The dev server is not wrapped or changed, so any language or
 framework works, started however you already start it.
@@ -48,18 +48,18 @@ The CLI, `dotlane.toml` and a future menu-bar app are all clients of the control
 
 ```text
 browser / curl / any tool
-   │ myapp.traix ?
+   │ myapp.dotlane ?
    ▼
-macOS resolver ── /etc/resolver/traix ──▶ Dotlane DNS 127.0.0.1:10053  →  127.0.0.1, ::1
+macOS resolver ── /etc/resolver/dotlane ──▶ Dotlane DNS 127.0.0.1:10053  →  127.0.0.1, ::1
    │
    ▼
-https://myapp.traix  ──▶  Dotlane :443  (Caddy: certificate from the local CA, picks the site
+https://myapp.dotlane  ──▶  Dotlane :443  (Caddy: certificate from the local CA, picks the site
    │                                          by name, drops requests from other machines)
    ▼ reverse proxy
 localhost:5173  (the dev server, unchanged)
 ```
 
-1. macOS sends only `*.traix` lookups to Dotlane's DNS, because of `/etc/resolver/traix`
+1. macOS sends only `*.dotlane` lookups to Dotlane's DNS, because of `/etc/resolver/dotlane`
    (`nameserver 127.0.0.1`, `port 10053`). All other DNS is unaffected. There is no per-site DNS:
    any name under the ending resolves to this Mac.
 2. The connection reaches Caddy on 443. Caddy presents a certificate for the name, issued by its
@@ -69,7 +69,7 @@ localhost:5173  (the dev server, unchanged)
 
 Two cases get a page from Dotlane instead of a browser error:
 
-- **A name with no site** (`typo.traix`) gets "No site at typo.traix" (404), with the command to
+- **A name with no site** (`typo.dotlane`) gets "No site at typo.dotlane" (404), with the command to
   add one. Its certificate is issued at the first handshake: an in-process Caddy permission module
   allows on-demand certificates only for single-label names under the configured endings.
 - **A site whose dev server is not running** gets a page naming the port (502).
@@ -184,7 +184,7 @@ scripts.
 are rejected, so typos surface:
 
 ```toml
-tld = "traix"            # or several: tlds = ["traix", "test"]; "local" is refused
+tld = "dotlane"          # the default; or several: tlds = ["dotlane", "test"]
 dns_port = 10053
 http_port = 80
 https_port = 443

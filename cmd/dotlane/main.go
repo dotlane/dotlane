@@ -1,4 +1,4 @@
-// Command dotlane gives local dev servers real HTTPS addresses such as https://myapp.traix.
+// Command dotlane gives local dev servers real HTTPS addresses such as https://myapp.dotlane.
 package main
 
 import (
@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -89,13 +92,21 @@ func withUsageHint(err error) error {
 
 func newRoot() *cobra.Command {
 	var configPath string
+	warned := false // a command may load the config more than once
 	loadConfig := func() (*config.Config, error) {
 		p, err := config.Resolve(configPath)
 		if err != nil {
 			return nil, err
 		}
 		configPath = p // install writes it into the login service
-		return config.Load(p)
+		cfg, err := config.Load(p)
+		if err == nil && !warned {
+			for _, w := range cfg.Warnings {
+				ui.New(os.Stderr).Warn(filepath.Base(cfg.Path), w)
+			}
+			warned = true
+		}
+		return cfg, err
 	}
 	installer := func() (install.Installer, error) {
 		cfg, err := loadConfig()
@@ -131,12 +142,12 @@ func newRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "dotlane",
 		Short: "Real HTTPS addresses for local dev servers",
-		Long: "Dotlane gives every local project a real HTTPS address, like https://myapp.traix,\n" +
+		Long: "Dotlane gives every local project a real HTTPS address, like https://myapp.dotlane,\n" +
 			"forwarded to the dev server's port on this machine.",
 		Example: `  # once: run at login, trust the certificate authority, route the domain ending
   dotlane install
 
-  # serve a dev server at https://myapp.traix
+  # serve a dev server at https://myapp.dotlane
   dotlane add myapp 5173
   dotlane ls
 
@@ -370,7 +381,30 @@ func newRoot() *cobra.Command {
 		},
 	})
 
+	// doctorChecks are the OS's checks, then the domain endings' (the same everywhere).
+	doctorChecks := func(ctx context.Context, i install.Installer) []install.Check {
+		checks := i.Doctor(ctx)
+		cfg, err := loadConfig()
+		if err != nil {
+			return checks
+		}
+		routed, err := i.Routed(ctx)
+		if err != nil {
+			return append(checks, install.Check{Name: "Domain endings", Status: install.Warning,
+				Detail: "could not list the routes: " + err.Error()})
+		}
+		return append(checks, install.EndingChecks(cfg, routed)...)
+	}
+
+	root.AddCommand(newTLDCommand(tldEnv{
+		loadConfig: loadConfig,
+		configPath: func() string { return configPath },
+		installer:  installer,
+		lookup:     net.DefaultResolver.LookupHost,
+	}))
+
 	var refresh bool
+	var installTLD string
 	install := &cobra.Command{
 		Use:   "install",
 		Short: "Run Dotlane at login, trust its certificate authority and route its domain endings",
@@ -379,11 +413,33 @@ func newRoot() *cobra.Command {
 			"Steps that need administrator rights are explained and run through sudo.\n\n" +
 			"--refresh only updates an installed service to this binary and restarts it if needed:\n" +
 			"no password, and nothing at all when Dotlane is not installed. After an upgrade, the next\n" +
-			"add, rm, ls, up or down does the same on its own.",
+			"add, rm, ls, up or down does the same on its own.\n\n" +
+			"--tld makes an ending the primary one first, like dotlane tld use; the default is .dotlane.",
 		Example: `  dotlane install
+  dotlane install --tld test
   dotlane install --refresh`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if installTLD != "" {
+				if refresh {
+					return errors.New("usage: --tld and --refresh cannot be used together")
+				}
+				t := strings.TrimPrefix(installTLD, ".")
+				cfg, err := loadConfig()
+				if err != nil {
+					return err
+				}
+				if !slices.Contains(cfg.TLDs, t) {
+					if err := checkNew(t, false); err != nil {
+						return fmt.Errorf("%w\n(for an ending that needs --force: dotlane tld use %s --force, then dotlane install)", err, t)
+					}
+				}
+				if list := withTLD(cfg.TLDs, t, true); !slices.Equal(list, cfg.TLDs) {
+					if err := config.SetTLDs(configPath, list); err != nil {
+						return err
+					}
+				}
+			}
 			i, err := installer()
 			if err != nil {
 				return err
@@ -394,6 +450,7 @@ func newRoot() *cobra.Command {
 			return i.Install(cmd.Context())
 		},
 	}
+	install.Flags().StringVar(&installTLD, "tld", "", "make this domain ending the primary one first (saved in config.toml)")
 	install.Flags().BoolVar(&refresh, "refresh", false, "update an installed service to this binary, without a password; no-op if not installed")
 	root.AddCommand(install)
 
@@ -451,7 +508,7 @@ func newRoot() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			checks := i.Doctor(cmd.Context())
+			checks := doctorChecks(cmd.Context(), i)
 			if asJSON {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
@@ -470,7 +527,7 @@ func newRoot() *cobra.Command {
 				}
 				out.Line("")
 				out.Title("Dotlane doctor", "after the fix")
-				checks = i.Doctor(cmd.Context())
+				checks = doctorChecks(cmd.Context(), i)
 				printChecks(out, checks)
 			}
 			if err := problems(checks); err != nil {

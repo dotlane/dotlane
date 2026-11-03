@@ -4,8 +4,9 @@
 #   scripts/check.sh
 #
 # gofmt, build, go vet for Linux, macOS and Windows, go test -race, govulncheck for all three,
-# the Bash scripts' syntax, the npm tests, the GoReleaser config and whether NOTICE lists every embedded
-# module (scripts/notice.sh). CI's `test` job runs this script, so the two cannot drift apart.
+# the Bash scripts' syntax, the changelog fragments (scripts/changelog.sh), the npm tests, the
+# GoReleaser config and whether NOTICE lists every embedded module (scripts/notice.sh). CI's
+# `test` job runs this script, so the two cannot drift apart.
 # It changes nothing on the system: govulncheck and GoReleaser (the same checksum-pinned release
 # CI uses, scripts/install-release-tools.sh) and go-licenses go to a cache folder, and nothing is
 # installed or started. The macOS-only tests that need a Mac
@@ -43,6 +44,7 @@ step "govulncheck (Linux)" vulncheck linux
 step "govulncheck (macOS)" vulncheck darwin
 step "govulncheck (Windows)" vulncheck windows
 step "Bash scripts" scripts_parse
+step "changelog fragments" scripts/changelog.sh check
 step "npm tests" node --test 'npm/test/*.test.*'
 step "goreleaser check" "$tools/goreleaser" check
 step "NOTICE up to date" scripts/notice.sh --check

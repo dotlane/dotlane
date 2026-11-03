@@ -44,7 +44,7 @@ func TestDaemon(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll(state) })
 
 	cfg := &config.Config{
-		TLDs:      []string{"traix"},
+		TLDs:      []string{"dotlane"},
 		DNSPort:   freePort(t),
 		HTTPPort:  freePort(t),
 		HTTPSPort: freePort(t),
@@ -86,7 +86,7 @@ func TestDaemon(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if status.Version != "test" || status.HTTPSPort != cfg.HTTPSPort {
+	if status.Version != "test" || status.HTTPSPort != cfg.HTTPSPort || status.PrimaryTLD != "dotlane" {
 		t.Errorf("status = %+v", status)
 	}
 
@@ -102,7 +102,7 @@ func TestDaemon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantURL := "https://demo.traix:" + strconv.Itoa(cfg.HTTPSPort)
+	wantURL := "https://demo.dotlane:" + strconv.Itoa(cfg.HTTPSPort)
 	if !site.Ready || len(site.URLs) != 1 || site.URLs[0] != wantURL {
 		t.Errorf("added = %+v, want ready at %s", site, wantURL)
 	}
@@ -130,22 +130,22 @@ func TestDaemon(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.StatusCode != 200 || string(body) != "hello from demo.traix:"+strconv.Itoa(cfg.HTTPSPort) {
+	if resp.StatusCode != 200 || string(body) != "hello from demo.dotlane:"+strconv.Itoa(cfg.HTTPSPort) {
 		t.Errorf("GET = %d %q (the Host header must pass through)", resp.StatusCode, body)
 	}
 
 	// A name without a site gets Dotlane's page, over a certificate issued on the spot.
-	resp, err = browser.Get("https://nosuch.traix:" + strconv.Itoa(cfg.HTTPSPort) + "/")
+	resp, err = browser.Get("https://nosuch.dotlane:" + strconv.Itoa(cfg.HTTPSPort) + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.StatusCode != 404 || !strings.Contains(string(body), "No site at <code>nosuch.traix</code>") {
+	if resp.StatusCode != 404 || !strings.Contains(string(body), "No site at <code>nosuch.dotlane</code>") {
 		t.Errorf("unknown name = %d %q", resp.StatusCode, body)
 	}
 	// Caddy fills {placeholders} in the body; the page's CSS and favicon must come through as written.
-	for _, want := range []string{":root{--bg:#f8fafc;", "@media (prefers-color-scheme:dark){:root{", `href="data:image/svg+xml,%3Csvg`, "https://nosuch.traix</span>"} {
+	for _, want := range []string{":root{--bg:#f8fafc;", "@media (prefers-color-scheme:dark){:root{", `href="data:image/svg+xml,%3Csvg`, "https://nosuch.dotlane</span>"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("page lacks %q", want)
 		}
@@ -156,7 +156,7 @@ func TestDaemon(t *testing.T) {
 	if _, err := client.AddSite(ctx, "down", downPort, ""); err != nil {
 		t.Fatal(err)
 	}
-	resp, err = browser.Get("https://down.traix:" + strconv.Itoa(cfg.HTTPSPort) + "/")
+	resp, err = browser.Get("https://down.dotlane:" + strconv.Itoa(cfg.HTTPSPort) + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestDaemon(t *testing.T) {
 	// Plain HTTP redirects to the HTTPS port actually in use.
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, _ := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(cfg.HTTPPort)+"/x?y=1", nil)
-	req.Host = "demo.traix"
+	req.Host = "demo.dotlane"
 	if resp, err := noFollow.Do(req); err != nil {
 		t.Error(err)
 	} else {

@@ -4,12 +4,10 @@ All notable changes to Dotlane are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-Every version gets its own section before it is tagged: changes collect under
-**Unreleased** as they land, and cutting a release renames that heading to the version and date
-([`docs/releasing.md`](docs/releasing.md)). The release workflow publishes the version's section as
-the release notes, and refuses a tag that has none.
-
-## [Unreleased]
+Every version gets its own section before it is tagged. Until then, each change waits as a
+fragment in [`changes/`](changes/README.md), so pull requests never edit this file; cutting a
+release collects the fragments into the version's section ([`docs/releasing.md`](docs/releasing.md)).
+The release workflow publishes that section as the release notes, and refuses a tag that has none.
 
 ## [0.2.0] - 2026-11-02
 
@@ -92,6 +90,5 @@ source; Homebrew is coming soon. Phases 1 and 2 of the [roadmap](docs/roadmap.md
 - Binaries are not yet signed or notarized by Apple. npm downloads are not quarantined, so macOS
   runs them as they are; the Homebrew cask will remove the quarantine attribute.
 
-[Unreleased]: https://github.com/dotlane/dotlane/compare/v0.2.0-rc.1...HEAD
 [0.2.0]: https://github.com/dotlane/dotlane/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dotlane/dotlane/releases/tag/v0.1.0

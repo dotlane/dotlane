@@ -14,7 +14,7 @@ Sizes are rough, for one developer, and assume part-time-to-full-time focus. Res
 ## Where we are: Phase 0 — prototype (done)
 
 macOS only. Bash `dotlane` CLI (add / rm / ls / doctor), Homebrew Caddy with its local CA,
-dnsmasq on port 10053 as a user LaunchAgent, `/etc/resolver/traix`. Verified end to end with
+dnsmasq on port 10053 as a user LaunchAgent, `/etc/resolver/dotlane`. Verified end to end with
 the reference app (Vite + FastAPI), including live reload through the proxy.
 
 ## The one architectural decision: a single Go binary
@@ -79,7 +79,7 @@ run as a separate process. Go keeps Caddy in-process.
 
 ```toml
 # ~/.config/dotlane/config.toml  — the machine (Windows: %APPDATA%\dotlane\config.toml)
-tld = "traix"                # or several: tlds = ["traix", "test"]
+tld = "dotlane"                # or several: tlds = ["dotlane", "test"]
 bind = "loopback"            # "lan" to let phones and other devices in
 
 # <project>/dotlane.toml       — committed, shared by the team
@@ -173,7 +173,7 @@ Broken into milestones in [`phase-1.md`](phase-1.md).
 
 ### Phase 6 — Teams and reach (ongoing)
 
-- Organisation domain endings and shared site lists (e.g. everyone at Traix gets `*.traix` the same
+- Organisation domain endings and shared site lists (e.g. everyone at a company gets `*.<company>` the same
   way, onboarding in one command).
 - Phones and other devices: `bind = "lan"` plus mDNS or a LAN DNS answer, or a tunnel; serving the
   CA to phones for trust.

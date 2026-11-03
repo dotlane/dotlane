@@ -206,10 +206,10 @@ Ports 80 and 443 can be held by only one install, so stop yours first.
   mkdir -p /tmp/myapp && echo 'Hello from myapp' > /tmp/myapp/index.html
   python3 -m http.server 5173 --bind 127.0.0.1 --directory /tmp/myapp &
   dotlane add myapp 5173
-  curl https://myapp.traix                     # Hello from myapp
+  curl https://myapp.dotlane                     # Hello from myapp
   ```
 
-- [x] Open `https://myapp.traix` in Safari: the page loads with a trusted certificate.
+- [x] Open `https://myapp.dotlane` in Safari: the page loads with a trusted certificate.
 - [x] Remove everything, then try `npx` with nothing installed:
 
   ```bash

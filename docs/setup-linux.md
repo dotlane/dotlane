@@ -55,9 +55,9 @@ before it runs:
    only binds them on `127.0.0.1` and `::1`.
 3. **Certificate authority**: trusted in the system store (`update-ca-certificates` or
    `update-ca-trust`) and, with `certutil`, in `~/.pki/nssdb` and each Firefox profile.
-4. **DNS for `.traix`**: a system unit, `/etc/systemd/system/dotlane-dns-dev.dotlane.service`,
-   that gives systemd-resolved a small virtual network link carrying only `~traix`. Lookups for
-   `*.traix` go to Dotlane, and every other lookup stays where it was.
+4. **DNS for `.dotlane`**: a system unit, `/etc/systemd/system/dotlane-dns-dev.dotlane.service`,
+   that gives systemd-resolved a small virtual network link carrying only `~dotlane`. Lookups for
+   `*.dotlane` go to Dotlane, and every other lookup stays where it was.
 
 Why a link and not a `resolved.conf.d` file: a DNS server set there becomes a default route, so
 every lookup on the machine would be sent to Dotlane first.
@@ -67,7 +67,7 @@ every lookup on the machine would be sent to Dotlane first.
 ```bash
 journalctl --user -u dev.dotlane          # the service's log
 systemctl --user restart dev.dotlane      # restart it by hand
-resolvectl domain                         # the dl-… link should list ~traix
+resolvectl domain                         # the dl-… link should list ~dotlane
 ```
 
 ## Upgrading

@@ -53,6 +53,6 @@ missing.
 
 ## Dotlane in WSL, browser on Windows: not supported
 
-Windows would have to send `*.traix` lookups into WSL and trust a certificate authority that
+Windows would have to send `*.dotlane` lookups into WSL and trust a certificate authority that
 lives there, and the address of the WSL machine changes on every start in NAT mode. Run Dotlane
 on Windows instead; the dev server can stay in WSL.

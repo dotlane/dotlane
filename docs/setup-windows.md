@@ -38,7 +38,7 @@ in one elevated PowerShell: **one UAC prompt**.
    (`Cert:\LocalMachine\Root`). Edge, Chrome and `curl.exe` use that store. Firefox uses it too
    when `security.enterprise_roots.enabled` is on (the default in recent versions); `doctor`
    reminds you when Firefox is installed.
-3. **DNS for `.traix`**: a Name Resolution Policy Table rule that sends `*.traix`, and only
+3. **DNS for `.dotlane`**: a Name Resolution Policy Table rule that sends `*.dotlane`, and only
    that, to `127.0.0.1`.
 
 Configuration lives in `%AppData%\dotlane\config.toml`; sites, the CA and the control socket in
@@ -53,7 +53,7 @@ Get-DnsClientNrptRule | Where-Object Comment -like 'dotlane:*'
 ```
 
 `curl.exe` checks certificate revocation by default, and a local CA publishes none. Use
-`curl.exe --ssl-revoke-best-effort https://myapp.traix`; browsers are not affected.
+`curl.exe --ssl-revoke-best-effort https://myapp.dotlane`; browsers are not affected.
 
 ## Upgrading
 

@@ -181,9 +181,9 @@ state_dir = '$STATE'
 
     # Each build reports a release-like version, so the next command can tell that the service
     # runs an older one (an upgrade).
-    function Build($version) {
+    function Build($version, $extra = '') {
         Remove-Item $BIN -ErrorAction SilentlyContinue
-        & go build -ldflags "-X main.version=$version" -o $BIN ./cmd/dotlane
+        & go build -ldflags "-X main.version=$version $extra" -o $BIN ./cmd/dotlane
         if ($LASTEXITCODE -ne 0) { Fail "go build failed ($version)" }
     }
     Build '1.0.0-ci.1'
@@ -309,6 +309,31 @@ state_dir = '$STATE'
     CurlExe -f --max-time 10 "https://web.$TLD/hello.txt" -o NUL
     if ($LASTEXITCODE -ne 0) { Fail "web.$TLD not served after the automatic upgrade" }
 
+    Step 'domain endings'
+    # A second ending answers at once, can become the primary, and the first can go: its NRPT rule
+    # goes with it, and the sites stay, on the new ending.
+    $TLD2 = 'dltest2'
+    function Get-OurNamespaces { @(Get-DnsClientNrptRule | Where-Object { $_.Comment -eq $RULE_COMMENT } | ForEach-Object { $_.Namespace }) }
+    DL tld add $TLD2 | Out-Null
+    if ((Get-OurNamespaces) -notcontains ".$TLD2") { Fail "no NRPT rule for .$TLD2 after tld add" }
+    $body = (CurlExe -f --max-time 10 "https://web.$TLD2/hello.txt") -join ''
+    if ($LASTEXITCODE -ne 0) { Fail "web.$TLD2 not served after tld add" }
+    if ($body.Trim() -ne 'hello') { Fail "unexpected body on .${TLD2}: $body" }
+    DL tld use $TLD2 | Out-Null
+    $web = @(((DL ls --json).Out -join "`n") | ConvertFrom-Json | ForEach-Object { $_ }) | Where-Object { $_.name -eq 'web' }
+    if (-not $web -or $web.urls[0] -notlike "https://web.$TLD2*") { Fail "the primary URL is not on .${TLD2}: $($web.urls -join ', ')" }
+    DL tld rm $TLD | Out-Null
+    if ((Get-OurNamespaces) -contains ".$TLD") { Fail "the NRPT rule for .$TLD is left after tld rm" }
+    CurlExe -f --max-time 10 "https://web.$TLD2/hello.txt" -o NUL
+    if ($LASTEXITCODE -ne 0) { Fail "web.$TLD2 not served after removing .$TLD" }
+    # Back to the first ending, so the steps below test what they always did.
+    DL tld use $TLD | Out-Null
+    DL tld rm $TLD2 | Out-Null
+    if ((Get-OurNamespaces) -contains ".$TLD2") { Fail "the NRPT rule for .$TLD2 is left after tld rm" }
+    CurlExe -f --max-time 10 "https://web.$TLD/hello.txt" -o NUL
+    if ($LASTEXITCODE -ne 0) { Fail "web.$TLD not served after switching back" }
+    Write-Host 'added, served, made primary, removed, and back'
+
     Step 'doctor'
     $r = DLTry doctor --json
     $checks = ConvertFrom-Checks $r.Out
@@ -353,6 +378,7 @@ state_dir = '$STATE'
     if (Test-Task) { Fail 'install --refresh installed a service' }
     if (Test-Path $SERVICE_EXE) { Fail 'install --refresh copied the binary' }
     Write-Host 'no-op, as expected'
+
 }
 
 $failed = $false

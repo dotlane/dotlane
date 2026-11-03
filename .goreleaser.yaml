@@ -130,7 +130,7 @@ homebrew_casks:
     caveats: |
       Set Dotlane up once (it explains the two steps that ask for your password):
         dotlane install
-      Then serve a dev server at https://myapp.traix:
+      Then serve a dev server at https://myapp.dotlane:
         dotlane add myapp 5173
 
       After `brew upgrade`, the next dotlane command restarts the service on the new version.

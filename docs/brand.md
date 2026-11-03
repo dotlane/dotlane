@@ -10,7 +10,7 @@ identical.
 <img src="../assets/brand/mark.svg" width="96" alt="Dotlane mark on ink"> <img src="../assets/brand/mark-paper.svg" width="96" alt="Dotlane mark on paper">
 
 An address bar, reduced to its outline, with one green dot at its end: the period after the name,
-the `.` in `myapp.traix`, and a status light that says the address is live. One shape, one
+the `.` in `myapp.dotlane`, and a status light that says the address is live. One shape, one
 colour, nothing else.
 
 **Construction** (64-unit grid, `scripts/brandgen`):
@@ -113,5 +113,5 @@ nothing from the network.
 ## Voice
 
 Plain and short, like the CLI: say what happened, then what to do, with the command to run. No
-exclamation marks, no "Oops". Name things the way the user sees them (`https://myapp.traix`,
+exclamation marks, no "Oops". Name things the way the user sees them (`https://myapp.dotlane`,
 `localhost:5173`), never internals.

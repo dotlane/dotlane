@@ -121,13 +121,14 @@ func (d *Daemon) view(s sites.Site) api.Site {
 // Status implements api.Backend.
 func (d *Daemon) Status() api.Status {
 	return api.Status{
-		Version:   d.version,
-		PID:       os.Getpid(),
-		TLDs:      d.cfg.TLDs,
-		DNSAddr:   d.dnsAddr,
-		HTTPSPort: d.cfg.HTTPSPort,
-		StateDir:  d.cfg.StateDir,
-		Started:   d.started,
+		Version:    d.version,
+		PID:        os.Getpid(),
+		TLDs:       d.cfg.TLDs,
+		PrimaryTLD: d.cfg.Primary(),
+		DNSAddr:    d.dnsAddr,
+		HTTPSPort:  d.cfg.HTTPSPort,
+		StateDir:   d.cfg.StateDir,
+		Started:    d.started,
 	}
 }
 

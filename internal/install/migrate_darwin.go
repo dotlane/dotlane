@@ -22,7 +22,7 @@ import (
 // The Bash prototype (files/bin/dotlane): Homebrew's Caddy service with one file per site, and a
 // dnsmasq launchd agent answering the domain ending.
 const (
-	prototypeDNSLabel = "dev.traix.dnsmasq"
+	prototypeDNSLabel = "dev.dotlane.dnsmasq"
 	prototypeScript   = "# dotlane: local https://<name>.<tld> sites in front of dev servers, via Caddy."
 )
 
@@ -372,7 +372,7 @@ func (m *Mac) listLeftovers() {
 	var paths []string
 	for _, p := range []string{
 		m.sitesDir(),
-		filepath.Join(m.Home, ".config", "dnsmasq", "traix.conf"),
+		filepath.Join(m.Home, ".config", "dnsmasq", "dotlane.conf"),
 		filepath.Join(m.Home, "Library", "LaunchAgents", prototypeDNSLabel+".plist"),
 		filepath.Join(m.BrewPrefix, "etc", "Caddyfile"),
 		filepath.Join(m.BrewPrefix, "var", "lib", "caddy"),

@@ -1,11 +1,11 @@
 # Dependency and action updates (docs/security-guide.md). Security updates are on in the
-# repository settings; these are the regular version updates. They go into dev with the other
-# changes (docs/branching.md), one grouped pull request per ecosystem, so one CI run each.
+# repository settings; these are the regular version updates. They go into main through the merge
+# queue like any other change (docs/branching.md), one grouped pull request per ecosystem, so one
+# CI run each.
 version: 2
 updates:
   - package-ecosystem: gomod
     directory: /
-    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -13,7 +13,6 @@ updates:
         patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
-    target-branch: dev
     schedule:
       interval: weekly
     groups:

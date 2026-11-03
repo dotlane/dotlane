@@ -16,7 +16,7 @@ For macOS, Linux and Windows, each on `arm64` and `amd64`:
 - the same name plus `.sbom.json`: an SPDX SBOM of everything compiled in (Syft);
 - for Linux, `.deb`, `.rpm` and `.pkg.tar.zst` packages that put the binary in `/usr/bin`, with no
   scripts (`dotlane install` stays a per-user step).
-  Every pull request installs the snapshot's packages on Ubuntu, Fedora and Arch, runs the
+  Every merge group installs the snapshot's packages on Ubuntu, Fedora and Arch, runs the
   end-to-end test from `/usr/bin/dotlane`, and removes them again (CI's `linux-packages`).
 
 macOS is one GoReleaser build and Linux with Windows another (`dotlane-linux-windows`), so the
@@ -31,22 +31,33 @@ same commit twice gives the same bytes (checked 2026-10-30).
 
 ## Cutting a release
 
-Releases go from `dev` to `main` through a release branch; which version number to pick, hotfixes,
-and what CI runs at each step are in [`branching.md`](branching.md).
+Releases are tags on `main`; which version number to pick, patches to older versions, and what
+CI runs at each step are in [`branching.md`](branching.md).
 
-1. `dev` is green in CI, and the version's changes are in the docs. Cut the branch:
-   `git switch -c release/v0.1.0 origin/dev`.
-2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.1.0] - <date>`, start a new empty
-   `## [Unreleased]` above it, and update the links at the bottom. A pre-release tag
-   (`v0.1.0-rc.1`) uses its own section if it has one, else its version's. Check with
-   `scripts/changelog-section.sh v0.1.0`. Commit, push, and open a pull request into `main`:
-   `gh pr create --base main --title "Release v0.1.0"`. It runs the full CI suite.
-3. Merge it with a merge commit (`gh pr merge --merge --delete-branch`), then tag `main` and push:
+1. **A candidate.** `main` is green and the version's changes are in the docs. Check the notes
+   with `scripts/changelog.sh preview`, then tag the commit and push:
 
    ```bash
-   git switch main && git pull --ff-only
-   git tag -a v0.1.0-rc.1 -m "v0.1.0-rc.1"
+   git fetch origin
+   git tag -a v0.1.0-rc.1 -m "v0.1.0-rc.1" origin/main
    git push origin v0.1.0-rc.1
+   ```
+
+   A pre-release tag without a changelog section takes its notes from the fragments
+   (`scripts/changelog-section.sh v0.1.0-rc.1` shows them). A fix the candidate needs is an
+   ordinary pull request into `main`, then `-rc.2`. A patch release may skip the candidate.
+2. **The release commit.** On a branch from `origin/main`, run
+   `scripts/changelog.sh release v0.1.0`: it writes `## [0.1.0] - <date>` with every fragment
+   into `CHANGELOG.md`, adds the version's link at the bottom, and deletes the fragments. Edit
+   the section if it needs an introduction or reordering, then open the pull request:
+   `gh pr create --title "Release v0.1.0"` and `gh pr merge --squash --auto`. It is docs only, so
+   the queue merges it without running the suites again.
+3. **Tag it** once merged, on the release commit itself (not a later one):
+
+   ```bash
+   git fetch origin
+   git tag -a v0.1.0 -m "v0.1.0" "$(git log -1 --format=%H --grep='^Release v0.1.0' origin/main)"
+   git push origin v0.1.0
    ```
 
 4. The *Release* workflow first checks that the version has a changelog section (and stops if
@@ -55,17 +66,14 @@ and what CI runs at each step are in [`branching.md`](branching.md).
    Tags with a suffix (`-rc.1`) are marked as pre-releases.
 5. Review the draft: the files are all there, `checksums.txt` verifies
    (`shasum -a 256 -c checksums.txt` after downloading), the notes read well. Then publish it.
-6. Sync `dev` with `main` ([`branching.md`](branching.md), Releasing, step 3), so it has the
-   changelog commit.
 
 A tag that fails the tests produces no release; delete the tag (`git push --delete origin <tag>`),
-fix through a hotfix branch into `main`, and tag again.
+fix through a pull request into `main`, and tag again.
 
 ## Dry run
 
-Every release and hotfix pull request runs a snapshot build (and every pull request runs
-`goreleaser check`, in `scripts/check.sh`) (the *release-snapshot* job in
-`ci.yml`), verifies the checksums and archive contents, and keeps the files as a workflow
+Every merge group that changes code runs a snapshot build (the *release-snapshot* job in
+`ci.yml`; every pull request also runs `goreleaser check`, in `scripts/check.sh`), verifies the checksums and archive contents, and keeps the files as a workflow
 artifact for seven days. Locally (on macOS, `go install` builds the same versions from source):
 
 ```bash
@@ -104,7 +112,7 @@ What the cask does:
   older release and updates it, as `dotlane install --refresh` does (no password). npm upgrades
   get the same, since its packages have no install scripts.
 
-Tests: every pull request installs the snapshot's cask from a local tap on a macOS runner, sets
+Tests: every merge group installs the snapshot's cask from a local tap on a macOS runner, sets
 Dotlane up, serves a site, upgrades to a second build, and removes everything
 ([`scripts/brew-e2e.sh`](../scripts/brew-e2e.sh), the *homebrew* job in `ci.yml`).
 
@@ -157,7 +165,7 @@ scratch project and runs `npx dotlane` (on the machine's own OS and CPU; CI runs
 Ubuntu and Windows).
 
 The release workflow publishes with [`scripts/npm-publish.sh`](../scripts/npm-publish.sh),
-platform packages first; every pull request runs the same script with `--dry-run`.
+platform packages first; every merge group runs the same script with `--dry-run`.
 
 **Publishing is off** until these one-time steps are done (the *Publish to npm* step checks the
 repository variable `NPM_PUBLISH`):

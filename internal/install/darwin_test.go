@@ -360,7 +360,7 @@ func TestInstallRefusesTakenHTTPSPort(t *testing.T) {
 	fake.labels[2779] = "sh.brew.caddy"
 	sites := filepath.Join(m.Home, ".config", "caddy", "sites")
 	os.MkdirAll(sites, 0o755)
-	os.WriteFile(filepath.Join(sites, "myapp.caddy"), []byte("# Managed by dotlane: https://myapp.traix -> localhost:5173\n"), 0o644)
+	os.WriteFile(filepath.Join(sites, "myapp.caddy"), []byte("# Managed by dotlane: https://myapp.dotlane -> localhost:5173\n"), 0o644)
 
 	if err := m.Install(context.Background()); err == nil {
 		t.Fatal("installed with 443 taken")
@@ -382,7 +382,7 @@ func TestInstallPicksFreeDNSPort(t *testing.T) {
 	m.Cfg.DNSPort, m.Cfg.DNSPortSet = 10053, false
 	fake.listen["udp:10053"] = []int{2588}
 	fake.paths[2588] = "/opt/homebrew/sbin/dnsmasq"
-	fake.labels[2588] = "dev.traix.dnsmasq"
+	fake.labels[2588] = "dev.dotlane.dnsmasq"
 	fake.listen["udp:10054"] = []int{999} // also taken: skip it
 	fake.paths[999] = "/usr/local/bin/something"
 	fake.daemonPorts[2] = "udp:10055"
@@ -505,7 +505,7 @@ func TestDoctorDNSPortBeforeInstall(t *testing.T) {
 	m, fake, _ := newTestMac(t)
 	fake.listen["udp:10054"] = []int{2588}
 	fake.paths[2588] = "/opt/homebrew/sbin/dnsmasq"
-	fake.labels[2588] = "dev.traix.dnsmasq"
+	fake.labels[2588] = "dev.dotlane.dnsmasq"
 	m.Cfg.DNSPortSet = false
 	if got := statuses(m.Doctor(context.Background()))["DNS port"]; got != Warning {
 		t.Errorf("default port: %s, want warn", got)
@@ -871,5 +871,63 @@ func TestUpgrade(t *testing.T) {
 	}
 	if !strings.Contains(other.String(), "it runs 0.1.0, this is 0.2.0") || out.Len() != 0 {
 		t.Errorf("report went to the wrong place:\nwriter:\n%s\nstdout:\n%s", other, out)
+	}
+}
+
+// Routes follow the config: a new ending gets its file, a dropped one loses it, and another
+// tool's file is left alone.
+func TestSyncRoutes(t *testing.T) {
+	m, fake, out := newTestMac(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	foreign := filepath.Join(m.ResolverDir, "corp")
+	os.WriteFile(foreign, []byte("nameserver 10.0.0.1\n"), 0o644)
+
+	m.Cfg.TLDs = []string{"dldev", "extra"}
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, err := m.Routed(context.Background()); err != nil || strings.Join(got, " ") != "dldev extra" {
+		t.Errorf("Routed after adding = %q, %v", got, err)
+	}
+
+	m.Cfg.TLDs = []string{"extra"}
+	out.Reset()
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, err := m.Routed(context.Background()); err != nil || strings.Join(got, " ") != "extra" {
+		t.Errorf("Routed after removing = %q, %v", got, err)
+	}
+	if !strings.Contains(out.String(), "Stops sending *.dldev lookups") {
+		t.Errorf("removal not explained:\n%s", out)
+	}
+	if _, err := os.Stat(foreign); err != nil {
+		t.Errorf("another tool's resolver file removed: %v", err)
+	}
+
+	before := fake.sudoCalls
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.sudoCalls != before {
+		t.Errorf("nothing to change, yet sudo ran %d times", fake.sudoCalls-before)
+	}
+}
+
+// An ending dropped from the config before uninstalling still loses its resolver file.
+func TestUninstallRemovesDroppedEndings(t *testing.T) {
+	m, _, out := newTestMac(t)
+	m.Cfg.TLDs = []string{"dldev", "extra"}
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.Cfg.TLDs = []string{"dldev"}
+	if err := m.Uninstall(context.Background(), false); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, _ := m.Routed(context.Background()); len(got) != 0 {
+		t.Errorf("left routed: %q\n%s", got, out)
 	}
 }

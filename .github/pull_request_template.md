@@ -1,6 +1,7 @@
 <!--
-Thanks for contributing. The title becomes the squash-merge commit message: say what changes,
-in the imperative ("Retry fresh ports when Start is asked for port 0").
+Thanks for contributing. Target `main`; it lands through the merge queue (docs/branching.md). The
+title becomes the squash-merge commit message: say what changes, in the imperative ("Retry fresh ports when Start
+is asked for port 0").
 Anything bigger than a fix should have an agreed issue first; see CONTRIBUTING.md.
 Security problems go through SECURITY.md, never a public pull request.
 -->
@@ -43,6 +44,6 @@ Don't run scripts/integration.sh or scripts/brew-e2e.sh on your Mac: CI runs the
 - [ ] `scripts/check.sh` passes
 - [ ] Tests added or updated (macOS-only code: `internal/install`)
 - [ ] Docs updated if behaviour changed (`docs/cli.md`, `docs/setup*.md`)
-- [ ] `CHANGELOG.md` has a line under `[Unreleased]` if a user would notice
+- [ ] A fragment in `changes/` if a user would notice (not `CHANGELOG.md` itself)
 - [ ] `NOTICE` regenerated with `scripts/notice.sh` if dependencies changed
 - [ ] User-facing output goes through `internal/ui`

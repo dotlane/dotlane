@@ -1,11 +1,11 @@
 # dotlane
 
-Real, trusted HTTPS addresses for local dev servers: `https://myapp.traix` instead of
+Real, trusted HTTPS addresses for local dev servers: `https://myapp.dotlane` instead of
 `http://localhost:5173`. Any language, any framework, one command.
 
 ```bash
-npx dotlane install          # once: login service, trusted local CA, DNS for .traix
-npx dotlane add myapp 5173   # https://myapp.traix → localhost:5173
+npx dotlane install          # once: login service, trusted local CA, DNS for .dotlane
+npx dotlane add myapp 5173   # https://myapp.dotlane → localhost:5173
 ```
 
 Or in a project, list its sites in a committed `dotlane.toml` and add Dotlane as a dev

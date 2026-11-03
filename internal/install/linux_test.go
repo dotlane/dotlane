@@ -16,6 +16,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -428,6 +429,9 @@ func TestLinuxInstallRestartsAfterRebuild(t *testing.T) {
 	if !strings.Contains(out.String(), "restarted (to load the rebuilt binary)") || !fake.ran("systemctl --user restart") {
 		t.Errorf("no restart:\n%s", out)
 	}
+	if i, j := slices.Index(fake.calls, "systemctl --user reset-failed "+m.unitName()), slices.Index(fake.calls, "systemctl --user restart "+m.unitName()); i < 0 || i > j {
+		t.Errorf("the start counter is not reset before a restart: %q", fake.calls)
+	}
 	if got, _ := os.ReadFile(m.serviceExe()); string(got) != "dotlane build 2" {
 		t.Errorf("service runs %q", got)
 	}
@@ -803,5 +807,70 @@ func TestLinuxInstallSetsDefaultRouteAgain(t *testing.T) {
 	}
 	if !fake.ran("sudo resolvectl default-route " + m.dnsLink() + " no") {
 		t.Errorf("default-route was not set again: %v", fake.calls)
+	}
+}
+
+// Routes follow the config: the DNS unit is rewritten with the new endings, and left alone when
+// nothing changed.
+func TestLinuxSyncRoutes(t *testing.T) {
+	m, fake, out := newTestLinux(t)
+	if err := m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.Cfg.TLDs = []string{"dldev", "extra"}
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, err := m.Routed(context.Background()); err != nil || strings.Join(got, " ") != "dldev extra" {
+		t.Errorf("Routed after adding = %q, %v", got, err)
+	}
+	if !fake.ran("sudo systemctl restart " + m.dnsUnitName()) {
+		t.Errorf("DNS unit not restarted: %q", fake.calls)
+	}
+
+	m.Cfg.TLDs = []string{"extra"}
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, err := m.Routed(context.Background()); err != nil || strings.Join(got, " ") != "extra" {
+		t.Errorf("Routed after removing = %q, %v", got, err)
+	}
+
+	before := fake.sudoCalls
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.sudoCalls != before {
+		t.Errorf("nothing to change, yet sudo ran %d times", fake.sudoCalls-before)
+	}
+
+	// Another primary is the same endings in another order: nothing to change either.
+	m.Cfg.TLDs = []string{"dldev", "extra"}
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.Cfg.TLDs = []string{"extra", "dldev"}
+	before = fake.sudoCalls
+	if err := m.SyncRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.sudoCalls != before {
+		t.Errorf("reordering the endings ran sudo %d times", fake.sudoCalls-before)
+	}
+	unit, _ := os.ReadFile(m.dnsUnitPath())
+	if !bytes.Contains(unit, []byte("\nStartLimitIntervalSec=0\n")) {
+		t.Errorf("the DNS unit can hit systemd's start limit:\n%s", unit)
+	}
+}
+
+// Routed reports nothing for a DNS unit that is not Dotlane's, or none at all.
+func TestLinuxRoutedIgnoresForeignUnit(t *testing.T) {
+	m, _, _ := newTestLinux(t)
+	if got, err := m.Routed(context.Background()); err != nil || len(got) != 0 {
+		t.Errorf("no unit: %q, %v", got, err)
+	}
+	os.WriteFile(m.dnsUnitPath(), []byte("[Service]\nExecStart=/usr/bin/resolvectl domain "+m.dnsLink()+" ~corp\n"), 0o644)
+	if got, err := m.Routed(context.Background()); err != nil || len(got) != 0 {
+		t.Errorf("foreign unit: %q, %v", got, err)
 	}
 }

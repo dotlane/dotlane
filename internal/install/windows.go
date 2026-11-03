@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -536,6 +537,74 @@ func (w *Windows) dnsSteps(ctx context.Context) ([]adminStep, error) {
 		})
 	}
 	return steps, nil
+}
+
+// Installed implements Installer.
+func (w *Windows) Installed(ctx context.Context) bool {
+	registered, _ := w.taskState(ctx)
+	_, err := os.Stat(w.serviceExe())
+	return registered || err == nil
+}
+
+// Routed implements Installer: the endings of the rules that carry this service's comment.
+func (w *Windows) Routed(ctx context.Context) ([]string, error) {
+	rules, err := w.rules(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return w.routedIn(rules), nil
+}
+
+func (w *Windows) routedIn(rules []nrptRule) []string {
+	var tlds []string
+	for _, r := range rules {
+		if r.Comment != nrptComment(w.Cfg.ServiceName) {
+			continue
+		}
+		for _, ns := range strings.Split(r.Namespace, ",") {
+			if t := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(ns), ".")); t != "" && !slices.Contains(tlds, t) {
+				tlds = append(tlds, t)
+			}
+		}
+	}
+	return tlds
+}
+
+// SyncRoutes implements Installer: the rules to add and to remove, in one administrator prompt.
+func (w *Windows) SyncRoutes(ctx context.Context) error {
+	steps, err := w.dnsSteps(ctx)
+	if err != nil {
+		return err
+	}
+	rules, err := w.rules(ctx)
+	if err != nil {
+		return err
+	}
+	for _, tld := range w.routedIn(rules) {
+		if slices.Contains(w.Cfg.TLDs, tld) {
+			continue
+		}
+		tld := tld
+		label := "DNS for ." + tld
+		steps = append(steps, adminStep{
+			Label: label,
+			Why:   fmt.Sprintf("Stops sending *.%s lookups to Dotlane.", tld),
+			Shown: removeRuleShown(w.Cfg.ServiceName, tld),
+			Body:  removeRuleBody(w.Cfg.ServiceName, tld),
+			Done: func(ctx context.Context) error {
+				rules, err := w.rules(ctx)
+				if err != nil {
+					return err
+				}
+				if slices.Contains(w.routedIn(rules), tld) {
+					return fmt.Errorf("the DNS rule for .%s is still there; remove it with Remove-DnsClientNrptRule", tld)
+				}
+				w.UI.OK(label, "rule removed")
+				return nil
+			},
+		})
+	}
+	return w.runSteps(ctx, steps)
 }
 
 // verifyDNS checks the whole path through the Windows resolver. A failure is reported, not fatal:

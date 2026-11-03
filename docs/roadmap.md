@@ -20,6 +20,10 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Next
 
+- **Domain endings from the CLI.** `dotlane tld ls|add|rm|use` and `install --tld`: add and
+  remove endings with their DNS routing, choose the primary one, and refuse endings that would
+  shadow public sites or cannot work (`.local`, delegated TLDs). The default becomes `.dotlane`.
+  The plan and tasks are in [`tld-management.md`](tld-management.md).
 - **A stable, documented control API.** The daemon's JSON API on its Unix socket (`/v1/status`,
   `/v1/sites`) documented as a public, versioned contract, with breaking changes going to `/v2`.
   The desktop app (`dotlane/desktop`) needs it before its first version; editor integrations
@@ -44,7 +48,9 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
   (embedding needs CGO, which breaks cross-compilation).
 - **Phones and other devices.** `bind = "lan"`, a LAN DNS answer or mDNS, or a tunnel, and a way
   to trust the CA on a phone.
-- **A name-constrained CA**, limited to the configured endings ([`security.md`](security.md)).
+- **A name-constrained CA**, limited to the configured endings ([`security.md`](security.md)),
+  so a stolen CA key cannot impersonate other websites. Each change of endings then brings a
+  new CA and one trust prompt. The plan and tasks are in [`ca-name-constraints.md`](ca-name-constraints.md).
 - **Teams.** An organization's domain ending and shared site lists, set up in one command.
 - **AI agents.** Stable URLs, `ls --json`, and an MCP-style endpoint that lists sites.
 

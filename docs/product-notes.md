@@ -9,7 +9,7 @@ no DNS records (a quick check, not a trademark search).
 ## Definition
 
 - **One-liner:** Dotlane gives every local project a real HTTPS address, like
-  `https://myapp.traix`, for any language, on macOS, Linux and Windows.
+  `https://myapp.dotlane`, for any language, on macOS, Linux and Windows.
 - **Technical:** a local domain service (DNS, a trusted certificate authority and a reverse proxy
   in one program), controlled from a CLI, a per-project config file or a menu-bar app.
 
@@ -48,7 +48,7 @@ services or a team:
    never again. DNS runs as the user on a high port; the proxy runs as the user on 80/443.
 3. **Does not wrap the dev server.** It needs a name and a port, nothing else: any language,
    framework, IDE run configuration or container works, unchanged.
-4. **Branded domain endings.** `myapp.traix` instead of `myapp.localhost` or `.test`: a
+4. **Branded domain endings.** `myapp.dotlane` instead of `myapp.localhost` or `.test`: a
    company's own namespace for its local stack, the same names on every developer's machine.
 5. **Built on boring, proven parts:** macOS resolver files, dnsmasq, Caddy (≈78k stars). The
    product is orchestration, not a new proxy or DNS server.

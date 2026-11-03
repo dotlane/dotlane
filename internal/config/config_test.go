@@ -23,7 +23,7 @@ func TestMissingFileGivesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"traix"}) || cfg.DNSPort != DefaultDNSPort || cfg.HTTPPort != 80 || cfg.HTTPSPort != 443 ||
+	if !slices.Equal(cfg.TLDs, []string{"dotlane"}) || cfg.TLDsSet || cfg.DNSPort != DefaultDNSPort || cfg.HTTPPort != 80 || cfg.HTTPSPort != 443 ||
 		cfg.ServiceName != "dev.dotlane" {
 		t.Errorf("defaults = %+v", cfg)
 	}
@@ -38,13 +38,13 @@ func TestPrototypeFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"test"}) || cfg.DNSPort != 10055 {
+	if !slices.Equal(cfg.TLDs, []string{"test"}) || !cfg.TLDsSet || cfg.DNSPort != 10055 {
 		t.Errorf("got %+v", cfg)
 	}
 }
 
 func TestAllSettings(t *testing.T) {
-	p := write(t, `tlds = ["traix", "test"]
+	p := write(t, `tlds = ["dotlane", "test"]
 http_port = 9480
 https_port = 9443
 state_dir = "state"
@@ -54,7 +54,7 @@ service_name = "dev.dotlane.dev"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.TLDs, []string{"traix", "test"}) || cfg.HTTPPort != 9480 || cfg.HTTPSPort != 9443 ||
+	if !slices.Equal(cfg.TLDs, []string{"dotlane", "test"}) || cfg.HTTPPort != 9480 || cfg.HTTPSPort != 9443 ||
 		cfg.ServiceName != "dev.dotlane.dev" {
 		t.Errorf("got %+v", cfg)
 	}
@@ -70,18 +70,38 @@ func TestRejected(t *testing.T) {
 	for _, tc := range []struct{ body, want string }{
 		{`tld = "Bad.TLD"`, "lowercase"},
 		{`tld = "local"`, "Bonjour"},
-		{`tlds = ["a1", "a1"]`, "twice"},
-		{"tld = \"traix\"\ntlds = [\"test\"]", "not both"},
+		{`tlds = ["abc", "abc"]`, "twice"},
+		{"tld = \"dotlane\"\ntlds = [\"test\"]", "not both"},
 		{`dns_port = 70000`, "dns_port"},
 		{"http_port = 9443\nhttps_port = 9443", "differ"},
-		{`tdl = "traix"`, "unknown setting"},
+		{`tdl = "dotlane"`, "unknown setting"},
 		{`service_name = "My Service"`, "reverse-DNS"},
-		{`tld = traix`, "config.toml"}, // not TOML: values need quotes
+		{`tld = dotlane`, "config.toml"}, // not TOML: values need quotes
 	} {
 		_, err := Load(write(t, tc.body))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%q: error %v, want it to mention %q", tc.body, err, tc.want)
 		}
+	}
+}
+
+// Endings dotlane tld add would refuse or warn about still load from a file, with a warning,
+// so an ending chosen before those rules keeps working.
+func TestWarnings(t *testing.T) {
+	cfg, err := Load(write(t, `tlds = ["dotlane", "dev", "lan"]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Warnings) != 2 || !strings.Contains(cfg.Warnings[0], "public top-level domain") ||
+		!strings.Contains(cfg.Warnings[1], "routers") {
+		t.Errorf("Warnings = %q", cfg.Warnings)
+	}
+	cfg, err = Load(write(t, `tld = "dotlane"`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Warnings) != 0 {
+		t.Errorf("dotlane: Warnings = %q", cfg.Warnings)
 	}
 }
 
@@ -185,5 +205,73 @@ func TestDefaultPathsPerOS(t *testing.T) {
 	}
 	if filepath.Dir(def) == state {
 		t.Errorf("config and state share %q", state)
+	}
+}
+
+func TestSetTLDs(t *testing.T) {
+	for _, tc := range []struct{ name, have, want string }{
+		{"missing file", "", "tlds = [\"dotlane\", \"test\"]\n"},
+		{"tld, with its comment",
+			"# mine\ntld = \"dotlane\"   # the old default\ndns_port = 10055\n",
+			"# mine\ntlds = [\"dotlane\", \"test\"]   # the old default\ndns_port = 10055\n"},
+		{"tlds on several lines",
+			"dns_port = 10055\ntlds = [\n  \"dotlane\", # first\n  \"test\",\n]\nhttp_port = 9480\n",
+			"dns_port = 10055\ntlds = [\"dotlane\", \"test\"]\nhttp_port = 9480\n"},
+		{"both, the second dropped",
+			"tld = \"dotlane\"\nhttp_port = 9480\ntlds = [\"x\"]\n",
+			"tlds = [\"dotlane\", \"test\"]\nhttp_port = 9480\n"},
+		{"none yet, no final newline",
+			"# mine\ndns_port = 10055",
+			"# mine\ndns_port = 10055\ntlds = [\"dotlane\", \"test\"]\n"},
+		{"lookalikes left alone",
+			"# tld = \"x\"\n  tlds = [\"dotlane\"]\n",
+			"# tld = \"x\"\n  tlds = [\"dotlane\", \"test\"]\n"},
+	} {
+		p := filepath.Join(t.TempDir(), "config.toml")
+		if tc.have != "" {
+			os.WriteFile(p, []byte(tc.have), 0o600)
+		}
+		if err := SetTLDs(p, []string{"dotlane", "test"}); err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+			continue
+		}
+		got, _ := os.ReadFile(p)
+		if string(got) != tc.want {
+			t.Errorf("%s:\ngot  %q\nwant %q", tc.name, got, tc.want)
+		}
+		cfg, err := Load(p)
+		if err != nil || !slices.Equal(cfg.TLDs, []string{"dotlane", "test"}) || cfg.Primary() != "dotlane" {
+			t.Errorf("%s: reloaded %+v, %v", tc.name, cfg, err)
+		}
+		if info, err := os.Stat(p); tc.have != "" && runtime.GOOS != "windows" && (err != nil || info.Mode().Perm() != 0o600) {
+			t.Errorf("%s: mode %v, %v; want it kept", tc.name, info.Mode(), err)
+		}
+	}
+
+	for _, bad := range [][]string{nil, {"Bad"}, {"test", "test"}} {
+		if err := SetTLDs(filepath.Join(t.TempDir(), "config.toml"), bad); err == nil {
+			t.Errorf("SetTLDs(%q): no error", bad)
+		}
+	}
+}
+
+// A config file kept in a dotfiles repository and symlinked stays a symlink.
+func TestSetTLDsThroughSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need developer mode on Windows")
+	}
+	target := write(t, "tld = \"dotlane\"\n")
+	link := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetTLDs(link, []string{"dotlane"}); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("link replaced: %v %v", info.Mode(), err)
+	}
+	if got, _ := os.ReadFile(target); string(got) != "tlds = [\"dotlane\"]\n" {
+		t.Errorf("target = %q", got)
 	}
 }

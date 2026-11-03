@@ -14,7 +14,7 @@ The service's log is `~/Library/Logs/dotlane/dev.dotlane.log`. To restart it by 
 
 - **`install` stops: systemd-resolved is not running.** Enable it and point `/etc/resolv.conf` at
   its stub ([`setup-linux.md`](setup-linux.md#requirements)).
-- **Names do not resolve.** `resolvectl domain` should show a `dl-…` link with `~traix`; if not,
+- **Names do not resolve.** `resolvectl domain` should show a `dl-…` link with `~dotlane`; if not,
   `sudo systemctl restart dotlane-dns-dev.dotlane` and `journalctl -u dotlane-dns-dev.dotlane`.
 - **Firefox or Chromium warn about the certificate.** Install `certutil` (`libnss3-tools`,
   `nss-tools` or `nss`) and run `dotlane install` again.
@@ -50,7 +50,7 @@ The service's log is `~/Library/Logs/dotlane/dev.dotlane.log`. To restart it by 
 - **macOS asks whether `dotlane` may accept incoming connections.** Its firewall reacting to the
   all-interfaces listeners on 80/443. Allowing it is fine: Dotlane drops requests from other
   machines itself.
-- **Node.js rejects the certificate** (server-side calls to a `.traix` URL). Node ignores the
+- **Node.js rejects the certificate** (server-side calls to a `.dotlane` URL). Node ignores the
   keychain: `NODE_EXTRA_CA_CERTS="$HOME/Library/Application Support/dotlane/caddy/pki/authorities/local/root.crt"`.
 
 ## From the prototype
@@ -60,10 +60,10 @@ the Go version.
 
 ## Name does not resolve
 
-- `dig +short x.traix @127.0.0.1 -p 10053` empty → dnsmasq is down:
-  `launchctl kickstart -k gui/$(id -u)/dev.traix.dnsmasq`; log in `~/Library/Logs/dnsmasq-traix.log`.
-- dnsmasq answers but `dscacheutil -q host -a name x.traix` does not → `/etc/resolver/traix` is
-  missing or wrong (`scutil --dns` should list `domain : traix`, `port : 10053`).
+- `dig +short x.dotlane @127.0.0.1 -p 10053` empty → dnsmasq is down:
+  `launchctl kickstart -k gui/$(id -u)/dev.dotlane.dnsmasq`; log in `~/Library/Logs/dnsmasq-dotlane.log`.
+- dnsmasq answers but `dscacheutil -q host -a name x.dotlane` does not → `/etc/resolver/dotlane` is
+  missing or wrong (`scutil --dns` should list `domain : dotlane`, `port : 10053`).
 - **Port already in use.** On the reference machine UDP 1053 was held by Yerd (`yerdd`, a
   Herd-like dev tool). dnsmasq moved to 10053. *Product: probe for a free port and write the same
   port into both the dnsmasq config and the resolver file.*
@@ -91,15 +91,15 @@ the Go version.
   `security.enterprise_roots.enabled` to `true` in `about:config`. (Only Chrome and `curl` were
   verified on the reference machine.) Node.js ignores the keychain: use
   `NODE_EXTRA_CA_CERTS=/opt/homebrew/var/lib/caddy/pki/authorities/local/root.crt` for
-  server-side calls to `.traix` URLs.
+  server-side calls to `.dotlane` URLs.
 
 ## The app answers, but…
 
 - **"Blocked request. This host is not allowed."** — Vite's `server.allowedHosts` (see
   `app-integration.md`).
 - **403 / CSRF / "Cross-origin request rejected"** — the backend's origin allowlist lacks
-  `https://<name>.traix`, or it was added but the backend was not restarted.
-- **Chrome searches instead of opening the site** — type the full `https://myapp.traix`
+  `https://<name>.dotlane`, or it was added but the backend was not restarted.
+- **Chrome searches instead of opening the site** — type the full `https://myapp.dotlane`
   once; afterwards it autocompletes.
 
 ## Homebrew details

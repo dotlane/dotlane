@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 640" width="1120" height="640" role="img" aria-labelledby="t d">
+  <title id="t">Dotlane: branches, pull requests, CI and releases</title>
+  <desc id="d">Three branches leave main, one per agent, each with a commit per task. Each pull request runs the quick Linux tier when marked ready, then joins the merge queue. The queue tests the group on top of main with the full macOS, Windows and Linux tier; a failing pull request is taken out and the rest are retested. The group lands on main as one squash commit per pull request. A release candidate is a tag on main, and a release pull request collects the changelog fragments before the release tag runs the release workflow.</desc>
+  <style>
+    :root {
+      --bg: #ffffff; --ink: #0f172a; --muted: #475569; --line: #64748b; --frame: #cbd5e1;
+      --br: #7c3aed; --br-fill: #ede9fe;
+      --ci: #0d9488; --ci-fill: #ccfbf1;
+      --bad: #dc2626; --bad-fill: #fee2e2;
+      --tag: #b45309; --tag-fill: #fef3c7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1120; --ink: #e2e8f0; --muted: #94a3b8; --line: #94a3b8; --frame: #334155;
+        --br: #a78bfa; --br-fill: #2e1f5e;
+        --ci: #2dd4bf; --ci-fill: #0f3d3a;
+        --bad: #f87171; --bad-fill: #4c1414;
+        --tag: #fbbf24; --tag-fill: #422006;
+      }
+    }
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--ink); }
+    .title { font-size: 20px; font-weight: 700; }
+    .sub { font-size: 13px; fill: var(--muted); }
+    .h { font-size: 15px; font-weight: 700; }
+    .s { font-size: 13px; fill: var(--muted); }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    .cap { font-size: 14px; }
+    .main { stroke: var(--line); stroke-width: 3; }
+    .branch { fill: none; stroke: var(--br); stroke-width: 2; }
+    .commit { fill: var(--br-fill); stroke: var(--br); stroke-width: 2; }
+    .mcommit { fill: var(--bg); stroke: var(--line); stroke-width: 2; }
+    .pr { fill: var(--br-fill); stroke: var(--br); stroke-width: 1.6; }
+    .ci { fill: var(--ci-fill); stroke: var(--ci); stroke-width: 1.6; }
+    .bad { fill: var(--bad-fill); stroke: var(--bad); stroke-width: 1.6; }
+    .tag { fill: var(--tag-fill); stroke: var(--tag); stroke-width: 1.6; }
+    .frame { fill: none; stroke: var(--frame); stroke-width: 1.2; stroke-dasharray: 6 5; }
+    .track { fill: var(--frame); }
+    .bar { fill: var(--ci); transform-box: fill-box; transform-origin: left center; }
+    .still { opacity: 0; }
+    @keyframes k1 { 0.00% { stroke-dashoffset: 1; } 5.77% { stroke-dashoffset: 0; } 96.15% { stroke-dashoffset: 0; } 98.08% { stroke-dashoffset: 1; } 100.00% { stroke-dashoffset: 1; } }
+    .k1 { animation: k1 26.0s linear infinite; }
+    @keyframes k2 { 0.00% { opacity: 0; } 3.08% { opacity: 0; } 5.00% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k2 { animation: k2 26.0s linear infinite; }
+    @keyframes k3 { 0.00% { opacity: 0; } 9.62% { opacity: 0; } 11.54% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k3 { animation: k3 26.0s linear infinite; }
+    @keyframes k4 { 0.00% { opacity: 0; } 9.62% { opacity: 0; } 11.54% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k4 { animation: k4 26.0s linear infinite; }
+    @keyframes k5 { 0.00% { opacity: 0; } 3.08% { opacity: 0; } 5.00% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k5 { animation: k5 26.0s linear infinite; }
+    @keyframes k6 { 0.00% { opacity: 0; } 9.62% { opacity: 0; } 11.54% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k6 { animation: k6 26.0s linear infinite; }
+    @keyframes k7 { 0.00% { opacity: 0; } 9.62% { opacity: 0; } 11.54% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k7 { animation: k7 26.0s linear infinite; }
+    @keyframes k8 { 0.00% { opacity: 0; } 9.62% { opacity: 0; } 11.54% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k8 { animation: k8 26.0s linear infinite; }
+    @keyframes k9 { 0.00% { opacity: 0; } 3.08% { opacity: 0; } 5.00% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k9 { animation: k9 26.0s linear infinite; }
+    @keyframes k10 { 0.00% { opacity: 0; } 9.62% { opacity: 0; } 11.54% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k10 { animation: k10 26.0s linear infinite; }
+    @keyframes k11 { 0.00% { opacity: 0; } 19.23% { opacity: 0; } 21.15% { opacity: 1; } 28.85% { opacity: 1; } 30.77% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k11 { animation: k11 26.0s linear infinite; }
+    @keyframes k12 { 0.00% { opacity: 0; } 28.85% { opacity: 0; } 30.77% { opacity: 1; } 57.69% { opacity: 1; } 59.62% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k12 { animation: k12 26.0s linear infinite; }
+    @keyframes k13 { 0.00% { opacity: 0; } 38.46% { opacity: 0; } 40.38% { opacity: 1; } 57.69% { opacity: 1; } 59.62% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k13 { animation: k13 26.0s linear infinite; }
+    @keyframes k14 { 0.00% { transform: scaleX(0); } 38.46% { transform: scaleX(0); } 46.92% { transform: scaleX(1); } 100.00% { transform: scaleX(1); } }
+    .k14 { animation: k14 26.0s linear infinite; }
+    @keyframes k15 { 0.00% { transform: translate(-275.0px, -30.0px); opacity: 0; } 28.85% { transform: translate(-275.0px, -30.0px); opacity: 0; } 30.00% { transform: translate(-275.0px, -30.0px); opacity: 1; } 33.85% { transform: translate(0px, 0px); opacity: 1; } 57.69% { transform: translate(0px, 0px); opacity: 1; } 62.31% { transform: translate(-30.0px, 310.0px); opacity: 0; } 100.00% { transform: translate(-30.0px, 310.0px); opacity: 0; } }
+    .k15 { animation: k15 26.0s linear infinite; }
+    @keyframes k16 { 0.00% { transform: translate(-275.0px, -5.0px); opacity: 0; } 28.85% { transform: translate(-275.0px, -5.0px); opacity: 0; } 30.00% { transform: translate(-275.0px, -5.0px); opacity: 1; } 33.85% { transform: translate(0px, 0px); opacity: 1; } 57.69% { transform: translate(0px, 0px); opacity: 1; } 62.31% { transform: translate(20.0px, 265.0px); opacity: 0; } 100.00% { transform: translate(20.0px, 265.0px); opacity: 0; } }
+    .k16 { animation: k16 26.0s linear infinite; }
+    @keyframes k17 { 0.00% { transform: translate(-275.0px, 20.0px); opacity: 0; } 28.85% { transform: translate(-275.0px, 20.0px); opacity: 0; } 30.00% { transform: translate(-275.0px, 20.0px); opacity: 1; } 33.85% { transform: translate(0px, 0px); opacity: 1; } 48.08% { transform: translate(0px, 0px); opacity: 1; } 52.69% { transform: translate(-275.0px, 20.0px); opacity: 1; } 96.15% { transform: translate(-275.0px, 20.0px); opacity: 1; } 98.08% { transform: translate(-275.0px, 20.0px); opacity: 0; } 100.00% { transform: translate(-275.0px, 20.0px); opacity: 0; } }
+    .k17 { animation: k17 26.0s linear infinite; }
+    @keyframes k18 { 0.00% { opacity: 0; } 48.08% { opacity: 0; } 50.00% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k18 { animation: k18 26.0s linear infinite; }
+    @keyframes k19 { 0.00% { opacity: 0; } 60.77% { opacity: 0; } 62.69% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k19 { animation: k19 26.0s linear infinite; }
+    @keyframes k20 { 0.00% { opacity: 0; } 67.31% { opacity: 0; } 69.23% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k20 { animation: k20 26.0s linear infinite; }
+    @keyframes k21 { 0.00% { opacity: 0; } 76.92% { opacity: 0; } 78.85% { opacity: 1; } 96.15% { opacity: 1; } 98.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k21 { animation: k21 26.0s linear infinite; }
+    @keyframes k22 { 0.00% { opacity: 0; } 0.00% { opacity: 0; } 1.92% { opacity: 1; } 7.69% { opacity: 1; } 9.62% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k22 { animation: k22 26.0s linear infinite; }
+    @keyframes k23 { 0.00% { opacity: 0; } 9.62% { opacity: 0; } 11.54% { opacity: 1; } 17.31% { opacity: 1; } 19.23% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k23 { animation: k23 26.0s linear infinite; }
+    @keyframes k24 { 0.00% { opacity: 0; } 19.23% { opacity: 0; } 21.15% { opacity: 1; } 26.92% { opacity: 1; } 28.85% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k24 { animation: k24 26.0s linear infinite; }
+    @keyframes k25 { 0.00% { opacity: 0; } 28.85% { opacity: 0; } 30.77% { opacity: 1; } 36.54% { opacity: 1; } 38.46% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k25 { animation: k25 26.0s linear infinite; }
+    @keyframes k26 { 0.00% { opacity: 0; } 38.46% { opacity: 0; } 40.38% { opacity: 1; } 46.15% { opacity: 1; } 48.08% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k26 { animation: k26 26.0s linear infinite; }
+    @keyframes k27 { 0.00% { opacity: 0; } 48.08% { opacity: 0; } 50.00% { opacity: 1; } 55.77% { opacity: 1; } 57.69% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k27 { animation: k27 26.0s linear infinite; }
+    @keyframes k28 { 0.00% { opacity: 0; } 57.69% { opacity: 0; } 59.62% { opacity: 1; } 65.38% { opacity: 1; } 67.31% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k28 { animation: k28 26.0s linear infinite; }
+    @keyframes k29 { 0.00% { opacity: 0; } 67.31% { opacity: 0; } 69.23% { opacity: 1; } 75.00% { opacity: 1; } 76.92% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k29 { animation: k29 26.0s linear infinite; }
+    @keyframes k30 { 0.00% { opacity: 0; } 76.92% { opacity: 0; } 78.85% { opacity: 1; } 94.23% { opacity: 1; } 96.15% { opacity: 0; } 100.00% { opacity: 0; } }
+    .k30 { animation: k30 26.0s linear infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      [class*="k"] { animation: none !important; }
+      .tr { opacity: 0; }
+      .still { opacity: 1; }
+    }
+  </style>
+  <rect x="0" y="0" width="1120" height="640" fill="var(--bg)"/>
+  <text class="title" x="40" y="44">Dotlane: branches, pull requests, CI and releases</text>
+  <text class="sub" x="40" y="66">Trunk-based on main with a merge queue (docs/branching.md). Purple: branches and pull requests. Green: CI. Amber: tags.</text>
+  <line class="main" x1="60" y1="470" x2="1060" y2="470"/>
+  <text class="h" x="60" y="454">main</text>
+  <circle class="mcommit" cx="120" cy="470" r="8"/>
+  <path class="branch k1" pathLength="1" stroke-dasharray="1" d="M120 462 Q120 130 200 130 L470 130"/>
+  <text class="m k2" x="210" y="116">feat/a</text>
+  <circle class="commit k3" cx="320" cy="130" r="8"/>
+  <circle class="commit k4" cx="390" cy="130" r="8"/>
+  <path class="branch k1" pathLength="1" stroke-dasharray="1" d="M120 462 Q120 200 200 200 L470 200"/>
+  <text class="m k5" x="210" y="186">feat/b</text>
+  <circle class="commit k6" cx="300" cy="200" r="8"/>
+  <circle class="commit k7" cx="360" cy="200" r="8"/>
+  <circle class="commit k8" cx="420" cy="200" r="8"/>
+  <path class="branch k1" pathLength="1" stroke-dasharray="1" d="M120 462 Q120 270 200 270 L470 270"/>
+  <text class="m k9" x="210" y="256">fix/c</text>
+  <circle class="commit k10" cx="360" cy="270" r="8"/>
+  <g class="k11 tr"><rect class="ci" x="490" y="115" width="130" height="30" rx="6"/><text class="s" x="555.0" y="135" text-anchor="middle" style="fill: var(--ink)">quick CI passed</text></g>
+  <g class="k11 tr"><rect class="ci" x="490" y="185" width="130" height="30" rx="6"/><text class="s" x="555.0" y="205" text-anchor="middle" style="fill: var(--ink)">quick CI passed</text></g>
+  <g class="k11 tr"><rect class="ci" x="490" y="255" width="130" height="30" rx="6"/><text class="s" x="555.0" y="275" text-anchor="middle" style="fill: var(--ink)">quick CI passed</text></g>
+  <g class="k12 tr"><rect class="frame" x="680" y="100" width="300" height="270" rx="12"/><text class="h" x="830.0" y="128" text-anchor="middle">merge queue</text></g>
+  <g class="k13 tr"><text class="s" x="704" y="314">full tier</text><rect class="track" x="780" y="304" width="170" height="12" rx="6"/><rect class="bar k14" x="780" y="304" width="170" height="12" rx="6"/><text class="s" x="830.0" y="346" text-anchor="middle">macOS, Windows, Linux, packages</text></g>
+  <g class="k15 tr"><rect class="pr" x="770" y="145" width="120" height="30" rx="6"/><text class="m" x="830.0" y="165" text-anchor="middle">PR a</text>
+  </g>
+  <g class="k16 tr"><rect class="pr" x="770" y="190" width="120" height="30" rx="6"/><text class="m" x="830.0" y="210" text-anchor="middle">PR b</text>
+  </g>
+  <g class="k17 tr"><rect class="pr" x="770" y="235" width="120" height="30" rx="6"/><text class="m" x="830.0" y="255" text-anchor="middle">PR c</text>
+    <g class="k18"><rect class="bad" x="770" y="235" width="120" height="30" rx="6"/><text class="m" x="830.0" y="255" text-anchor="middle" style="fill: var(--bad)">PR c failed</text></g>
+  </g>
+  <g class="k19"><circle class="commit" cx="800" cy="470" r="8"/><circle class="commit" cx="850" cy="470" r="8"/><text class="s" x="825.0" y="500" text-anchor="middle">a and b, squashed</text></g>
+  <g class="k20"><circle class="mcommit" cx="920" cy="470" r="8"/><rect class="tag" x="850" y="516" width="140" height="30" rx="6"/><text class="m" x="920" y="536" text-anchor="middle">v0.3.0-rc.1</text></g>
+  <g class="k21"><circle class="mcommit" cx="1000" cy="470" r="8"/><text class="s" x="1050" y="452" text-anchor="end">Release v0.3.0</text><rect class="tag" x="950" y="556" width="100" height="30" rx="6"/><text class="m" x="1000" y="576" text-anchor="middle">v0.3.0</text><text class="s" x="936" y="576" text-anchor="end">release.yml publishes</text></g>
+  <line x1="40" y1="584" x2="1080" y2="584" stroke="var(--frame)"/>
+  <text class="cap tr k22" x="40" y="614">1. Each agent cuts its own branch from origin/main, in its own worktree.</text>
+  <text class="cap tr k23" x="40" y="614">2. One commit per task. A user-visible change adds a fragment in changes/, never an edit to CHANGELOG.md.</text>
+  <text class="cap tr k24" x="40" y="614">3. Marking the pull request ready runs the quick Linux tier only. Drafts and docs-only changes run nothing.</text>
+  <text class="cap tr k25" x="40" y="614">4. gh pr merge --squash --auto puts it in the merge queue. Pull requests never rebase on each other.</text>
+  <text class="cap tr k26" x="40" y="614">5. The queue builds the group on top of main and runs the full tier once, for every pull request in it.</text>
+  <text class="cap tr k27" x="40" y="614">6. A pull request that breaks the group is taken out; the rest are tested again. Its author fixes it and requeues.</text>
+  <text class="cap tr k28" x="40" y="614">7. The group lands as one squash commit per pull request. Main is not tested again: the queue tested that tree.</text>
+  <text class="cap tr k29" x="40" y="614">8. A release candidate is a tag on main; its notes come from the changelog fragments.</text>
+  <text class="cap tr k30" x="40" y="614">9. A "Release v0.3.0" pull request collects the fragments into CHANGELOG.md. Its tag runs release.yml.</text>
+  <text class="cap still" x="40" y="614">Branch from main, open a pull request, merge through the queue; releases are tags on main.</text>
+</svg>
