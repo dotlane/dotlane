@@ -213,7 +213,14 @@ step "domain endings"
 TLD2=dltest2
 DL tld add "$TLD2"
 resolvectl domain "$link" | grep -q "~$TLD2" || { resolvectl domain; fail "~$TLD2 not routed on $link after tld add"; }
-body=$(curl -fsS --max-time 10 "https://web.$TLD2/hello.txt") || { why "https://web.$TLD2/hello.txt"; fail "web.$TLD2 not served after tld add"; }
+# tld add restarts the service, which may still be issuing the new ending's certificate when the
+# command returns: the first handshake then fails with a TLS internal error. Give it a few seconds.
+served=false
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  body=$(curl -fsS --max-time 10 "https://web.$TLD2/hello.txt" 2>/dev/null) && { served=true; break; }
+  sleep 1
+done
+$served || { why "https://web.$TLD2/hello.txt"; fail "web.$TLD2 not served after tld add"; }
 [[ "$body" == hello ]] || fail "unexpected body on .$TLD2: $body"
 DL tld use "$TLD2"
 DL ls --json | python3 -c 'import json,sys; u=next(s["urls"] for s in json.load(sys.stdin) if s["name"]=="web"); sys.exit(0 if u[0].startswith("https://web.'"$TLD2"'") else "primary URL is " + u[0])'
