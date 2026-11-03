@@ -5,8 +5,8 @@
 > Your own lane after the dot.
 
 **Dotlane gives every local project a real HTTPS address, like `https://myapp.dotlane`, for any
-language, on macOS, Linux and Windows.** (Linux and Windows from the next release; see
-[`docs/compatibility.md`](docs/compatibility.md).)
+language, on macOS, Linux and Windows.** (Linux and Windows since `v0.2.0`; where each OS
+stands is in [`docs/compatibility.md`](docs/compatibility.md).)
 
 Technically, it is a local domain service (DNS, a trusted certificate authority and a reverse proxy
 in one program), controlled from a CLI, a per-project config file or a menu-bar app.
