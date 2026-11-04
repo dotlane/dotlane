@@ -1,4 +1,5 @@
-// Package sites keeps the registry of sites: a name and the local port it forwards to.
+// Package sites keeps the registry of sites: a name and the local port it forwards to, or the
+// folder of PHP files it serves.
 package sites
 
 import (
@@ -13,14 +14,41 @@ import (
 	"sync"
 )
 
-// Site is https://<Name>.<tld> forwarded to localhost:<Port>.
+// Site is https://<Name>.<tld> forwarded to localhost:<Port>, or, for a PHP site, served from
+// the files in PHP.Root by a PHP runtime Dotlane runs. A site has one or the other.
 type Site struct {
 	Name string `json:"name"`
-	Port int    `json:"port"`
+	Port int    `json:"port,omitempty"`
 	// Project is the directory of the dotlane.toml that registered the site (dotlane up), or
 	// empty for one added by hand (dotlane add).
 	Project string `json:"project,omitempty"`
+	PHP     PHP    `json:"php,omitzero"`
 }
+
+// PHP is how a PHP site is served. The zero value means the site is not a PHP site.
+type PHP struct {
+	Root string `json:"root"` // absolute: the folder served, such as a Laravel app's public/
+	// Version is the PHP version asked for: major.minor ("8.4"), or "latest" for the newest
+	// one installed.
+	Version string `json:"version"`
+	// Runtime is RuntimeFPM or RuntimeFrankenPHP; empty means the default (DefaultRuntime).
+	Runtime string `json:"runtime,omitempty"`
+	// Worker is a script relative to Root that FrankenPHP keeps running in worker mode
+	// (Laravel Octane, Symfony Runtime); empty for a script per request.
+	Worker string `json:"worker,omitempty"`
+}
+
+// The PHP runtimes: PHP-FPM, one pool per PHP version installed on the machine, or FrankenPHP.
+const (
+	RuntimeFPM        = "fpm"
+	RuntimeFrankenPHP = "frankenphp"
+)
+
+// LatestPHP asks for the newest PHP version installed.
+const LatestPHP = "latest"
+
+// IsPHP reports whether s is served from PHP files rather than forwarded to a port.
+func (s Site) IsPHP() bool { return s.PHP.Root != "" }
 
 // ErrNotFound is returned when removing a site that does not exist.
 var ErrNotFound = errors.New("no such site")
@@ -29,6 +57,9 @@ var ErrNotFound = errors.New("no such site")
 type InvalidError struct{ msg string }
 
 func (e *InvalidError) Error() string { return e.msg }
+
+// Invalid is an InvalidError with msg, for a site the daemon cannot serve as asked.
+func Invalid(msg string) *InvalidError { return &InvalidError{msg} }
 
 // ConflictError reports a name another project already uses.
 type ConflictError struct {
@@ -58,17 +89,55 @@ func tilde(path string) string {
 	return path
 }
 
-var namePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+var (
+	namePattern    = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+	versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+$`)
+)
 
-// Validate checks the same rules as the Bash prototype, plus the DNS label length.
+// Validate checks the same rules as the Bash prototype, plus the DNS label length, and a PHP
+// site's settings. Whether the folder and the PHP version exist is up to the daemon: a site
+// stays registered when either goes away.
 func (s Site) Validate() error {
 	if !namePattern.MatchString(s.Name) || len(s.Name) > 63 {
 		return &InvalidError{fmt.Sprintf("name must be lowercase letters, digits and dashes: %s", s.Name)}
+	}
+	if s.IsPHP() {
+		return s.validatePHP()
+	}
+	if s.PHP != (PHP{}) {
+		return &InvalidError{"a PHP site needs the folder it serves"}
 	}
 	if s.Port < 1 || s.Port > 65535 {
 		return &InvalidError{fmt.Sprintf("not a port: %d", s.Port)}
 	}
 	return nil
+}
+
+func (s Site) validatePHP() error {
+	p := s.PHP
+	switch {
+	case s.Port != 0:
+		return &InvalidError{"a site has a port or a PHP folder, not both"}
+	case !filepath.IsAbs(p.Root):
+		return &InvalidError{fmt.Sprintf("not an absolute folder: %s", p.Root)}
+	case p.Version != LatestPHP && !versionPattern.MatchString(p.Version):
+		return &InvalidError{fmt.Sprintf("PHP version must be major.minor, such as 8.4, or %s: %q", LatestPHP, p.Version)}
+	case p.Runtime != "" && p.Runtime != RuntimeFPM && p.Runtime != RuntimeFrankenPHP:
+		return &InvalidError{fmt.Sprintf("PHP runtime must be %s or %s: %q", RuntimeFPM, RuntimeFrankenPHP, p.Runtime)}
+	case p.Worker != "" && p.RuntimeOrDefault() != RuntimeFrankenPHP:
+		return &InvalidError{"worker mode needs the FrankenPHP runtime"}
+	case p.Worker != "" && (filepath.IsAbs(p.Worker) || !filepath.IsLocal(p.Worker)):
+		return &InvalidError{fmt.Sprintf("the worker script must be inside the folder, relative to it: %s", p.Worker)}
+	}
+	return nil
+}
+
+// RuntimeOrDefault is the runtime p asks for, or the default one.
+func (p PHP) RuntimeOrDefault() string {
+	if p.Runtime == "" {
+		return DefaultRuntime
+	}
+	return p.Runtime
 }
 
 // Registry is the set of sites, saved as JSON after every change.

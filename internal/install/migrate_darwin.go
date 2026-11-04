@@ -144,7 +144,7 @@ func (m *Mac) Migrate(ctx context.Context) error {
 		if err := m.VerifyTLS(ctx, host, m.Cfg.HTTPSPort); err != nil {
 			m.UI.Warn(url, err.Error())
 		} else {
-			m.UI.SiteOK(url, s.Port)
+			m.UI.SiteOK(url, fmt.Sprintf("localhost:%d", s.Port))
 		}
 	}
 	m.replaceScript()
@@ -217,7 +217,7 @@ func (m *Mac) importSites(ctx context.Context, list []sites.Site) error {
 		for _, s := range current {
 			registered[s.Name] = sites.Site{Name: s.Name, Port: s.Port, Project: s.Project}
 		}
-		add = func(s sites.Site) error { _, err := c.AddSite(ctx, s.Name, s.Port, ""); return err }
+		add = func(s sites.Site) error { _, err := c.AddSite(ctx, sites.Site{Name: s.Name, Port: s.Port}); return err }
 	} else {
 		if err := os.MkdirAll(m.Cfg.StateDir, 0o700); err != nil {
 			return err

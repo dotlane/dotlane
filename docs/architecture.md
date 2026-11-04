@@ -57,7 +57,7 @@ port = 8000
 
 `dotlane up` in a project registers its sites; `dotlane down` removes them. The CLI and the
 desktop app change both files through the daemon. The settings that exist today are in
-[`cli.md`](cli.md#configuration); planned ones (`php`, `root`, `command`, `bind = "lan"`) are in
+[`cli.md`](cli.md#configuration); planned ones (`command`, `bind = "lan"`) are in
 the [core roadmap](roadmap.md).
 
 ## The dev server is never wrapped
@@ -65,6 +65,24 @@ the [core roadmap](roadmap.md).
 Dotlane only needs the port an app already listens on. Any language, framework or process
 manager works, including servers started by an IDE or a container. Running the dev command
 (a `command` per site) is planned as an option, never the default.
+
+## PHP: PHP-FPM and FrankenPHP, both run as separate programs
+
+PHP is the one language whose apps are usually files rather than a server, so Dotlane runs PHP
+for them. Decided 2026-11-04, settling whether to start with PHP-FPM or FrankenPHP: both, from
+the start, chosen per site.
+
+- **PHP-FPM is the default**: it uses the PHP versions people already installed, with their
+  extensions and `php.ini`, one pool per version, so sites can use different versions as with
+  Valet and Herd.
+- **FrankenPHP is opt-in** (`runtime = "frankenphp"`), for its worker mode, and the only
+  runtime on Windows. Each build brings one PHP version and a fixed set of extensions.
+- **Neither is embedded.** Embedding FrankenPHP needs CGO, which would break cross-compiling
+  Dotlane for every OS. Dotlane finds and supervises PHP-FPM, and downloads FrankenPHP only on
+  request, checked against a SHA-256 each Dotlane release pins. FastCGI is a small handler of
+  Dotlane's own rather than Caddy's module, which would add 5 MB of unrelated libraries.
+
+How it works: [`how-it-works.md`](how-it-works.md#php-sites).
 
 ## What differs per OS
 

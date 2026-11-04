@@ -1,5 +1,5 @@
-// Package daemon runs Dotlane's background service: the DNS responder, the embedded Caddy and
-// the control socket, around one site registry.
+// Package daemon runs Dotlane's background service: the DNS responder, the embedded Caddy, the
+// PHP runtimes PHP sites need and the control socket, around one site registry.
 package daemon
 
 import (
@@ -20,6 +20,7 @@ import (
 	"github.com/dotlane/dotlane/internal/config"
 	"github.com/dotlane/dotlane/internal/dns"
 	"github.com/dotlane/dotlane/internal/fsperm"
+	"github.com/dotlane/dotlane/internal/php"
 	"github.com/dotlane/dotlane/internal/proxy"
 	"github.com/dotlane/dotlane/internal/sites"
 )
@@ -31,8 +32,10 @@ type Daemon struct {
 	registry *sites.Registry
 	dnsAddr  string
 	started  time.Time
+	php      *php.Supervisor
 
-	mu sync.Mutex // serialises registry changes with the Caddy reload that follows them
+	mu       sync.Mutex              // serialises registry changes with the Caddy reload that follows them
+	upstream map[string]php.Upstream // how each PHP site is served, as last applied
 }
 
 // Run serves until ctx is cancelled, then shuts everything down.
@@ -53,7 +56,9 @@ func Run(ctx context.Context, cfg *config.Config, version string) error {
 	if err != nil {
 		return err
 	}
-	d := &Daemon{cfg: cfg, version: version, registry: registry, started: time.Now()}
+	d := &Daemon{cfg: cfg, version: version, registry: registry, started: time.Now(),
+		php: php.NewSupervisor(cfg.StateDir, cfg.HTTPSPort)}
+	defer d.php.Stop() // after Caddy has stopped sending it requests
 
 	resolver, err := dns.Start(net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.DNSPort)), cfg.TLDs)
 	if err != nil {
@@ -62,7 +67,10 @@ func Run(ctx context.Context, cfg *config.Config, version string) error {
 	defer resolver.Shutdown()
 	d.dnsAddr = resolver.Addr()
 
-	if err := proxy.Apply(cfg, registry.List()); err != nil {
+	d.mu.Lock()
+	err = d.apply(ctx)
+	d.mu.Unlock()
+	if err != nil {
 		return fmt.Errorf("Caddy: %w", err)
 	}
 	defer proxy.Stop()
@@ -106,7 +114,16 @@ func claimSocket(path string) error {
 	return nil
 }
 
-func (d *Daemon) view(s sites.Site) api.Site {
+// apply starts and stops the PHP runtimes the registered sites need, then loads the sites into
+// Caddy. d.mu must be held.
+func (d *Daemon) apply(ctx context.Context) error {
+	list := d.registry.List()
+	d.upstream = d.php.Sync(ctx, list)
+	return proxy.Apply(d.cfg, list, d.upstream)
+}
+
+// viewLocked is s as the API reports it. d.mu must be held.
+func (d *Daemon) viewLocked(s sites.Site) api.Site {
 	hosts := proxy.Hosts(d.cfg, s)
 	urls := make([]string, len(hosts))
 	for i, h := range hosts {
@@ -115,7 +132,20 @@ func (d *Daemon) view(s sites.Site) api.Site {
 			urls[i] += ":" + strconv.Itoa(d.cfg.HTTPSPort)
 		}
 	}
-	return api.Site{Name: s.Name, Port: s.Port, URLs: urls, Project: s.Project, Ready: true}
+	v := api.Site{Name: s.Name, Port: s.Port, URLs: urls, Project: s.Project, Ready: true}
+	if s.IsPHP() {
+		up := d.upstream[s.Name]
+		p := s.PHP
+		p.Runtime = p.RuntimeOrDefault()
+		v.PHP = &api.PHPSite{PHP: p, PHPVersion: up.PHPVersion, Problem: up.Problem, Log: up.Log}
+	}
+	return v
+}
+
+func (d *Daemon) view(s sites.Site) api.Site {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.viewLocked(s)
 }
 
 // Status implements api.Backend.
@@ -130,25 +160,43 @@ func (d *Daemon) Status() api.Status {
 		StateDir:   d.cfg.StateDir,
 		Started:    d.started,
 		API:        api.Version,
+		Features:   []string{api.FeaturePHP},
+		PHP:        d.runtimes(),
 	}
 }
 
-// Sites implements api.Backend.
-func (d *Daemon) Sites() []api.Site {
-	list := d.registry.List()
-	out := make([]api.Site, len(list))
-	for i, s := range list {
-		out[i] = d.view(s)
+func (d *Daemon) runtimes() []api.Runtime {
+	var out []api.Runtime
+	for _, st := range d.php.Status() {
+		out = append(out, api.Runtime{Name: st.Name, Runtime: st.Runtime, PHPVersion: st.PHPVersion, Binary: st.Binary,
+			Running: st.Running, Problem: st.Problem, Log: st.Log, Sites: st.Sites})
 	}
 	return out
 }
 
-// AddSite implements api.Backend. A name another project owns is refused (sites.CheckOwner). If
-// Caddy rejects the new configuration, the registry is restored, so a failed add leaves nothing
-// behind.
+// Sites implements api.Backend.
+func (d *Daemon) Sites() []api.Site {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	list := d.registry.List()
+	out := make([]api.Site, len(list))
+	for i, s := range list {
+		out[i] = d.viewLocked(s)
+	}
+	return out
+}
+
+// AddSite implements api.Backend. A name another project owns is refused (sites.CheckOwner), and
+// so is a PHP site whose folder or PHP version is missing. If Caddy rejects the new
+// configuration, the registry is restored, so a failed add leaves nothing behind.
 func (d *Daemon) AddSite(ctx context.Context, s sites.Site) (api.Site, error) {
 	if err := s.Validate(); err != nil {
 		return api.Site{}, err
+	}
+	if s.IsPHP() {
+		if err := d.php.Check(ctx, s); err != nil {
+			return api.Site{}, sites.Invalid(err.Error())
+		}
 	}
 	d.mu.Lock()
 	prev, had := d.registry.Get(s.Name)
@@ -158,7 +206,8 @@ func (d *Daemon) AddSite(ctx context.Context, s sites.Site) (api.Site, error) {
 			return api.Site{}, err
 		}
 	}
-	if had && prev == s { // dotlane up re-run: nothing to reload
+	// dotlane up re-run: nothing to reload, unless a PHP site waits for its PHP.
+	if had && prev == s && (!s.IsPHP() || d.upstream[s.Name].Problem == "") {
 		d.mu.Unlock()
 		v := d.view(s)
 		v.Ready = d.waitForTLS(ctx, proxy.Hosts(d.cfg, s)[0])
@@ -168,24 +217,25 @@ func (d *Daemon) AddSite(ctx context.Context, s sites.Site) (api.Site, error) {
 		d.mu.Unlock()
 		return api.Site{}, err
 	}
-	if err := proxy.Apply(d.cfg, d.registry.List()); err != nil {
+	if err := d.apply(ctx); err != nil {
 		if had {
 			d.registry.Put(prev)
 		} else {
 			d.registry.Delete(s.Name)
 		}
+		d.apply(ctx)
 		d.mu.Unlock()
 		return api.Site{}, fmt.Errorf("Caddy rejected the change: %w", err)
 	}
+	v := d.viewLocked(s)
 	d.mu.Unlock()
 
-	v := d.view(s)
 	v.Ready = d.waitForTLS(ctx, proxy.Hosts(d.cfg, s)[0])
 	return v, nil
 }
 
 // RemoveSite implements api.Backend.
-func (d *Daemon) RemoveSite(name string) error {
+func (d *Daemon) RemoveSite(ctx context.Context, name string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	prev, ok := d.registry.Get(name)
@@ -195,8 +245,9 @@ func (d *Daemon) RemoveSite(name string) error {
 	if err := d.registry.Delete(name); err != nil {
 		return err
 	}
-	if err := proxy.Apply(d.cfg, d.registry.List()); err != nil {
+	if err := d.apply(ctx); err != nil {
 		d.registry.Put(prev)
+		d.apply(ctx)
 		return fmt.Errorf("Caddy rejected the change: %w", err)
 	}
 	return nil

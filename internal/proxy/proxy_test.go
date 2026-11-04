@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/php"
 	"github.com/dotlane/dotlane/internal/sites"
 )
 
@@ -15,7 +16,7 @@ func TestConfig(t *testing.T) {
 	defer func(wide bool) { wideLowPorts = wide }(wideLowPorts)
 	wideLowPorts = true
 	cfg := &config.Config{TLDs: []string{"dotlane", "test"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
-	data, err := Config(cfg, []sites.Site{{Name: "web", Port: 5173}})
+	data, err := Config(cfg, []sites.Site{{Name: "web", Port: 5173}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestConfig(t *testing.T) {
 
 func TestConfigWithoutSites(t *testing.T) {
 	cfg := &config.Config{TLDs: []string{"dotlane"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
-	data, err := Config(cfg, nil)
+	data, err := Config(cfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func TestListenAddrs(t *testing.T) {
 		t.Errorf("9443: %v", got)
 	}
 	cfg := &config.Config{TLDs: []string{"dldev"}, HTTPPort: 9480, HTTPSPort: 9443, StateDir: "/s"}
-	data, _ := Config(cfg, nil)
+	data, _ := Config(cfg, nil, nil)
 	if !strings.Contains(string(data), `https://{http.request.host}:9443{http.request.uri}`) {
 		t.Errorf("redirect ignores the HTTPS port: %s", data)
 	}
@@ -97,4 +98,40 @@ func TestPermission(t *testing.T) {
 func jsonString(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+func TestConfigPHP(t *testing.T) {
+	cfg := &config.Config{TLDs: []string{"dotlane"}, HTTPPort: 80, HTTPSPort: 443, StateDir: "/s"}
+	list := []sites.Site{
+		{Name: "fpm", PHP: sites.PHP{Root: "/code/fpm/public", Version: "8.4"}},
+		{Name: "fp", PHP: sites.PHP{Root: "/code/fp/public", Version: "latest", Runtime: sites.RuntimeFrankenPHP}},
+		{Name: "missing", PHP: sites.PHP{Root: "/code/missing", Version: "7.4"}},
+	}
+	ups := map[string]php.Upstream{
+		"fpm":     {Runtime: sites.RuntimeFPM, Name: "PHP-FPM 8.4", PHPVersion: "8.4.13", Socket: "/s/php/fpm-8.4.sock", Log: "/s/php/fpm-8.4.log"},
+		"fp":      {Runtime: sites.RuntimeFrankenPHP, Name: "FrankenPHP 1.13.4", PHPVersion: "8.5.12", Socket: "/s/php/frankenphp-fp.sock"},
+		"missing": {Runtime: sites.RuntimeFPM, Name: "PHP-FPM 7.4", Problem: "PHP 7.4 with PHP-FPM is not installed\ninstall it: brew install php@7.4 {x}"},
+	}
+	data, err := Config(cfg, list, ups)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	for _, want := range []string{
+		`"handler":"dotlane_php","root":"/code/fpm/public","socket":"/s/php/fpm-8.4.sock"`,
+		`"dial":"unix//s/php/frankenphp-fp.sock"`,
+		`"status_code":503`,
+		`PHP 7.4 with PHP-FPM is not installed`,
+		"brew install php@7.4 \\u0026#123;x\\u0026#125;", // braces are not Caddy placeholders
+		`PHP-FPM 8.4 is not answering`,
+		`/s/php/fpm-8.4.log`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("config lacks %s", want)
+		}
+	}
+	// The PHP sites' own 502 pages come before the dev servers' one.
+	if strings.Index(text, "PHP-FPM 8.4 is not answering") > strings.Index(text, "The dev server is not answering") {
+		t.Error("the generic 502 page comes first")
+	}
 }

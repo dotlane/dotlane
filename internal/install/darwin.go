@@ -24,6 +24,7 @@ import (
 	"github.com/dotlane/dotlane/internal/api"
 	"github.com/dotlane/dotlane/internal/config"
 	"github.com/dotlane/dotlane/internal/proxy"
+	"github.com/dotlane/dotlane/internal/sites"
 	"github.com/dotlane/dotlane/internal/ui"
 )
 
@@ -62,7 +63,7 @@ type Mac struct {
 // SiteClient is the part of api.Client migrate uses.
 type SiteClient interface {
 	Sites(ctx context.Context) ([]api.Site, error)
-	AddSite(ctx context.Context, name string, port int, project string) (api.Site, error)
+	AddSite(ctx context.Context, s sites.Site) (api.Site, error)
 }
 
 // New returns the installer for this machine.

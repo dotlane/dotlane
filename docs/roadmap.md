@@ -11,6 +11,13 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 
 ## Now
 
+- **PHP sites**, on `main` for the next release. `dotlane add shop --php ~/code/shop/public`, or
+  `root = "public"` and `php = "8.4"` in `dotlane.toml`, with two runtimes: PHP-FPM, one pool per
+  PHP version already installed (Homebrew, mise, asdf, the system's packages), for per-site
+  versions as with Laravel Valet and Herd; and FrankenPHP, one process per site, worker mode
+  included, downloaded on request (`dotlane frankenphp install`) and checked against a pinned
+  SHA-256. Both supervised by Dotlane, with `ls`, `doctor` and error pages that name them
+  ([`how-it-works.md`](how-it-works.md#php-sites)).
 - **Signed and notarized binaries.** Releases signed with an Apple Developer ID and notarized,
   so macOS accepts a binary downloaded with a browser, and Login Items shows Dotlane under the
   developer's name and keeps its approval across updates. Waits on one decision: joining the
@@ -24,10 +31,6 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
   `/v1/sites`) documented as a public, versioned contract, with breaking changes going to `/v2`.
   The desktop app (`dotlane/desktop`) needs it before its first version; editor integrations
   and scripts can then be clients of the daemon like the CLI.
-- **PHP sites.** `dotlane add shop --php ~/code/shop/public`, or `php = "8.4"` and
-  `root = "public"` in `dotlane.toml`: Caddy's `php_fastcgi` in front of PHP-FPM, one pool per
-  PHP version, supervised by Dotlane, using the PHP versions already installed (Homebrew, mise).
-  What Laravel Valet and Herd users expect, including per-site PHP versions.
 - **Static sites.** `root = "dist"` serves a folder with no dev server.
 - **Managed processes.** An optional `command` per site that Dotlane starts, restarts on a crash
   and logs, with the port injected (`{port}`). Never the default: a site still only needs a
@@ -40,8 +43,8 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 - **More Linux and Windows channels.** Scoop and winget manifests, a
   NetworkManager-dnsmasq fallback where systemd-resolved is missing, and signed Windows binaries.
   What is left per OS is in [`compatibility.md`](compatibility.md#still-open).
-- **FrankenPHP** as an optional PHP runtime, downloaded and supervised rather than embedded
-  (embedding needs CGO, which breaks cross-compilation).
+- **More for PHP sites:** the version from `composer.json`'s `require.php`, Xdebug on and off
+  per site, and `php.ini` settings per site.
 - **Phones and other devices.** `bind = "lan"`, a LAN DNS answer or mDNS, or a tunnel, and a way
   to trust the CA on a phone.
 - **A name-constrained CA**, limited to the configured endings ([`security.md`](security.md)),
@@ -90,7 +93,6 @@ Features are grouped as **Now** (being worked on or decided next), **Next**, **L
 ## Open decisions
 
 - **Who first:** individual developers (free, open source), or teams, with paid features later?
-- **PHP:** PHP-FPM only at first, or FrankenPHP from the start?
 
 ## Risks
 

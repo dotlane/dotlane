@@ -1,5 +1,5 @@
 // Package proxy runs Caddy inside the Dotlane process: HTTPS with a local certificate authority,
-// and one reverse-proxy route per site.
+// and one route per site: a reverse proxy to its port, or its PHP runtime in front of its files.
 package proxy
 
 import (
@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net"
 	"path/filepath"
 	"regexp"
@@ -27,6 +28,7 @@ import (
 	_ "github.com/caddyserver/caddy/v2/modules/filestorage"
 
 	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/php"
 	"github.com/dotlane/dotlane/internal/sites"
 )
 
@@ -97,6 +99,41 @@ var (
 <p>Start the dev server, then reload this page.</p>`)
 )
 
+// phpProblemPage is for a PHP site that cannot be served: no PHP for it, or no folder.
+func phpProblemPage(up php.Upstream) string {
+	return page("PHP site not available", "#dc2626", "#ef4444", `<p class="status">503 · `+text(up.Name)+` not available</p>
+<h1><code>{http.request.tls.server_name}</code> cannot be served</h1>
+<pre>`+text(up.Problem)+`</pre>
+<p>Then run <code>dotlane up</code> in the project again (or <code>dotlane add</code>), and reload this page.</p>`)
+}
+
+// phpDownPage is for a PHP site whose runtime is not answering: starting, or exited.
+func phpDownPage(up php.Upstream) string {
+	return page("PHP not answering", "#d97706", "#f59e0b", `<p class="status">502 · not answering</p>
+<h1>`+text(up.Name)+` is not answering</h1>
+<p><code>{http.request.tls.server_name}</code> is served by `+text(up.Name)+` (PHP `+text(up.PHPVersion)+`), which Dotlane runs and restarts when it stops. It is not answering now.</p>
+<p><code>dotlane doctor</code> says why. Its log: <code>`+text(up.Log)+`</code></p>`)
+}
+
+// text escapes s for a page: HTML, and the braces Caddy would read as placeholders.
+func text(s string) string {
+	return strings.NewReplacer("{", "&#123;", "}", "&#125;").Replace(html.EscapeString(s))
+}
+
+var htmlType = obj{"Content-Type": []string{"text/html; charset=utf-8"}}
+
+// phpHandler serves a PHP site: PHP-FPM through PHPFiles; FrankenPHP, which serves the files
+// itself, behind a reverse proxy.
+func phpHandler(s sites.Site, up php.Upstream) obj {
+	switch {
+	case up.Problem != "":
+		return obj{"handler": "static_response", "status_code": 503, "headers": htmlType, "body": phpProblemPage(up)}
+	case up.Runtime == sites.RuntimeFrankenPHP:
+		return obj{"handler": "reverse_proxy", "upstreams": []obj{{"dial": "unix/" + up.Socket}}}
+	}
+	return obj{"handler": "dotlane_php", "root": s.PHP.Root, "socket": up.Socket}
+}
+
 // Hosts are the names a site answers on: one per domain ending.
 func Hosts(cfg *config.Config, s sites.Site) []string {
 	hosts := make([]string, len(cfg.TLDs))
@@ -154,22 +191,52 @@ var thisMachineOnly = obj{
 	"terminal": true,
 }
 
-// Config builds Caddy's JSON configuration for the given sites.
-func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
+// Config builds Caddy's JSON configuration for the given sites. phpSites says how to reach each
+// PHP site, by name (php.Supervisor.Sync).
+func Config(cfg *config.Config, list []sites.Site, phpSites map[string]php.Upstream) ([]byte, error) {
 	routes := []obj{thisMachineOnly}
+	var errorRoutes []obj
 	var subjects []string
 	for _, s := range list {
 		hosts := Hosts(cfg, s)
 		subjects = append(subjects, hosts...)
+		handler := obj{
+			"handler":   "reverse_proxy",
+			"upstreams": []obj{{"dial": fmt.Sprintf("localhost:%d", s.Port)}},
+		}
+		if s.IsPHP() {
+			up, ok := phpSites[s.Name]
+			if !ok {
+				up = php.Upstream{Name: "PHP", Problem: "Dotlane has not started PHP for this site; run dotlane doctor"}
+			}
+			handler = phpHandler(s, up)
+			if up.Problem == "" {
+				errorRoutes = append(errorRoutes, obj{
+					"match": []obj{{"host": hosts, "vars": obj{"{http.error.status_code}": []string{"502"}}}},
+					"handle": []obj{{
+						"handler":     "static_response",
+						"status_code": 502,
+						"headers":     htmlType,
+						"body":        phpDownPage(up),
+					}},
+				})
+			}
+		}
 		routes = append(routes, obj{
-			"match": []obj{{"host": hosts}},
-			"handle": []obj{{
-				"handler":   "reverse_proxy",
-				"upstreams": []obj{{"dial": fmt.Sprintf("localhost:%d", s.Port)}},
-			}},
+			"match":    []obj{{"host": hosts}},
+			"handle":   []obj{handler},
 			"terminal": true,
 		})
 	}
+	errorRoutes = append(errorRoutes, obj{
+		"match": []obj{{"vars": obj{"{http.error.status_code}": []string{"502"}}}},
+		"handle": []obj{{
+			"handler":     "static_response",
+			"status_code": 502,
+			"headers":     htmlType,
+			"body":        downPage,
+		}},
+	})
 
 	// Plain HTTP only redirects. Caddy's own redirect server is turned off: it would listen where
 	// the HTTPS server does, and point at 443 whatever https_port says.
@@ -191,18 +258,10 @@ func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
 					"routes": append(routes, obj{"handle": []obj{{
 						"handler":     "static_response",
 						"status_code": 404,
-						"headers":     obj{"Content-Type": []string{"text/html; charset=utf-8"}},
+						"headers":     htmlType,
 						"body":        noSitePage,
 					}}}),
-					"errors": obj{"routes": []obj{{
-						"match": []obj{{"vars": obj{"{http.error.status_code}": []string{"502"}}}},
-						"handle": []obj{{
-							"handler":     "static_response",
-							"status_code": 502,
-							"headers":     obj{"Content-Type": []string{"text/html; charset=utf-8"}},
-							"body":        downPage,
-						}},
-					}}},
+					"errors":          obj{"routes": errorRoutes},
 					"automatic_https": obj{"disable_redirects": true},
 				},
 				"dotlane-http": obj{
@@ -254,8 +313,8 @@ func Config(cfg *config.Config, list []sites.Site) ([]byte, error) {
 }
 
 // Apply loads the configuration for these sites into the running Caddy, starting it if needed.
-func Apply(cfg *config.Config, list []sites.Site) error {
-	data, err := Config(cfg, list)
+func Apply(cfg *config.Config, list []sites.Site, phpSites map[string]php.Upstream) error {
+	data, err := Config(cfg, list, phpSites)
 	if err != nil {
 		return err
 	}

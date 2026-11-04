@@ -50,9 +50,12 @@ Dotlane needs only a name and a port: it forwards `https://<name>.dotlane` to wh
 `localhost:<port>`. Python, Node, Go, Ruby, Java, Rust, .NET or a Docker container all work the same
 way, started however you already start them.
 
-The exception is PHP. Most PHP apps are a folder of files rather than a running server, so something
-must run PHP per request. That support (PHP-FPM, per-site PHP versions) is next on the
-[roadmap](docs/roadmap.md#next); until then, use PHP's built-in server or any PHP server on a port.
+PHP apps are usually a folder of files rather than a running server, so Dotlane runs PHP for them:
+`dotlane add shop --php ~/code/shop/public`, or `root = "public"` and `php = "8.4"` in the project's
+`dotlane.toml`. It uses the PHP versions you already have (Homebrew, mise, your package manager)
+through PHP-FPM, one pool per version, so each site can have its own, as with Laravel Valet or Herd.
+FrankenPHP works too, worker mode included: `dotlane frankenphp install`, then
+`runtime = "frankenphp"` ([`docs/cli.md`](docs/cli.md#php-sites)).
 
 ## Status
 

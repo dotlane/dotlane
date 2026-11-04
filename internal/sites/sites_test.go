@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -22,13 +23,49 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidatePHP(t *testing.T) {
+	root, _ := filepath.Abs("/code/shop/public")
+	ok := []PHP{
+		{Root: root, Version: "8.4"},
+		{Root: root, Version: "latest", Runtime: RuntimeFPM},
+		{Root: root, Version: "8.5", Runtime: RuntimeFrankenPHP, Worker: "frankenphp-worker.php"},
+		{Root: root, Version: "10.0", Runtime: RuntimeFrankenPHP, Worker: "bin/worker.php"},
+	}
+	for _, p := range ok {
+		if err := (Site{Name: "shop", PHP: p}).Validate(); err != nil {
+			t.Errorf("%+v: %v", p, err)
+		}
+	}
+	for _, tc := range []struct {
+		s    Site
+		want string
+	}{
+		{Site{Name: "shop", Port: 80, PHP: PHP{Root: root, Version: "8.4"}}, "not both"},
+		{Site{Name: "shop", PHP: PHP{Root: "public", Version: "8.4"}}, "absolute"},
+		{Site{Name: "shop", PHP: PHP{Root: root, Version: "8"}}, "major.minor"},
+		{Site{Name: "shop", PHP: PHP{Root: root, Version: ""}}, "major.minor"},
+		{Site{Name: "shop", PHP: PHP{Root: root, Version: "8.4.1"}}, "major.minor"},
+		{Site{Name: "shop", PHP: PHP{Root: root, Version: "8.4", Runtime: "hhvm"}}, "runtime"},
+		{Site{Name: "shop", PHP: PHP{Root: root, Version: "8.4", Runtime: RuntimeFPM, Worker: "w.php"}}, "FrankenPHP"},
+		{Site{Name: "shop", PHP: PHP{Root: root, Version: "8.4", Runtime: RuntimeFrankenPHP, Worker: "../w.php"}}, "inside the folder"},
+		{Site{Name: "shop", PHP: PHP{Version: "8.4"}}, "needs the folder"},
+	} {
+		var invalid *InvalidError
+		if err := tc.s.Validate(); !errors.As(err, &invalid) || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%+v: %v, want %q", tc.s, err, tc.want)
+		}
+	}
+}
+
 func TestRegistryPersists(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sites.json")
 	r, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, s := range []Site{{Name: "web", Port: 5173}, {Name: "api", Port: 8000}, {Name: "web", Port: 3000, Project: "/p/a"}} {
+	root, _ := filepath.Abs("/code/shop/public")
+	shop := Site{Name: "shop", Project: "/p/a", PHP: PHP{Root: root, Version: "8.4", Runtime: RuntimeFPM}}
+	for _, s := range []Site{{Name: "web", Port: 5173}, {Name: "api", Port: 8000}, {Name: "web", Port: 3000, Project: "/p/a"}, shop} {
 		if err := r.Put(s); err != nil {
 			t.Fatal(err)
 		}
@@ -42,8 +79,8 @@ func TestRegistryPersists(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := r2.List()
-	want := []Site{{Name: "api", Port: 8000}, {Name: "web", Port: 3000, Project: "/p/a"}}
-	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+	want := []Site{{Name: "api", Port: 8000}, shop, {Name: "web", Port: 3000, Project: "/p/a"}}
+	if !slices.Equal(got, want) {
 		t.Fatalf("reopened = %v, want %v (sorted, last port wins)", got, want)
 	}
 

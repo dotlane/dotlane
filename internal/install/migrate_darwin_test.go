@@ -81,12 +81,12 @@ func (c registryClient) Sites(context.Context) ([]api.Site, error) {
 	return out, nil
 }
 
-func (c registryClient) AddSite(_ context.Context, name string, port int, project string) (api.Site, error) {
+func (c registryClient) AddSite(_ context.Context, s sites.Site) (api.Site, error) {
 	r, err := sites.Open(c.path)
 	if err != nil {
 		return api.Site{}, err
 	}
-	return api.Site{Name: name, Port: port}, r.Put(sites.Site{Name: name, Port: port, Project: project})
+	return api.Site{Name: s.Name, Port: s.Port}, r.Put(s)
 }
 
 func TestMigrate(t *testing.T) {

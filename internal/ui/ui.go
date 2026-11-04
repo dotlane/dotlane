@@ -167,23 +167,24 @@ func (p *Printer) Error(err error) {
 	p.printf("%s\n%s\n", p.s.badge.Render("ERROR"), msg)
 }
 
-// SiteOK reports a site that was just added or updated.
-func (p *Printer) SiteOK(url string, port int) {
-	p.printf("  %s %s %s localhost:%d\n", p.s.ok.Render("✓"), p.URL(url), p.s.dim.Render("→"), port)
+// SiteOK reports a site that was just added or updated, and what serves it: localhost:<port>,
+// or a PHP site's folder and runtime.
+func (p *Printer) SiteOK(url, target string) {
+	p.printf("  %s %s %s %s\n", p.s.ok.Render("✓"), p.URL(url), p.s.dim.Render("→"), target)
 }
 
 // SiteRow is one line of SiteTable. Name may be empty to continue the previous site.
 type SiteRow struct {
 	Name    string
 	URL     string
-	Port    int
+	Target  string // localhost:<port>, or a PHP site's folder and runtime
 	Project string // directory of the dotlane.toml that registered it; empty when added by hand
 }
 
 // SiteTable prints sites as a table: a header, a rule under it, no other borders.
 func (p *Printer) SiteTable(rows []SiteRow) {
 	t := table.New().
-		Headers("SITE", "URL", "FORWARDS TO", "PROJECT").
+		Headers("SITE", "URL", "SERVED FROM", "PROJECT").
 		Border(lipgloss.NormalBorder()).
 		BorderTop(false).BorderBottom(false).BorderLeft(false).BorderRight(false).
 		BorderColumn(false).
@@ -203,7 +204,7 @@ func (p *Printer) SiteTable(rows []SiteRow) {
 			return cell
 		})
 	for _, r := range rows {
-		t.Row(r.Name, r.URL, fmt.Sprintf("localhost:%d", r.Port), p.Path(r.Project))
+		t.Row(r.Name, r.URL, r.Target, p.Path(r.Project))
 	}
 	p.printf("%s\n", t.Render())
 }

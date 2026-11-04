@@ -9,7 +9,8 @@ Dotlane gives every local dev server a real, trusted HTTPS address on a private 
 `https://myapp.dotlane` instead of `http://localhost:5173`. A site is a name and a port. Dotlane
 answers DNS for the name, presents a certificate for it that the Mac trusts, and forwards the
 traffic to `localhost:<port>`. The dev server is not wrapped or changed, so any language or
-framework works, started however you already start it.
+framework works, started however you already start it. A PHP site is a name and a folder instead:
+Dotlane runs PHP for it ([PHP sites](#php-sites)).
 
 Setup happens once per machine (`dotlane install`, two password prompts). After that, a new site
 needs no password and takes about a second:
@@ -29,7 +30,8 @@ runs as the user, as a launchd login agent, and holds four things:
 | DNS responder (`internal/dns`, miekg/dns) | Answers `A 127.0.0.1` and `AAAA ::1` for every name under the configured endings, with TTL 0. Anything else is refused | `127.0.0.1:10053` UDP and TCP |
 | Caddy, embedded (`internal/proxy`) | TLS with a local certificate authority, then one reverse-proxy route per site. HTTP only redirects to HTTPS | `:443` and `:80` (see [Listening](#listening-on-443-and-80)) |
 | Control API (`internal/api`) | JSON over HTTP on a Unix socket, mode 0600, so only this user can use it | `<state>/dotlane.sock` |
-| Site registry (`internal/sites`) | Each site's name, port and owning project, in `sites.json` | — |
+| Site registry (`internal/sites`) | Each site's name, port (or PHP folder and version) and owning project, in `sites.json` | — |
+| PHP runtimes (`internal/php`) | Finds the installed PHP-FPMs and FrankenPHPs, and runs those the PHP sites need | a Unix socket each, in `<state>/php/` |
 
 Caddy runs inside the process as a library (`caddy.Load`), with its admin endpoint disabled. The
 daemon rebuilds Caddy's JSON config from the registry on each change, so nothing else can
@@ -41,7 +43,7 @@ The CLI, `dotlane.toml` and a future menu-bar app are all clients of the control
 | --- | --- |
 | `GET /v1/status` | `doctor`, `install` (is the daemon up, which PID, version); every command that uses the daemon, for `api`, the API version both sides must share |
 | `GET /v1/sites` | `ls`, `up`, `down`, `migrate` |
-| `PUT /v1/sites/{name}` `{port, project}` | `add`, `up`, `migrate` |
+| `PUT /v1/sites/{name}` `{port, project}` or `{php: {root, version, runtime, worker}, project}` | `add`, `up`, `migrate` |
 | `DELETE /v1/sites/{name}` | `rm`, `down`, `up` (sites dropped from the file) |
 
 ## A request, end to end
@@ -76,6 +78,47 @@ Two cases get a page from Dotlane instead of a browser error:
 
 The pages show the TLS server name, which the permission module has checked, never the `Host`
 header, so a client cannot inject markup into them.
+
+## PHP sites
+
+A PHP site (`root` and `php` in `dotlane.toml`, or `dotlane add --php`) is served by a PHP
+runtime that Dotlane finds, starts and supervises, behind the same Caddy:
+
+```text
+https://shop.dotlane ──▶ Caddy :443 ─┬─ PHP-FPM ──▶ <state>/php/fpm-8.4.sock          (php-fpm, one per PHP version)
+                                     └─ FrankenPHP ──▶ <state>/php/frankenphp-shop.sock  (frankenphp, one per site)
+```
+
+- **Finding PHP.** `internal/php` looks for `php-fpm` in Homebrew's `opt/php*` folders, mise's
+  and asdf's installs, `/usr/sbin/php-fpm*` (Debian names it `php-fpm8.3`) and the `PATH`, and
+  for `frankenphp` in Dotlane's state folder, Homebrew's `bin` and the `PATH`. It runs each one
+  once (`php-fpm -v`, `frankenphp version`) for its versions, and remembers the answer until the
+  file changes. The login service starts with a short `PATH`, hence the fixed folders.
+- **PHP-FPM.** One master per PHP version, run as `php-fpm --nodaemonize --fpm-config
+  <state>/php/fpm-8.4.conf`: a pool listening on a socket of mode 0600, starting workers only
+  while requests come in (`pm = ondemand`). The install's own `php.ini` and extensions apply.
+  Caddy talks FastCGI to it through a small handler of Dotlane's (`internal/proxy/fastcgi.go`)
+  that does what Caddy's `php_fastcgi` and `file_server` would: a file is sent as it is, a
+  `.php` file runs, a folder with an `index.php` gets its trailing slash, and anything else runs
+  `index.php`. Caddy's own FastCGI module is not compiled in: it brings Caddy's file server and,
+  with it, template, Markdown and syntax-highlighting libraries, 5 MB more in the binary.
+- **FrankenPHP.** One process per site, run as `frankenphp run --config
+  <state>/php/frankenphp-<site>.Caddyfile`: plain HTTP on a Unix socket, no admin endpoint, no
+  TLS of its own, `php_server` for the folder, and `worker` in worker mode. One process per site
+  because a worker script that fails at start stops the whole process. Dotlane's Caddy reverse
+  proxies to it. `dotlane frankenphp install` downloads the release this Dotlane pins and checks
+  it against the SHA-256 compiled into Dotlane before keeping it.
+- **Supervision.** The daemon starts the runtimes the sites need when it starts and after each
+  change, and waits up to 5 s for a new one to listen, so the first page load works. It stops a
+  runtime no site uses any more, restarts one whose configuration changed, and starts one that
+  exits again after 1 s, then 2, 4… up to 30 s. Each runtime's output goes to
+  `<state>/php/<runtime>.log`. Stopping the daemon stops them all.
+- **What PHP sees.** `HTTPS=on`, the HTTPS port as `SERVER_PORT`, the original `REQUEST_URI`
+  and `Host`, so apps build `https://` URLs. Hidden files (`.env`, `.git`) are never served.
+- **When it fails.** `add` and `up` refuse a PHP site whose folder, worker script or PHP version
+  is missing. A registered site whose PHP went away later gets a page saying so, with the fix
+  (503); one whose runtime is not answering gets a page naming it and its log (502). `doctor`
+  lists each runtime in use and each PHP site that cannot be served.
 
 ## Listening on 443 and 80
 
@@ -202,6 +245,8 @@ The dev instance in this repo (`dev/config.toml`) uses `.dldev`, ports 10054, 94
 | Binary | wherever it was built; the login service runs a copy in `~/Library/Application Support/dotlane/bin/`, since macOS holds back background jobs started from Documents, Desktop or Downloads |
 | Config | `~/.config/dotlane/config.toml` (optional) |
 | Sites | `~/Library/Application Support/dotlane/sites.json` |
+| PHP runtimes | `~/Library/Application Support/dotlane/php/`: each runtime's configuration, socket and log |
+| FrankenPHP (`dotlane frankenphp install`) | `~/Library/Application Support/dotlane/frankenphp/<version>/` |
 | CA, certificates | `~/Library/Application Support/dotlane/caddy/` (keys mode 0600) |
 | Control socket | `~/Library/Application Support/dotlane/dotlane.sock` (mode 0600) |
 | Login service | `~/Library/LaunchAgents/dev.dotlane.plist` |
@@ -218,6 +263,8 @@ The dev instance in this repo (`dev/config.toml`) uses `.dldev`, ports 10054, 94
 | `doctor [--fix] [--json]` | Checks everything, names what is in the way, repairs what install can |
 | `migrate` | From the Bash prototype to Dotlane, keeping sites and the trusted CA |
 | `add <name> <port>` | Serve `https://<name>.<tld>` from `localhost:<port>` |
+| `add <name> --php <folder>` | Serve a folder of PHP files, with PHP-FPM or FrankenPHP |
+| `frankenphp install` | Download the FrankenPHP release this Dotlane pins, checked against its SHA-256 |
 | `rm <name>` | Remove a site |
 | `ls [--json]` | List sites, with the project that owns each |
 | `up` / `down` | Serve / remove the sites in the project's `dotlane.toml` |
@@ -234,4 +281,3 @@ Output is coloured on a terminal only. `NO_COLOR=1` turns colour off and always 
   [`setup-windows.md`](setup-windows.md) and [`compatibility.md`](compatibility.md).
 - This Mac only: phones and other machines cannot resolve the ending, and are dropped if they
   connect.
-- No PHP without a server on a port (planned: [roadmap](roadmap.md#next)).

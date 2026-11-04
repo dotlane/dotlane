@@ -9,8 +9,9 @@ Every command also has `dotlane <command> --help`. How the pieces work is in
 | Command | What it does |
 | --- | --- |
 | `dotlane add <name> <port>` | Serves `https://<name>.<tld>` from `localhost:<port>` and waits until its certificate is served (at most ~5 s), so the printed URL works on the first click. Running it again with a new port updates the site. A name a project owns is refused. |
+| `dotlane add <name> --php <folder>` | Serves a folder of PHP files (see [PHP sites](#php-sites)). `--php-version 8.4` picks the PHP version (default `latest`, the newest installed), `--frankenphp` runs it with FrankenPHP instead of PHP-FPM, and `--worker <script>` keeps a script running in FrankenPHP's worker mode. |
 | `dotlane rm <name>` | Removes a site, whoever registered it. |
-| `dotlane ls [--json]` | Lists sites: name, URL per ending, the port it forwards to, and the project that owns it. `--json` prints the daemon's data for scripts. |
+| `dotlane ls [--json]` | Lists sites: name, URL per ending, the port it forwards to (or a PHP site's folder and PHP), and the project that owns it. `--json` prints the daemon's data for scripts. |
 | `dotlane up` | Serves the sites in the nearest `dotlane.toml` (this directory or a parent) and removes the project's sites the file no longer lists. |
 | `dotlane down` | Removes every site this project registered. |
 
@@ -30,8 +31,51 @@ port = 5173
 port = 8000
 ```
 
+A PHP site has `root` and `php` instead of a port:
+
+```toml
+# https://shop.dotlane → the PHP files in public/, with PHP 8.4 through PHP-FPM
+[sites.shop]
+root = "public"        # relative to the project; the project's own folder when left out
+php = "8.4"            # major.minor, or "latest" for the newest installed
+
+# https://shop-octane.dotlane → FrankenPHP, keeping Laravel Octane's worker running
+[sites.shop-octane]
+root = "public"
+php = "latest"
+runtime = "frankenphp" # "fpm" is the default, except on Windows
+worker = "frankenphp-worker.php"   # relative to root; FrankenPHP only
+```
+
 Each site records the project directory that registered it. `up` refuses a name another project
 already uses and changes nothing; it takes over a site added by hand with `dotlane add`.
+
+## PHP sites
+
+Most PHP apps are a folder of files, so Dotlane runs PHP for them, with one of two runtimes:
+
+- **PHP-FPM** (the default) uses the PHP versions already installed, with their own `php.ini`
+  and extensions: Homebrew (`brew install php@8.4`), mise or asdf, and the system's packages
+  (`php8.4-fpm` on Debian and Ubuntu, `php-fpm` on Fedora and Arch). Each PHP version gets one
+  pool, shared by its sites, so sites can use different versions side by side. A site asking
+  for `8.4` gets the newest 8.4.x found.
+- **FrankenPHP** (`runtime = "frankenphp"`, or `dotlane add --frankenphp`) runs each site in
+  its own FrankenPHP process, with worker mode as an option (`worker`). Each FrankenPHP build
+  brings one PHP version and a fixed set of extensions, so `php` must match it or be
+  `"latest"`. It is the only runtime on Windows, which has no PHP-FPM.
+
+| Command | What it does |
+| --- | --- |
+| `dotlane frankenphp install` | Downloads the FrankenPHP release this Dotlane pins (190 MB on macOS) from its GitHub release into Dotlane's state folder, and keeps it only if its SHA-256 matches. A `frankenphp` already on the `PATH` is used too; the newest found wins. There is no build for Intel Macs. |
+
+Dotlane starts a runtime when the first site needs it, stops it when the last one goes, and
+starts it again, waiting longer each time (up to 30 s), when it exits. `add` and `up` refuse a
+PHP site whose folder, worker script or PHP version is missing, and list the versions found with
+the command that installs the one asked for. Requests go as Caddy's `php_fastcgi` would send
+them: a file is served as it is, a `.php` file runs, a folder with an `index.php` gets its
+trailing slash, and anything else goes to `index.php` (Laravel's and Symfony's front
+controller). Hidden files such as `.env` and `.git` are never served. PHP sees `HTTPS=on` and the
+HTTPS port, so apps build `https://` URLs.
 
 ## Domain endings
 
@@ -57,7 +101,7 @@ commands only save the file; `dotlane install` routes it.
 | `dotlane install --tld <ending>` | Makes the ending the primary first, like `dotlane tld use`, then installs. Endings that need `--force` go through `dotlane tld use` instead. |
 | `dotlane install --refresh` | Only updates an installed service to this binary (its copy, the plist) and restarts it if it runs an older build or config. Never asks for a password; when Dotlane is not installed it says so and exits 0. What package managers run after an upgrade. |
 | `dotlane uninstall [--purge]` | Reverses install. `--purge` also deletes the sites, the CA's keys and the log. |
-| `dotlane doctor [--fix \| --json]` | Checks the config, the service, the daemon, ports 80/443 and the DNS port, private files, the CA's trust, each resolver file and a real lookup, endings that need `--force` or would be refused, and routes left for endings no longer configured. Names other tools in the way, with their fix. `--fix` runs install for what it repairs; `--json` prints the checks. |
+| `dotlane doctor [--fix \| --json]` | Checks the config, the service, the daemon, ports 80/443 and the DNS port, private files, the CA's trust, each resolver file and a real lookup, endings that need `--force` or would be refused, routes left for endings no longer configured, and each PHP runtime in use and PHP site that cannot be served. Names other tools in the way, with their fix. `--fix` runs install for what it repairs; `--json` prints the checks. |
 | `dotlane migrate` | Moves a Bash prototype install to Dotlane, keeping its sites and trusted CA (see [`setup.md`](setup.md#moving-from-the-prototype)). |
 | `dotlane serve` | Runs the service in the foreground; the login service runs this. |
 | `dotlane version` | Prints the version (also `--version`). |
@@ -91,6 +135,8 @@ ports stay on loopback.
 
 - A name under the ending with no site gets a "No site at …" page (404) with the command to add one.
 - A site whose dev server is not answering gets a page naming the port (502).
+- A PHP site whose runtime is not answering gets a page naming it and its log (502); one that
+  cannot be served (its PHP version or folder is gone) gets a page saying why, with the fix (503).
 - `http://` redirects (308) to the same URL on HTTPS.
 
 ## Output and exit codes
