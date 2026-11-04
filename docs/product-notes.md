@@ -25,8 +25,9 @@ mise task, container). Dotlane's own implementation language is invisible to use
 install one binary, and npm is only a distribution channel.
 
 PHP is the exception: a typical PHP app is a folder, not a server, so Dotlane must run PHP itself
-(PHP-FPM through Caddy's `php_fastcgi`, per-site versions). Planned for Phase 3; until then, PHP works
-through its built-in server or any PHP server on a port.
+(PHP-FPM with per-site versions, or FrankenPHP). Built after Phase 2
+([`how-it-works.md`](how-it-works.md#php-sites)); before that, PHP worked through its built-in
+server or any PHP server on a port.
 
 ## The problem
 
