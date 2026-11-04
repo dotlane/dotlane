@@ -19,7 +19,9 @@ import (
 
 	"github.com/dotlane/dotlane/internal/api"
 	"github.com/dotlane/dotlane/internal/config"
+	"github.com/dotlane/dotlane/internal/php"
 	"github.com/dotlane/dotlane/internal/proxy"
+	"github.com/dotlane/dotlane/internal/sites"
 )
 
 func freePort(t *testing.T) int {
@@ -98,7 +100,7 @@ func TestDaemon(t *testing.T) {
 		t.Errorf("second daemon: %v, want 'already running'", err)
 	}
 
-	site, err := client.AddSite(ctx, "demo", upstreamPort, "")
+	site, err := client.AddSite(ctx, sites.Site{Name: "demo", Port: upstreamPort})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +108,7 @@ func TestDaemon(t *testing.T) {
 	if !site.Ready || len(site.URLs) != 1 || site.URLs[0] != wantURL {
 		t.Errorf("added = %+v, want ready at %s", site, wantURL)
 	}
-	if _, err := client.AddSite(ctx, "Bad", 1, ""); err == nil || !strings.Contains(err.Error(), "lowercase") {
+	if _, err := client.AddSite(ctx, sites.Site{Name: "Bad", Port: 1}); err == nil || !strings.Contains(err.Error(), "lowercase") {
 		t.Errorf("invalid name: %v", err)
 	}
 
@@ -153,7 +155,7 @@ func TestDaemon(t *testing.T) {
 
 	// A site whose dev server is down gets a page naming the port.
 	downPort := freePort(t)
-	if _, err := client.AddSite(ctx, "down", downPort, ""); err != nil {
+	if _, err := client.AddSite(ctx, sites.Site{Name: "down", Port: downPort}); err != nil {
 		t.Fatal(err)
 	}
 	resp, err = browser.Get("https://down.dotlane:" + strconv.Itoa(cfg.HTTPSPort) + "/")
@@ -168,6 +170,8 @@ func TestDaemon(t *testing.T) {
 	if err := client.RemoveSite(ctx, "down"); err != nil {
 		t.Fatal(err)
 	}
+
+	testPHP(t, ctx, client, browser, cfg)
 
 	// Plain HTTP redirects to the HTTPS port actually in use.
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -188,16 +192,16 @@ func TestDaemon(t *testing.T) {
 	}
 
 	// dotlane up adopts the site added by hand; then the name is that project's.
-	if site, err := client.AddSite(ctx, "demo", upstreamPort, "/p/a"); err != nil || site.Project != "/p/a" {
+	if site, err := client.AddSite(ctx, sites.Site{Name: "demo", Port: upstreamPort, Project: "/p/a"}); err != nil || site.Project != "/p/a" {
 		t.Fatalf("adopt: %+v, %v", site, err)
 	}
-	if _, err := client.AddSite(ctx, "demo", upstreamPort, "/p/b"); err == nil || !strings.Contains(err.Error(), "already used by the project in /p/a") {
+	if _, err := client.AddSite(ctx, sites.Site{Name: "demo", Port: upstreamPort, Project: "/p/b"}); err == nil || !strings.Contains(err.Error(), "already used by the project in /p/a") {
 		t.Errorf("another project: %v", err)
 	}
-	if _, err := client.AddSite(ctx, "demo", 1, ""); err == nil || !strings.Contains(err.Error(), "already used") {
+	if _, err := client.AddSite(ctx, sites.Site{Name: "demo", Port: 1}); err == nil || !strings.Contains(err.Error(), "already used") {
 		t.Errorf("add over a project's site: %v", err)
 	}
-	if site, err := client.AddSite(ctx, "demo", upstreamPort, "/p/a"); err != nil || !site.Ready {
+	if site, err := client.AddSite(ctx, sites.Site{Name: "demo", Port: upstreamPort, Project: "/p/a"}); err != nil || !site.Ready {
 		t.Errorf("unchanged re-add: %+v, %v", site, err)
 	}
 
@@ -222,6 +226,55 @@ func TestDaemon(t *testing.T) {
 		if resp.StatusCode != 404 {
 			t.Errorf("removed site: %d, want the no-site page", resp.StatusCode)
 		}
+	}
+}
+
+// testPHP serves a PHP site with the PHP-FPM installed on this machine, if any: a page that PHP
+// runs, a file sent as it is, and the refusals for a missing folder and PHP version.
+func testPHP(t *testing.T, ctx context.Context, client *api.Client, browser *http.Client, cfg *config.Config) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "index.php"), []byte(`<?php echo "php ", PHP_MAJOR_VERSION, " ", $_SERVER["REQUEST_URI"], " https=", $_SERVER["HTTPS"];`), 0o644)
+	os.WriteFile(filepath.Join(root, "app.css"), []byte("body{}"), 0o644)
+
+	if _, err := client.AddSite(ctx, sites.Site{Name: "nophp", PHP: sites.PHP{Root: filepath.Join(root, "none"), Version: "latest"}}); err == nil || !strings.Contains(err.Error(), "no folder at") {
+		t.Errorf("missing folder: %v", err)
+	}
+	if _, err := client.AddSite(ctx, sites.Site{Name: "nophp", PHP: sites.PHP{Root: root, Version: "5.2", Runtime: sites.RuntimeFPM}}); err == nil || !strings.Contains(err.Error(), "not installed") {
+		t.Errorf("missing PHP: %v", err)
+	}
+
+	if _, err := php.Choose(php.Find(ctx, cfg.StateDir), sites.PHP{Version: sites.LatestPHP, Runtime: sites.RuntimeFPM}); err != nil {
+		t.Logf("no PHP-FPM here, so no PHP site served: %v", err)
+		return
+	}
+	site, err := client.AddSite(ctx, sites.Site{Name: "shop", PHP: sites.PHP{Root: root, Version: sites.LatestPHP, Runtime: sites.RuntimeFPM}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if site.PHP == nil || site.PHP.PHPVersion == "" || site.PHP.Problem != "" || !site.Ready {
+		t.Errorf("PHP site: %+v %+v", site, site.PHP)
+	}
+	base := "https://shop.dotlane:" + strconv.Itoa(cfg.HTTPSPort)
+	for path, want := range map[string]string{"/users/1?x=2": " /users/1?x=2 https=on", "/app.css": "body{}"} {
+		resp, err := browser.Get(base + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 || !strings.HasSuffix(string(body), want) {
+			t.Errorf("GET %s = %d %q, want …%q", path, resp.StatusCode, body, want)
+		}
+	}
+	st, err := client.Status(ctx)
+	if err != nil || len(st.PHP) != 1 || !st.PHP[0].Running || st.PHP[0].Sites[0] != "shop" {
+		t.Errorf("status: %+v, %v", st.PHP, err)
+	}
+	if err := client.RemoveSite(ctx, "shop"); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := client.Status(ctx); len(st.PHP) != 0 {
+		t.Errorf("PHP-FPM still running without PHP sites: %+v", st.PHP)
 	}
 }
 

@@ -196,42 +196,76 @@ func newRoot() *cobra.Command {
 	root.PersistentFlags().StringVar(&configPath, "config", "",
 		"config file (default $DOTLANE_CONFIG or ~/.config/dotlane/config.toml)")
 
-	root.AddCommand(&cobra.Command{
-		Use:   "add <name> <port>",
-		Short: "Serve https://<name>.<tld> from localhost:<port>",
+	var phpRoot, phpVersion, phpWorker string
+	var frankenPHP bool
+	add := &cobra.Command{
+		Use:   "add <name> <port> | add <name> --php <folder>",
+		Short: "Serve https://<name>.<tld> from localhost:<port>, or a folder of PHP files",
 		Long: "Serves https://<name>.<tld> from localhost:<port>, and waits until its certificate is\n" +
 			"served, so the printed URL works on the first click. Running it again with a new port\n" +
-			"updates the site. A name a project's dotlane.toml uses is refused.",
+			"updates the site. A name a project's dotlane.toml uses is refused.\n\n" +
+			"--php serves a folder of PHP files instead, such as a Laravel app's public/, with the\n" +
+			"PHP versions already installed (Homebrew, mise, your package manager): Dotlane runs\n" +
+			"PHP-FPM for it, one pool per PHP version. --frankenphp runs it with FrankenPHP instead\n" +
+			"(dotlane frankenphp install gets it), and --worker keeps a script running in worker mode.",
 		Example: `  dotlane add myapp 5173
-  dotlane add api 8000`,
-		Args: exactArgs(2),
+  dotlane add api 8000
+  dotlane add shop --php ~/code/shop/public --php-version 8.4
+  dotlane add shop --php ~/code/shop/public --frankenphp --worker frankenphp-worker.php`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if phpRoot != "" {
+				if len(args) != 1 {
+					return errors.New("usage: dotlane add <name> --php <folder>: a PHP site has no port")
+				}
+				return nil
+			}
+			if cmd.Flags().Changed("php-version") || frankenPHP || phpWorker != "" {
+				return errors.New("usage: --php-version, --frankenphp and --worker need --php <folder>")
+			}
+			return exactArgs(2)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			port, err := strconv.Atoi(args[1])
-			if err != nil {
-				return fmt.Errorf("not a port: %s", args[1])
+			site := sites.Site{Name: args[0]}
+			if phpRoot != "" {
+				root, err := filepath.Abs(phpRoot)
+				if err != nil {
+					return err
+				}
+				site.PHP = sites.PHP{Root: root, Version: phpVersion, Worker: phpWorker}
+				if frankenPHP {
+					site.PHP.Runtime = sites.RuntimeFrankenPHP
+				}
+			} else {
+				port, err := strconv.Atoi(args[1])
+				if err != nil {
+					return fmt.Errorf("not a port: %s", args[1])
+				}
+				site.Port = port
 			}
 			// Checked here too, so the reason shows even when the daemon is not running.
-			if err := (sites.Site{Name: args[0], Port: port}).Validate(); err != nil {
+			if err := site.Validate(); err != nil {
 				return err
 			}
 			c, err := client(cmd)
 			if err != nil {
 				return err
 			}
-			site, err := c.AddSite(cmd.Context(), args[0], port, "")
+			if err := servesPHP(cmd, c, []sites.Site{site}); err != nil {
+				return err
+			}
+			added, err := c.AddSite(cmd.Context(), site)
 			if err != nil {
 				return explain(err)
 			}
-			out := ui.New(cmd.OutOrStdout())
-			for _, u := range site.URLs {
-				out.SiteOK(u, site.Port)
-			}
-			if !site.Ready {
-				out.Warn("Not answering yet", "the certificate is still being issued; give it a few seconds")
-			}
+			printSite(ui.New(cmd.OutOrStdout()), added)
 			return nil
 		},
-	})
+	}
+	add.Flags().StringVar(&phpRoot, "php", "", "serve this folder of PHP files instead of a port")
+	add.Flags().StringVar(&phpVersion, "php-version", sites.LatestPHP, "PHP version for --php: major.minor, such as 8.4, or latest")
+	add.Flags().BoolVar(&frankenPHP, "frankenphp", false, "run --php with FrankenPHP instead of PHP-FPM")
+	add.Flags().StringVar(&phpWorker, "worker", "", "with --frankenphp: a script, relative to the folder, to keep running in worker mode")
+	root.AddCommand(add)
 
 	root.AddCommand(&cobra.Command{
 		Use:     "rm <name>",
@@ -257,7 +291,8 @@ func newRoot() *cobra.Command {
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List sites",
-		Long:    "Lists the sites, their URLs, the port each forwards to, and the project that owns it.",
+		Long: "Lists the sites, their URLs, the port each forwards to (or, for a PHP site, its folder\n" +
+			"and PHP), and the project that owns it.",
 		Example: `  dotlane ls
   dotlane ls --json`,
 		Args: cobra.NoArgs,
@@ -287,7 +322,7 @@ func newRoot() *cobra.Command {
 					if i > 0 { // further domain endings of the same site
 						name = ""
 					}
-					rows = append(rows, ui.SiteRow{Name: name, URL: u, Port: s.Port, Project: s.Project})
+					rows = append(rows, ui.SiteRow{Name: name, URL: u, Target: target(out, s), Project: s.Project})
 				}
 			}
 			out.SiteTable(rows)
@@ -333,13 +368,17 @@ func newRoot() *cobra.Command {
 			"removes this project's sites the file no longer lists. Names another project uses are\n" +
 			"reported and nothing changes. A site added by hand with the same name is taken over.\n\n" +
 			"dotlane.toml, committed in the project's root:\n\n" +
-			"  [sites.myapp]\n  port = 5173",
+			"  [sites.myapp]\n  port = 5173\n\n" +
+			"  [sites.shop]          # PHP files, served with PHP-FPM\n  root = \"public\"\n  php = \"8.4\"         # or \"latest\"; runtime = \"frankenphp\" for FrankenPHP",
 		Example: `  cd ~/code/myapp
   dotlane up`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, c, registered, err := loadProject(cmd)
 			if err != nil {
+				return err
+			}
+			if err := servesPHP(cmd, c, p.Sites); err != nil {
 				return err
 			}
 			out := ui.New(cmd.OutOrStdout())
@@ -353,16 +392,11 @@ func newRoot() *cobra.Command {
 			}
 			out.Title("Dotlane up", out.Path(p.Dir))
 			for _, s := range p.Sites {
-				site, err := c.AddSite(cmd.Context(), s.Name, s.Port, s.Project)
+				site, err := c.AddSite(cmd.Context(), s)
 				if err != nil {
-					return explain(err)
+					return explain(fmt.Errorf("%s: %w", s.Name, err))
 				}
-				for _, u := range site.URLs {
-					out.SiteOK(u, site.Port)
-				}
-				if !site.Ready {
-					out.Warn("Not answering yet", "the certificate is still being issued; give it a few seconds")
-				}
+				printSite(out, site)
 			}
 			for _, name := range stale {
 				if err := c.RemoveSite(cmd.Context(), name); err != nil {
@@ -430,8 +464,11 @@ func newRoot() *cobra.Command {
 			return append(checks, install.Check{Name: "Domain endings", Status: install.Warning,
 				Detail: "could not list the routes: " + err.Error()})
 		}
-		return append(checks, install.EndingChecks(cfg, routed)...)
+		checks = append(checks, install.EndingChecks(cfg, routed)...)
+		return append(checks, phpChecks(ctx, cfg)...)
 	}
+
+	root.AddCommand(newFrankenPHPCommand(loadConfig))
 
 	root.AddCommand(newTLDCommand(tldEnv{
 		loadConfig: loadConfig,
@@ -597,6 +634,65 @@ func newRoot() *cobra.Command {
 	})
 
 	return root
+}
+
+// printSite reports a site that was just added or updated.
+func printSite(out *ui.Printer, site api.Site) {
+	for _, u := range site.URLs {
+		out.SiteOK(u, target(out, site))
+	}
+	if !site.Ready {
+		out.Warn("Not answering yet", "the certificate is still being issued; give it a few seconds")
+	}
+}
+
+// target is what serves a site: localhost:<port>, or a PHP site's folder and PHP.
+func target(out *ui.Printer, s api.Site) string {
+	if s.PHP == nil {
+		return fmt.Sprintf("localhost:%d", s.Port)
+	}
+	return out.Path(s.PHP.Root) + " · " + phpLabel(s.PHP)
+}
+
+// phpLabel names what runs a PHP site: "PHP-FPM 8.4", "FrankenPHP, PHP 8.5, worker", or what
+// is missing.
+func phpLabel(p *api.PHPSite) string {
+	if p.Problem != "" {
+		if p.Runtime == sites.RuntimeFrankenPHP {
+			return "FrankenPHP: not available"
+		}
+		return "PHP " + p.Version + ": not available"
+	}
+	minor := p.PHPVersion
+	if parts := strings.SplitN(minor, ".", 3); len(parts) == 3 {
+		minor = parts[0] + "." + parts[1]
+	}
+	if p.Runtime != sites.RuntimeFrankenPHP {
+		return "PHP-FPM " + minor
+	}
+	label := "FrankenPHP, PHP " + minor
+	if p.Worker != "" {
+		label += ", worker"
+	}
+	return label
+}
+
+// servesPHP checks that the daemon serves PHP sites before adding any: one from before them
+// would take a PHP site for a site with no port.
+func servesPHP(cmd *cobra.Command, c *api.Client, list []sites.Site) error {
+	if !slices.ContainsFunc(list, sites.Site.IsPHP) {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(cmd.Context(), 2*time.Second)
+	defer cancel()
+	st, err := c.Status(ctx)
+	if err != nil {
+		return explain(err)
+	}
+	if !slices.Contains(st.Features, api.FeaturePHP) {
+		return fmt.Errorf("the Dotlane service runs %s, which has no PHP sites\nupdate it: dotlane install --refresh", st.Version)
+	}
+	return nil
 }
 
 func explain(err error) error {
