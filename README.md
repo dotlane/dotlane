@@ -163,7 +163,7 @@ The same flow as text:
 | [`docs/compatibility.md`](docs/compatibility.md) | Where each OS stands, item by item |
 | [`docs/cli.md`](docs/cli.md) | Command reference: every command, `dotlane.toml`, `config.toml`, output and exit codes |
 | [`docs/prototype/`](docs/prototype/) | The Bash prototype's architecture, setup and command reference, kept for reference |
-| [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, origins, cookies, live reload), with a Vite + FastAPI app as the example |
+| [`docs/app-integration.md`](docs/app-integration.md) | What an app needs (allowed hosts, proxy headers, origins, cookies, live reload), with setup for Vite, Next.js, Django, FastAPI, Rails, Laravel, ASP.NET Core and Spring Boot |
 | [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, where the CA key lives, and what is in scope |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Issues, working on the code, what a pull request needs |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version; every version gets a section before it is tagged |
