@@ -3,6 +3,10 @@
 //
 //	[sites.myapp]
 //	port = 5173
+//
+//	[sites.shop]
+//	root = "public"
+//	php = "8.4"
 package project
 
 import (
@@ -36,6 +40,12 @@ type Project struct {
 type file struct {
 	Sites map[string]struct {
 		Port int `toml:"port"`
+		// A PHP site: the folder it serves, relative to the project, and the PHP version.
+		Root string `toml:"root"`
+		// A string, but read as anything so php = 8.4, a number, gets its own message.
+		PHP     any    `toml:"php"`
+		Runtime string `toml:"runtime"`
+		Worker  string `toml:"worker"`
 	} `toml:"sites"`
 }
 
@@ -73,7 +83,7 @@ func Load(path string) (*Project, error) {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	if len(f.Sites) == 0 {
-		return nil, fmt.Errorf("%s lists no sites; add one:\n[sites.<name>]\nport = <port>", path)
+		return nil, fmt.Errorf("%s lists no sites; add one:\n[sites.<name>]\nport = <port>\n\nor, for PHP files:\n[sites.<name>]\nroot = \"public\"\nphp = \"%s\"", path, sites.LatestPHP)
 	}
 
 	// The real path, so a project reached through a symlink is still the same project.
@@ -84,6 +94,22 @@ func Load(path string) (*Project, error) {
 	p := &Project{Dir: dir, Path: filepath.Join(dir, FileName)}
 	for name, s := range f.Sites {
 		site := sites.Site{Name: name, Port: s.Port, Project: dir}
+		version, ok := s.PHP.(string)
+		if s.PHP != nil && !ok {
+			return nil, fmt.Errorf("%s: [sites.%s]: php is a string: php = \"%v\"", path, name, s.PHP)
+		}
+		switch {
+		case filepath.IsAbs(s.Root):
+			return nil, fmt.Errorf("%s: [sites.%s]: root must be relative to the project: %s", path, name, s.Root)
+		case s.PHP != nil:
+			// No root means the project's own folder.
+			site.PHP = sites.PHP{Root: filepath.Join(dir, s.Root), Version: version, Runtime: s.Runtime, Worker: s.Worker}
+		case s.Root != "":
+			return nil, fmt.Errorf("%s: [sites.%s]: root needs php: the PHP version, such as php = \"8.4\", or php = \"%s\"",
+				path, name, sites.LatestPHP)
+		case s.Runtime != "" || s.Worker != "":
+			return nil, fmt.Errorf("%s: [sites.%s]: runtime and worker are for PHP sites, which need php = \"<version>\"", path, name)
+		}
 		if err := site.Validate(); err != nil {
 			return nil, fmt.Errorf("%s: [sites.%s]: %w", path, name, err)
 		}

@@ -82,6 +82,41 @@ port = 8000   # FastAPI
 	}
 }
 
+func TestLoadPHP(t *testing.T) {
+	dir := realTempDir(t)
+	p, err := Load(write(t, dir, `[sites.shop]
+root = "public"
+php = "8.4"
+
+[sites.blog]
+php = "latest"   # the project's own folder
+runtime = "frankenphp"
+worker = "worker.php"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []sites.Site{
+		{Name: "blog", Project: dir, PHP: sites.PHP{Root: dir, Version: "latest", Runtime: "frankenphp", Worker: "worker.php"}},
+		{Name: "shop", Project: dir, PHP: sites.PHP{Root: filepath.Join(dir, "public"), Version: "8.4"}},
+	}
+	if !slices.Equal(p.Sites, want) {
+		t.Errorf("Load = %+v", p.Sites)
+	}
+	for _, tc := range []struct{ content, want string }{
+		{"[sites.shop]\nroot = \"public\"\n", "root needs php"},
+		{"[sites.shop]\nroot = \"/abs\"\nphp = \"8.4\"\n", "relative to the project"},
+		{"[sites.shop]\nport = 80\nphp = \"8.4\"\n", "not both"},
+		{"[sites.shop]\nport = 80\nruntime = \"fpm\"\n", "for PHP sites"},
+		{"[sites.shop]\nphp = \"8\"\n", "major.minor"},
+		{"[sites.shop]\nphp = 8.4\n", `php = "8.4"`},
+	} {
+		if _, err := Load(write(t, t.TempDir(), tc.content)); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%q: %v, want %q", tc.content, err, tc.want)
+		}
+	}
+}
+
 func TestUpAndDown(t *testing.T) {
 	p := &Project{Dir: "/p/a", Sites: []sites.Site{
 		{Name: "api", Port: 8000, Project: "/p/a"},
