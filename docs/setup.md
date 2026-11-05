@@ -76,12 +76,19 @@ dotlane add myapp 5173
 # ✓ https://myapp.dotlane → localhost:5173
 ```
 
-Or, in a project, list its sites in a `dotlane.toml` and commit it:
+Or, in a project, list its sites in a `dotlane.toml` and commit it. `dotlane init` writes a
+first one, with a site named after the folder:
+
+```bash
+dotlane init 5173   # or: dotlane init myapp 5173
+```
 
 ```toml
 [sites.myapp]
 port = 5173
 ```
+
+Add more `[sites.<name>]` sections by hand, then:
 
 ```bash
 dotlane up      # dotlane down removes them

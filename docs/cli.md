@@ -11,6 +11,7 @@ Every command also has `dotlane <command> --help`. How the pieces work is in
 | `dotlane add <name> <port>` | Serves `https://<name>.<tld>` from `localhost:<port>` and waits until its certificate is served (at most ~5 s), so the printed URL works on the first click. Running it again with a new port updates the site. A name a project owns is refused. |
 | `dotlane rm <name>` | Removes a site, whoever registered it. |
 | `dotlane ls [--json]` | Lists sites: name, URL per ending, the port it forwards to, and the project that owns it. `--json` prints the daemon's data for scripts. |
+| `dotlane init [<name>] <port> [--force]` | Creates `dotlane.toml` in this directory with one site served from `localhost:<port>`, named after the directory unless a name is given (`My App` → `my-app`). An existing file is kept unless `--force`. |
 | `dotlane up` | Serves the sites in the nearest `dotlane.toml` (this directory or a parent) and removes the project's sites the file no longer lists. |
 | `dotlane down` | Removes every site this project registered. |
 
@@ -19,7 +20,7 @@ characters. Ports: 1–65535.
 
 ### `dotlane.toml`
 
-Committed in the project's root. Unknown keys are rejected.
+Committed in the project's root; `dotlane init` writes a first one. Unknown keys are rejected.
 
 ```toml
 # https://myapp.dotlane → the Vite dev server

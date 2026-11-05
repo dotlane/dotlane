@@ -39,6 +39,60 @@ type file struct {
 	} `toml:"sites"`
 }
 
+// ErrExists means Init found a dotlane.toml already there.
+var ErrExists = errors.New(FileName + " already exists")
+
+// NameFor turns a directory's name into a site name: lowercase, with every run of other
+// characters as one dash ("My App_v2" → "my-app-v2"). It returns "" when nothing is left.
+func NameFor(dir string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(filepath.Base(dir)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			if dash && b.Len() > 0 {
+				b.WriteByte('-')
+			}
+			b.WriteRune(r)
+			dash = false
+		} else {
+			dash = true
+		}
+	}
+	name := b.String()
+	if len(name) > 63 {
+		name = strings.TrimRight(name[:63], "-")
+	}
+	return name
+}
+
+// Init writes a dotlane.toml in dir declaring one site, and returns its path. An existing file
+// is left alone (ErrExists) unless overwrite is set.
+func Init(dir, name string, port int, overwrite bool) (string, error) {
+	if err := (sites.Site{Name: name, Port: port}).Validate(); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, FileName)
+	content := fmt.Sprintf("# Dotlane: dotlane up serves these sites, dotlane down removes them.\n"+
+		"# https://%s.<tld> -> localhost:%d\n"+
+		"[sites.%s]\nport = %d\n", name, port, name, port)
+	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
+	if overwrite {
+		flags = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	}
+	f, err := os.OpenFile(path, flags, 0o644)
+	if errors.Is(err, os.ErrExist) {
+		return "", fmt.Errorf("%w: %s", ErrExists, path)
+	}
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.WriteString(content); err != nil {
+		f.Close()
+		return "", err
+	}
+	return path, f.Close()
+}
+
 // Find returns the dotlane.toml in dir or its nearest parent that has one.
 func Find(dir string) (string, error) {
 	dir, err := filepath.Abs(dir)

@@ -106,3 +106,55 @@ func TestUpAndDown(t *testing.T) {
 		t.Errorf("Down = %v", got)
 	}
 }
+
+func TestNameFor(t *testing.T) {
+	for dir, want := range map[string]string{
+		"/code/myapp":                 "myapp",
+		"/code/My App_v2":             "my-app-v2",
+		"/code/--web--":               "web",
+		"/code/café":                  "caf",
+		"/code/___":                   "",
+		"/" + strings.Repeat("a", 70): strings.Repeat("a", 63),
+	} {
+		if got := NameFor(dir); got != want {
+			t.Errorf("NameFor(%q) = %q, want %q", dir, got, want)
+		}
+	}
+}
+
+func TestInit(t *testing.T) {
+	dir := realTempDir(t)
+	path, err := Init(dir, "myapp", 5173, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []sites.Site{{Name: "myapp", Port: 5173, Project: dir}}; !slices.Equal(p.Sites, want) {
+		t.Errorf("sites = %v, want %v", p.Sites, want)
+	}
+
+	if _, err := Init(dir, "other", 3000, false); !errors.Is(err, ErrExists) {
+		t.Errorf("second Init: %v, want ErrExists", err)
+	}
+	if p, _ := Load(path); p.Sites[0].Name != "myapp" {
+		t.Errorf("existing file changed: %v", p.Sites)
+	}
+	if _, err := Init(dir, "other", 3000, true); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := Load(path); p.Sites[0].Name != "other" || p.Sites[0].Port != 3000 {
+		t.Errorf("after overwrite: %v", p.Sites)
+	}
+
+	for _, bad := range []struct {
+		name string
+		port int
+	}{{"Bad_Name", 80}, {"ok", 0}} {
+		if _, err := Init(realTempDir(t), bad.name, bad.port, false); err == nil {
+			t.Errorf("Init(%q, %d) accepted", bad.name, bad.port)
+		}
+	}
+}

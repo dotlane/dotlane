@@ -15,8 +15,8 @@ Setup happens once per machine (`dotlane install`, two password prompts). After 
 needs no password and takes about a second:
 
 ```bash
-dotlane add myapp 5173      # by hand
-dotlane up                      # or every site in the project's dotlane.toml
+dotlane add myapp 5173          # by hand
+dotlane init 5173 && dotlane up # or every site in the project's dotlane.toml
 ```
 
 ## The pieces
@@ -137,7 +137,8 @@ carry a marker). Sites and the CA's keys are kept unless `--purge` is given.
 ## Sites and projects
 
 - `dotlane add <name> <port>`, `rm <name>` and `ls` manage sites by hand.
-- A project lists its sites in a committed `dotlane.toml`:
+- A project lists its sites in a committed `dotlane.toml`, which `dotlane init [<name>] <port>`
+  starts with one site:
 
   ```toml
   [sites.myapp]
@@ -220,6 +221,7 @@ The dev instance in this repo (`dev/config.toml`) uses `.dldev`, ports 10054, 94
 | `add <name> <port>` | Serve `https://<name>.<tld>` from `localhost:<port>` |
 | `rm <name>` | Remove a site |
 | `ls [--json]` | List sites, with the project that owns each |
+| `init [<name>] <port>` | Create the project's `dotlane.toml` with one site |
 | `up` / `down` | Serve / remove the sites in the project's `dotlane.toml` |
 | `serve` | Run the service in the foreground (what the login service runs) |
 | `version` | Print the version |

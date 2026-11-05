@@ -189,6 +189,7 @@ func newRoot() *cobra.Command {
   dotlane ls
 
   # or declare a project's sites in its dotlane.toml, and serve them all
+  dotlane init 5173
   dotlane up`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -305,7 +306,7 @@ func newRoot() *cobra.Command {
 		}
 		path, err := project.Find(cwd)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("%w\ncreate one in the project's root:\n[sites.<name>]\nport = <port>", err)
+			return nil, nil, nil, fmt.Errorf("%w\ncreate one in the project's root: dotlane init <port>", err)
 		}
 		p, err := project.Load(path)
 		if err != nil {
@@ -325,6 +326,55 @@ func newRoot() *cobra.Command {
 		}
 		return p, c, registered, nil
 	}
+
+	var overwrite bool
+	initCmd := &cobra.Command{
+		Use:   "init [<name>] <port>",
+		Short: "Create a dotlane.toml in this directory",
+		Long: "Creates dotlane.toml in the current directory, declaring one site served from\n" +
+			"localhost:<port>. Without a name, the site is named after the directory. Add more\n" +
+			"sites by editing the file, then run dotlane up. An existing file is kept unless --force.",
+		Example: `  cd ~/code/myapp
+  dotlane init 5173
+  dotlane init api 8000
+  dotlane up`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 || len(args) > 2 {
+				return fmt.Errorf("usage: dotlane %s", cmd.Use)
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			portArg := args[len(args)-1]
+			port, err := strconv.Atoi(portArg)
+			if err != nil {
+				return fmt.Errorf("not a port: %s", portArg)
+			}
+			name := project.NameFor(cwd)
+			if len(args) == 2 {
+				name = args[0]
+			} else if name == "" {
+				return fmt.Errorf("cannot make a site name from this directory's name; give one: dotlane init <name> %d", port)
+			}
+			path, err := project.Init(cwd, name, port, overwrite)
+			if errors.Is(err, project.ErrExists) {
+				return fmt.Errorf("%w\nedit it, or replace it: dotlane init --force", err)
+			}
+			if err != nil {
+				return err
+			}
+			out := ui.New(cmd.OutOrStdout())
+			out.Check(fmt.Sprintf("created %s: %s -> localhost:%d", out.Path(path), name, port))
+			out.Line("%s", out.Dim("serve it: dotlane up"))
+			return nil
+		},
+	}
+	initCmd.Flags().BoolVar(&overwrite, "force", false, "replace an existing "+project.FileName)
+	root.AddCommand(initCmd)
 
 	root.AddCommand(&cobra.Command{
 		Use:   "up",
