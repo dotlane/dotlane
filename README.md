@@ -34,6 +34,9 @@ dotlane install                       # once: login service, trusted CA, DNS for
 dotlane add myapp 5173                # https://myapp.dotlane -> localhost:5173
 ```
 
+In a project, `dotlane init 5173` writes a `dotlane.toml` to commit, and `dotlane up` serves
+every site it lists.
+
 `dotlane install` explains each step that needs administrator rights before running it. Or try
 it without installing anything, with `npx dotlane install`. Homebrew
 (`brew install dotlane/tap/dotlane`) is coming soon. Building from source, upgrading and
@@ -114,7 +117,7 @@ Output uses colour on a terminal only; `NO_COLOR=1` turns it off, `CLICOLOR_FORC
 
 | Package | Role |
 | --- | --- |
-| `cmd/dotlane` | CLI (`install`, `uninstall`, `doctor`, `migrate`, `add`, `rm`, `ls`, `up`, `down`, `serve`, `version`) |
+| `cmd/dotlane` | CLI (`install`, `uninstall`, `doctor`, `migrate`, `add`, `rm`, `ls`, `init`, `up`, `down`, `serve`, `version`) |
 | `internal/install` | Login service, CA trust and DNS routing per OS (launchd and `/etc/resolver`; systemd and systemd-resolved; Task Scheduler and NRPT); `doctor` checks and naming the tools in the way; `migrate` from the prototype |
 | `internal/fsperm` | Keeps the state folder private: file modes on macOS and Linux, an access control list on Windows |
 | `internal/ui` | Output on Lip Gloss: one line per step, markers, aligned labels, the `ls` table, colours adapted to light/dark terminals. Help and usage are styled by Fang |

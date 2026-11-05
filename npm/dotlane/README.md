@@ -8,8 +8,8 @@ npx dotlane install          # once: login service, trusted local CA, DNS for .d
 npx dotlane add myapp 5173   # https://myapp.dotlane → localhost:5173
 ```
 
-Or in a project, list its sites in a committed `dotlane.toml` and add Dotlane as a dev
-dependency:
+Or in a project, list its sites in a committed `dotlane.toml` (`npx dotlane init 5173` writes
+one) and add Dotlane as a dev dependency:
 
 ```toml
 [sites.myapp]
